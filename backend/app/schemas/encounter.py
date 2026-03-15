@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -27,6 +27,7 @@ class ExamOrderCreate(BaseModel):
     exam_name: str
     exam_category: str | None = None
     instructions: str | None = None
+    expected_date: date | None = None
 
 
 class EncounterCreate(BaseModel):
@@ -116,6 +117,7 @@ class ExamOrderRead(BaseModel):
     exam_name: str
     exam_category: str | None
     instructions: str | None
+    expected_date: date | None
     status: str
 
 

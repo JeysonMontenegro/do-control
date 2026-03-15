@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date as date_cls, datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class PatientMatchRequest(BaseModel):
@@ -40,6 +40,37 @@ class DoctorMatchResponse(BaseModel):
     candidate_matches: list[DoctorMatchCandidate] = []
 
 
+class DoctorVerificationRead(BaseModel):
+    id: int
+    full_name: str
+    specialty: str | None
+    license_number: str | None
+    is_active: bool
+    primary_phone: str | None
+
+
+class IntegrationPatientCreateRequest(BaseModel):
+    full_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    primary_phone: str
+
+    @model_validator(mode="after")
+    def validate_name_input(self) -> "IntegrationPatientCreateRequest":
+        if self.full_name:
+            return self
+        if self.first_name and self.last_name:
+            return self
+        raise ValueError("Provide either full_name or first_name plus last_name.")
+
+
+class IntegrationPatientCreateResponse(BaseModel):
+    id: int
+    medical_record_number: str
+    patient_name: str
+    primary_phone: str
+
+
 class ProposedAppointmentRequest(BaseModel):
     patient_name: str
     phone_number: str
@@ -66,6 +97,78 @@ class ProposedAppointmentResponse(BaseModel):
     appointment_id: int | None = None
     doctor_id: int | None = None
     message: str
+    existing_appointment_id: int | None = None
+
+
+class AppointmentActionResponse(BaseModel):
+    status: str
+    appointment_id: int
+
+
+class AppointmentCancelRequest(BaseModel):
+    doctor_id: int
+    patient_name: str
+    date: date_cls | None = None
+
+
+class AppointmentCancelResponse(BaseModel):
+    status: str
+    appointment_id: int | None = None
+    patient_name: str | None = None
+    scheduled_start: datetime | None = None
+
+
+class DoctorScheduleAppointmentRead(BaseModel):
+    appointment_id: int
+    patient_name: str
+    scheduled_start: datetime
+    scheduled_end: datetime
+    reason: str | None
+    status: str
+    confirmation_status: str
+
+
+class PendingAppointmentRead(BaseModel):
+    appointment_id: int
+    doctor_id: int
+    patient_id: int
+    scheduled_start: datetime
+    status: str
+
+
+class IntegrationDiagnosisCreate(BaseModel):
+    diagnosis_text: str
+    diagnosis_code: str | None = None
+    is_primary: bool = False
+    notes: str | None = None
+
+
+class IntegrationExamOrderCreate(BaseModel):
+    exam_name: str
+    exam_category: str | None = None
+    instructions: str | None = None
+    expected_date: date_cls | None = None
+
+
+class IntegrationEncounterCreateRequest(BaseModel):
+    patient_id: int
+    doctor_id: int
+    appointment_id: int | None = None
+    encounter_date: datetime
+    encounter_type: str
+    chief_complaint: str
+    clinical_impression: str | None = None
+    treatment_plan: str | None = None
+    follow_up_notes: str | None = None
+    diagnoses: list[IntegrationDiagnosisCreate] = []
+    exam_orders: list[IntegrationExamOrderCreate] = []
+
+
+class IntegrationEncounterCreateResponse(BaseModel):
+    status: str
+    encounter_id: int
+    patient_id: int
+    exams_ordered: list[str] = []
 
 
 class PendingCommunicationDispatchRead(BaseModel):
@@ -73,12 +176,13 @@ class PendingCommunicationDispatchRead(BaseModel):
     patient_id: int
     doctor_id: int | None
     appointment_id: int | None
+    exam_order_id: int | None
     reminder_rule_id: int | None
     template_id: int | None
     channel: str
     recipient_phone: str
     external_reference: str | None
-    rendered_message: str | None
+    rendered_message: str
     template_key: str | None
     template_title: str | None
     template_body: str | None
@@ -88,5 +192,6 @@ class PendingCommunicationDispatchRead(BaseModel):
 class CommunicationDispatchStatusUpdate(BaseModel):
     status: str
     external_reference: str | None = None
-    error_message: str | None = None
+    error_message: str | None = Field(default=None, exclude=True)
+    failure_reason: str | None = None
     rendered_message: str | None = None

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
+  CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationTemplate,
   Diagnosis,
@@ -526,6 +527,28 @@ export function ClinicalConsole() {
     }
   }
 
+  async function generateDispatchesNow() {
+    setMessage("");
+    try {
+      const result = await apiPost<CommunicationDispatchGeneration>("/api/communication-dispatches/generate", {});
+      await loadData();
+      setMessage(`Generated ${result.created_count} communication dispatches.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication dispatch generation failed.");
+    }
+  }
+
+  async function requeueDispatch(dispatchId: number) {
+    setMessage("");
+    try {
+      await apiPost<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}/requeue`, {});
+      await loadData();
+      setMessage(`Communication dispatch ${dispatchId} requeued.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication dispatch requeue failed.");
+    }
+  }
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -860,7 +883,14 @@ export function ClinicalConsole() {
       {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
         <section className="workspace-grid">
           <article className="card table-card span-three">
-            <h2>Communication dispatch log</h2>
+            <div className="subsection-header">
+              <h2>Communication dispatch log</h2>
+              {hasAnyRole(currentRoles, ["admin"]) ? (
+                <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
+                  Generate now
+                </button>
+              ) : null}
+            </div>
             <div className="table-list">
               {communicationDispatches.map((dispatch) => (
                 <div className="row" key={`communication-dispatch-${dispatch.id}`}>
@@ -871,9 +901,21 @@ export function ClinicalConsole() {
                     patient {dispatch.patient_id}
                     {dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
                     {dispatch.appointment_id ? ` · appointment ${dispatch.appointment_id}` : ""}
+                    {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
                   </span>
                   <span>{dispatch.recipient_phone}</span>
                   <span>{dispatch.external_reference ?? "no external reference"}</span>
+                  {hasAnyRole(currentRoles, ["admin"]) && dispatch.status === "failed" ? (
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => requeueDispatch(dispatch.id)}
+                      >
+                        Requeue
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {!communicationDispatches.length ? <p className="empty-state">No communication dispatches logged.</p> : null}

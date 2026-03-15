@@ -66,6 +66,7 @@ class EncounterService:
                 exam_name=item.exam_name,
                 exam_category=item.exam_category,
                 instructions=item.instructions,
+                expected_date=item.expected_date,
                 ordered_at=datetime.now(timezone.utc),
             )
             for item in payload.exam_orders

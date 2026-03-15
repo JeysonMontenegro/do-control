@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -85,6 +85,7 @@ class ExamOrder(Base):
     exam_name: Mapped[str] = mapped_column(String(255))
     exam_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_date: Mapped[date | None] = mapped_column(nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="ordered", server_default="ordered")
     ordered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

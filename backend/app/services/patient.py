@@ -41,6 +41,15 @@ class PatientService:
         self.db.refresh(created)
         return created
 
+    def split_full_name(self, full_name: str) -> tuple[str, str]:
+        normalized = " ".join(full_name.split())
+        if not normalized:
+            raise ConflictError("Patient name is required.")
+        parts = normalized.split(" ")
+        if len(parts) == 1:
+            return parts[0], "Unknown"
+        return " ".join(parts[:-1]), parts[-1]
+
     def list_patients(self, query: str | None = None) -> list[Patient]:
         return self.repository.list(query=query)
 

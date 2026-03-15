@@ -36,3 +36,25 @@ class CommunicationDispatchRepository:
                 .limit(limit)
             )
         )
+
+    def exists_for_appointment_rule(self, appointment_id: int, reminder_rule_id: int) -> bool:
+        statement = (
+            select(CommunicationDispatch.id)
+            .where(
+                CommunicationDispatch.appointment_id == appointment_id,
+                CommunicationDispatch.reminder_rule_id == reminder_rule_id,
+            )
+            .limit(1)
+        )
+        return self.db.scalar(statement) is not None
+
+    def exists_for_exam_rule(self, exam_order_id: int, reminder_rule_id: int) -> bool:
+        statement = (
+            select(CommunicationDispatch.id)
+            .where(
+                CommunicationDispatch.exam_order_id == exam_order_id,
+                CommunicationDispatch.reminder_rule_id == reminder_rule_id,
+            )
+            .limit(1)
+        )
+        return self.db.scalar(statement) is not None

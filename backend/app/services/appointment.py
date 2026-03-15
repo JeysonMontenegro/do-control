@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -56,6 +56,80 @@ class AppointmentService:
 
     def list_appointments(self) -> list[Appointment]:
         return self.repository.list()
+
+    def confirm_appointment(self, appointment_id: int, *, changed_by: str | None = None) -> Appointment:
+        appointment = self.repository.get(appointment_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+
+        previous_confirmation = appointment.confirmation_status
+        appointment.confirmation_status = "confirmed"
+        create_audit_log(
+            self.db,
+            action="confirm",
+            entity_type="appointment",
+            entity_id=str(appointment.id),
+            actor_id=changed_by,
+            before_data={"confirmation_status": previous_confirmation},
+            after_data={"confirmation_status": appointment.confirmation_status},
+        )
+        self.db.commit()
+        self.db.refresh(appointment)
+        return appointment
+
+    def list_schedule_for_doctor_date(self, doctor_id: int, target_date: date) -> list[Appointment]:
+        if self.doctor_repository.get(doctor_id) is None:
+            raise NotFoundError("Doctor not found.")
+        return self.repository.list_for_doctor_date(doctor_id, target_date)
+
+    def get_pending_for_patient(self, patient_id: int) -> Appointment:
+        if self.patient_repository.get(patient_id) is None:
+            raise NotFoundError("Patient not found.")
+        appointment = self.repository.get_pending_for_patient(patient_id)
+        if appointment is None:
+            raise NotFoundError("Pending appointment not found.")
+        return appointment
+
+    def cancel_for_doctor_patient_name(
+        self,
+        doctor_id: int,
+        patient_name: str,
+        *,
+        target_date: date | None,
+        changed_by: str | None = None,
+    ) -> Appointment:
+        if self.doctor_repository.get(doctor_id) is None:
+            raise NotFoundError("Doctor not found.")
+
+        appointment = self.repository.find_cancel_candidate(doctor_id, patient_name, target_date)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+
+        old_status = appointment.status
+        appointment.status = "cancelled"
+        appointment.confirmation_status = "cancelled"
+        self.repository.add_history(
+            AppointmentHistory(
+                appointment_id=appointment.id,
+                old_status=old_status,
+                new_status=appointment.status,
+                change_reason="cancelled from integration flow",
+                changed_by=changed_by,
+                created_at=datetime.now(timezone.utc),
+            ),
+        )
+        create_audit_log(
+            self.db,
+            action="cancel",
+            entity_type="appointment",
+            entity_id=str(appointment.id),
+            actor_id=changed_by,
+            before_data={"status": old_status},
+            after_data={"status": appointment.status},
+        )
+        self.db.commit()
+        self.db.refresh(appointment)
+        return appointment
 
     def update_status(self, appointment_id: int, payload: AppointmentStatusUpdate) -> Appointment:
         appointment = self.repository.get(appointment_id)

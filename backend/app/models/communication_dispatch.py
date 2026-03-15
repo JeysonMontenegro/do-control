@@ -12,6 +12,7 @@ class CommunicationDispatch(TimestampMixin, Base):
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
     appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)
+    exam_order_id: Mapped[int | None] = mapped_column(ForeignKey("exam_orders.id"), nullable=True)
     reminder_rule_id: Mapped[int | None] = mapped_column(ForeignKey("reminder_rules.id"), nullable=True)
     template_id: Mapped[int | None] = mapped_column(ForeignKey("communication_templates.id"), nullable=True)
     channel: Mapped[str] = mapped_column(String(30), default="whatsapp", server_default="whatsapp")

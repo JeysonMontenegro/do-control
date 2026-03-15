@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,9 +18,18 @@ class ReminderRuleRepository:
     def get(self, reminder_rule_id: int) -> ReminderRule | None:
         return self.db.get(ReminderRule, reminder_rule_id)
 
-    def list(self) -> list[ReminderRule]:
+    def list(self) -> List[ReminderRule]:
         return list(
             self.db.scalars(
                 select(ReminderRule).order_by(ReminderRule.doctor_id.nullsfirst(), ReminderRule.minutes_before)
+            )
+        )
+
+    def list_active(self) -> List[ReminderRule]:
+        return list(
+            self.db.scalars(
+                select(ReminderRule)
+                .where(ReminderRule.is_active.is_(True))
+                .order_by(ReminderRule.doctor_id.nullsfirst(), ReminderRule.minutes_before)
             )
         )

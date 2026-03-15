@@ -1,17 +1,30 @@
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from app.models.doctor import Doctor
 from app.repositories.communication_template import CommunicationTemplateRepository
 from app.schemas.appointment import AppointmentCreate
 from app.schemas.communication_dispatch import CommunicationDispatchUpdate
+from app.schemas.encounter import DiagnosisCreate, EncounterCreate, ExamOrderCreate
 from app.schemas.integration import (
+    AppointmentActionResponse,
+    AppointmentCancelRequest,
+    AppointmentCancelResponse,
     CommunicationDispatchStatusUpdate,
     DoctorMatchCandidate,
     DoctorMatchRequest,
     DoctorMatchResponse,
+    DoctorScheduleAppointmentRead,
+    DoctorVerificationRead,
+    IntegrationEncounterCreateRequest,
+    IntegrationEncounterCreateResponse,
+    IntegrationPatientCreateRequest,
+    IntegrationPatientCreateResponse,
     PatientMatchCandidate,
     PatientMatchRequest,
     PatientMatchResponse,
+    PendingAppointmentRead,
     PendingCommunicationDispatchRead,
     ProposedAppointmentRequest,
     ProposedAppointmentResponse,
@@ -21,6 +34,7 @@ from app.services.appointment import AppointmentService
 from app.services.audit import create_audit_log
 from app.services.communication_dispatch import CommunicationDispatchService
 from app.services.doctor import DoctorService
+from app.services.encounter import EncounterService
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.patient import PatientService
 
@@ -33,6 +47,22 @@ class IntegrationService:
         self.communication_dispatch_service = CommunicationDispatchService(db)
         self.communication_template_repository = CommunicationTemplateRepository(db)
         self.doctor_service = DoctorService(db)
+        self.encounter_service = EncounterService(db)
+
+    def verify_doctor(self, doctor_id: int) -> DoctorVerificationRead:
+        doctor = self.doctor_service.get_doctor(doctor_id)
+        primary_phone = next(
+            (phone.phone_number for phone in doctor.phone_numbers if phone.is_primary and phone.is_active),
+            None,
+        )
+        return DoctorVerificationRead(
+            id=doctor.id,
+            full_name=f"{doctor.first_name} {doctor.last_name}".strip(),
+            specialty=doctor.specialty,
+            license_number=doctor.license_number,
+            is_active=doctor.is_active,
+            primary_phone=primary_phone,
+        )
 
     def match_patient(self, payload: PatientMatchRequest) -> PatientMatchResponse:
         results = self.patient_service.list_patients(query=payload.phone_number)
@@ -68,17 +98,34 @@ class IntegrationService:
         self.db.commit()
         return PatientMatchResponse(status=status, candidate_matches=candidates)
 
+    def create_patient(self, payload: IntegrationPatientCreateRequest) -> IntegrationPatientCreateResponse:
+        if payload.full_name:
+            first_name, last_name = self.patient_service.split_full_name(payload.full_name)
+        else:
+            first_name = payload.first_name or ""
+            last_name = payload.last_name or ""
+
+        patient = self.patient_service.create_patient(
+            PatientCreate(
+                first_name=first_name,
+                last_name=last_name,
+                primary_phone=payload.primary_phone,
+            )
+        )
+        return IntegrationPatientCreateResponse(
+            id=patient.id,
+            medical_record_number=patient.medical_record_number,
+            patient_name=f"{patient.first_name} {patient.last_name}".strip(),
+            primary_phone=patient.primary_phone,
+        )
+
     def match_doctor(self, payload: DoctorMatchRequest) -> DoctorMatchResponse:
         results = self.doctor_service.list_doctors(query=payload.phone_number)
         candidates = []
         requested_name = payload.doctor_name.strip().lower() if payload.doctor_name else None
         for doctor in results:
             doctor_name = f"{doctor.first_name} {doctor.last_name}".strip()
-            if requested_name is None:
-                confidence = "high"
-            else:
-                confidence = "high" if doctor_name.lower() == requested_name else "medium"
-
+            confidence = "high" if requested_name is None or doctor_name.lower() == requested_name else "medium"
             primary_phone = next(
                 (
                     phone.phone_number
@@ -115,12 +162,11 @@ class IntegrationService:
         self.db.commit()
         return DoctorMatchResponse(status=status, candidate_matches=candidates)
 
-    def _resolve_doctor(self, payload: ProposedAppointmentRequest) -> Doctor | None:
+    def _resolve_doctor(self, payload: ProposedAppointmentRequest) -> Doctor:
         if payload.doctor_id is not None:
             return self.doctor_service.get_doctor(payload.doctor_id)
-
         if not payload.doctor_phone_number:
-            return None
+            raise ValidationError("Either doctor_id or doctor_phone_number is required.")
 
         match = self.match_doctor(
             DoctorMatchRequest(
@@ -141,10 +187,7 @@ class IntegrationService:
             return ProposedAppointmentResponse(status="needs_manual_review", message=str(exc))
 
         match = self.match_patient(
-            PatientMatchRequest(
-                patient_name=payload.patient_name,
-                phone_number=payload.phone_number,
-            )
+            PatientMatchRequest(patient_name=payload.patient_name, phone_number=payload.phone_number)
         )
 
         patient_id: int | None = None
@@ -153,26 +196,34 @@ class IntegrationService:
         elif match.status == "candidate_matches":
             return ProposedAppointmentResponse(
                 status="needs_manual_review",
-                doctor_id=doctor.id if doctor is not None else None,
+                doctor_id=doctor.id,
                 message="Multiple patient candidates found for the provided phone number.",
             )
         elif payload.create_patient_if_missing:
-            name_parts = payload.patient_name.strip().split(maxsplit=1)
-            first_name = name_parts[0]
-            last_name = name_parts[1] if len(name_parts) > 1 else "Unknown"
+            first_name, last_name = self.patient_service.split_full_name(payload.patient_name)
             patient = self.patient_service.create_patient(
-                PatientCreate(
-                    first_name=first_name,
-                    last_name=last_name,
-                    primary_phone=payload.phone_number,
-                )
+                PatientCreate(first_name=first_name, last_name=last_name, primary_phone=payload.phone_number)
             )
             patient_id = patient.id
         else:
             return ProposedAppointmentResponse(
                 status="no_match",
-                doctor_id=doctor.id if doctor is not None else None,
+                doctor_id=doctor.id,
                 message="No patient match found and automatic creation is disabled.",
+            )
+
+        overlap = self.appointment_service.repository.find_overlap(
+            doctor.id,
+            payload.scheduled_start,
+            payload.scheduled_end,
+        )
+        if overlap is not None:
+            return ProposedAppointmentResponse(
+                status="conflict",
+                patient_id=patient_id,
+                doctor_id=doctor.id,
+                existing_appointment_id=overlap.id,
+                message="Doctor already has an appointment in that time range.",
             )
 
         try:
@@ -212,6 +263,96 @@ class IntegrationService:
             message="Appointment created.",
         )
 
+    def confirm_appointment(self, appointment_id: int) -> AppointmentActionResponse:
+        appointment = self.appointment_service.confirm_appointment(appointment_id, changed_by="appoint-me")
+        return AppointmentActionResponse(status="confirmed", appointment_id=appointment.id)
+
+    def cancel_appointment(self, payload: AppointmentCancelRequest) -> AppointmentCancelResponse:
+        try:
+            appointment = self.appointment_service.cancel_for_doctor_patient_name(
+                payload.doctor_id,
+                payload.patient_name,
+                target_date=payload.date,
+                changed_by="appoint-me",
+            )
+        except NotFoundError:
+            return AppointmentCancelResponse(status="not_found")
+
+        return AppointmentCancelResponse(
+            status="cancelled",
+            appointment_id=appointment.id,
+            patient_name=f"{appointment.patient.first_name} {appointment.patient.last_name}".strip(),
+            scheduled_start=appointment.scheduled_start,
+        )
+
+    def list_schedule(self, doctor_id: int, target_date: date) -> list[DoctorScheduleAppointmentRead]:
+        appointments = self.appointment_service.list_schedule_for_doctor_date(doctor_id, target_date)
+        return [
+            DoctorScheduleAppointmentRead(
+                appointment_id=appointment.id,
+                patient_name=f"{appointment.patient.first_name} {appointment.patient.last_name}".strip(),
+                scheduled_start=appointment.scheduled_start,
+                scheduled_end=appointment.scheduled_end,
+                reason=appointment.reason,
+                status=appointment.status,
+                confirmation_status=appointment.confirmation_status,
+            )
+            for appointment in appointments
+        ]
+
+    def get_pending_appointment(self, patient_id: int) -> PendingAppointmentRead | None:
+        try:
+            appointment = self.appointment_service.get_pending_for_patient(patient_id)
+        except NotFoundError:
+            return None
+        return PendingAppointmentRead(
+            appointment_id=appointment.id,
+            doctor_id=appointment.doctor_id,
+            patient_id=appointment.patient_id,
+            scheduled_start=appointment.scheduled_start,
+            status=appointment.status,
+        )
+
+    def create_encounter(self, payload: IntegrationEncounterCreateRequest) -> IntegrationEncounterCreateResponse:
+        encounter = self.encounter_service.create_encounter(
+            EncounterCreate(
+                patient_id=payload.patient_id,
+                doctor_id=payload.doctor_id,
+                appointment_id=payload.appointment_id,
+                encounter_date=payload.encounter_date,
+                encounter_type=payload.encounter_type,
+                chief_complaint=payload.chief_complaint,
+                clinical_impression=payload.clinical_impression,
+                treatment_plan=payload.treatment_plan,
+                follow_up_notes=payload.follow_up_notes,
+                created_by="appoint-me",
+                diagnoses=[
+                    DiagnosisCreate(
+                        diagnosis_text=item.diagnosis_text,
+                        diagnosis_code=item.diagnosis_code,
+                        is_primary=item.is_primary,
+                        notes=item.notes,
+                    )
+                    for item in payload.diagnoses
+                ],
+                exam_orders=[
+                    ExamOrderCreate(
+                        exam_name=item.exam_name,
+                        exam_category=item.exam_category,
+                        instructions=item.instructions,
+                        expected_date=item.expected_date,
+                    )
+                    for item in payload.exam_orders
+                ],
+            )
+        )
+        return IntegrationEncounterCreateResponse(
+            status="created",
+            encounter_id=encounter.id,
+            patient_id=encounter.patient_id,
+            exams_ordered=[exam.exam_name for exam in encounter.exam_orders],
+        )
+
     def list_pending_dispatches(self, limit: int = 100) -> list[PendingCommunicationDispatchRead]:
         dispatches = self.communication_dispatch_service.list_pending_dispatches(limit=limit)
         results: list[PendingCommunicationDispatchRead] = []
@@ -227,12 +368,13 @@ class IntegrationService:
                     patient_id=dispatch.patient_id,
                     doctor_id=dispatch.doctor_id,
                     appointment_id=dispatch.appointment_id,
+                    exam_order_id=dispatch.exam_order_id,
                     reminder_rule_id=dispatch.reminder_rule_id,
                     template_id=dispatch.template_id,
                     channel=dispatch.channel,
                     recipient_phone=dispatch.recipient_phone,
                     external_reference=dispatch.external_reference,
-                    rendered_message=dispatch.rendered_message,
+                    rendered_message=dispatch.rendered_message or "",
                     template_key=template.template_key if template is not None else None,
                     template_title=template.title if template is not None else None,
                     template_body=template.body if template is not None else None,
@@ -251,7 +393,7 @@ class IntegrationService:
             CommunicationDispatchUpdate(
                 status=payload.status,
                 external_reference=payload.external_reference,
-                error_message=payload.error_message,
+                error_message=payload.failure_reason or payload.error_message,
                 rendered_message=payload.rendered_message,
             ),
         )
@@ -265,12 +407,13 @@ class IntegrationService:
             patient_id=dispatch.patient_id,
             doctor_id=dispatch.doctor_id,
             appointment_id=dispatch.appointment_id,
+            exam_order_id=dispatch.exam_order_id,
             reminder_rule_id=dispatch.reminder_rule_id,
             template_id=dispatch.template_id,
             channel=dispatch.channel,
             recipient_phone=dispatch.recipient_phone,
             external_reference=dispatch.external_reference,
-            rendered_message=dispatch.rendered_message,
+            rendered_message=dispatch.rendered_message or "",
             template_key=template.template_key if template is not None else None,
             template_title=template.title if template is not None else None,
             template_body=template.body if template is not None else None,

@@ -7,6 +7,7 @@ class CommunicationDispatchCreate(BaseModel):
     patient_id: int
     doctor_id: int | None = None
     appointment_id: int | None = None
+    exam_order_id: int | None = None
     reminder_rule_id: int | None = None
     template_id: int | None = None
     channel: str = "whatsapp"
@@ -31,6 +32,7 @@ class CommunicationDispatchRead(BaseModel):
     patient_id: int
     doctor_id: int | None
     appointment_id: int | None
+    exam_order_id: int | None
     reminder_rule_id: int | None
     template_id: int | None
     channel: str
@@ -41,3 +43,7 @@ class CommunicationDispatchRead(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class CommunicationDispatchGenerationRead(BaseModel):
+    created_count: int

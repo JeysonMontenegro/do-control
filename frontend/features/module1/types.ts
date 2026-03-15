@@ -134,6 +134,7 @@ export type CommunicationDispatch = {
   patient_id: number;
   doctor_id: number | null;
   appointment_id: number | null;
+  exam_order_id: number | null;
   reminder_rule_id: number | null;
   template_id: number | null;
   channel: string;
@@ -144,4 +145,8 @@ export type CommunicationDispatch = {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CommunicationDispatchGeneration = {
+  created_count: number;
 };
