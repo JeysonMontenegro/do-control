@@ -5,16 +5,19 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.appointment import Appointment
 from app.models.communication_dispatch import CommunicationDispatch
+from app.models.communication_dispatch_attempt import CommunicationDispatchAttempt
 from app.models.communication_template import CommunicationTemplate
 from app.models.encounter import Encounter, ExamOrder
 from app.repositories.appointment import AppointmentRepository
 from app.repositories.communication_dispatch import CommunicationDispatchRepository
+from app.repositories.communication_dispatch_attempt import CommunicationDispatchAttemptRepository
 from app.repositories.communication_template import CommunicationTemplateRepository
 from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.reminder_rule import ReminderRuleRepository
 from app.schemas.communication_dispatch import CommunicationDispatchCreate, CommunicationDispatchUpdate
 from app.schemas.communication_dispatch import CommunicationDispatchBatchRequeueRead, CommunicationDispatchSummaryRead
+from app.schemas.communication_dispatch import CommunicationDispatchAttemptRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
@@ -25,6 +28,7 @@ class CommunicationDispatchService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = CommunicationDispatchRepository(db)
+        self.attempt_repository = CommunicationDispatchAttemptRepository(db)
         self.patient_repository = PatientRepository(db)
         self.doctor_repository = DoctorRepository(db)
         self.appointment_repository = AppointmentRepository(db)
@@ -281,6 +285,15 @@ class CommunicationDispatchService:
         return dispatch
 
     def update_dispatch(self, dispatch_id: int, payload: CommunicationDispatchUpdate) -> CommunicationDispatch:
+        return self._update_dispatch(dispatch_id, payload, attempt_source="admin_manual")
+
+    def _update_dispatch(
+        self,
+        dispatch_id: int,
+        payload: CommunicationDispatchUpdate,
+        *,
+        attempt_source: str,
+    ) -> CommunicationDispatch:
         dispatch = self.repository.get(dispatch_id)
         if dispatch is None:
             raise NotFoundError("Communication dispatch not found.")
@@ -306,6 +319,17 @@ class CommunicationDispatchService:
         requested_status = update_data.get("status")
         if requested_status in {"sent", "delivered", "failed"}:
             dispatch.last_attempt_at = now
+            self.attempt_repository.create(
+                CommunicationDispatchAttempt(
+                    dispatch_id=dispatch.id,
+                    attempt_source=attempt_source,
+                    result_status=requested_status,
+                    attempted_at=now,
+                    external_reference=dispatch.external_reference,
+                    error_message=dispatch.error_message,
+                    rendered_message=dispatch.rendered_message,
+                )
+            )
 
         if requested_status == "failed":
             dispatch.retry_count += 1
@@ -377,6 +401,14 @@ class CommunicationDispatchService:
         self.db.refresh(dispatch)
         return dispatch
 
+    def list_attempts(self, dispatch_id: int, *, limit: int = 50) -> list[CommunicationDispatchAttemptRead]:
+        if self.repository.get(dispatch_id) is None:
+            raise NotFoundError("Communication dispatch not found.")
+        return [
+            CommunicationDispatchAttemptRead.model_validate(attempt)
+            for attempt in self.attempt_repository.list_for_dispatch(dispatch_id, limit=limit)
+        ]
+
     def requeue_dispatches(self, dispatch_ids: list[int]) -> CommunicationDispatchBatchRequeueRead:
         requeued_count = 0
         for dispatch_id in dispatch_ids:
@@ -386,3 +418,10 @@ class CommunicationDispatchService:
             self.requeue_dispatch(dispatch_id)
             requeued_count += 1
         return CommunicationDispatchBatchRequeueRead(requeued_count=requeued_count)
+
+    def update_dispatch_from_integration(
+        self,
+        dispatch_id: int,
+        payload: CommunicationDispatchUpdate,
+    ) -> CommunicationDispatch:
+        return self._update_dispatch(dispatch_id, payload, attempt_source="appoint_me")

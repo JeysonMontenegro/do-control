@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "docontrol-files"
+    dispatch_generation_job_enabled: bool = True
+    dispatch_generation_job_interval_seconds: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -73,3 +73,17 @@ class CommunicationDispatchBatchRequeueRequest(BaseModel):
 
 class CommunicationDispatchBatchRequeueRead(BaseModel):
     requeued_count: int
+
+
+class CommunicationDispatchAttemptRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    dispatch_id: int
+    attempt_source: str
+    result_status: str
+    attempted_at: datetime
+    external_reference: str | None
+    error_message: str | None
+    rendered_message: str | None
+    created_at: datetime

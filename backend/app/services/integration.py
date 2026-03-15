@@ -388,7 +388,7 @@ class IntegrationService:
         dispatch_id: int,
         payload: CommunicationDispatchStatusUpdate,
     ) -> PendingCommunicationDispatchRead:
-        dispatch = self.communication_dispatch_service.update_dispatch(
+        dispatch = self.communication_dispatch_service.update_dispatch_from_integration(
             dispatch_id,
             CommunicationDispatchUpdate(
                 status=payload.status,

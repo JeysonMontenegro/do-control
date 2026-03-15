@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
 from app.schemas.communication_dispatch import (
+    CommunicationDispatchAttemptRead,
     CommunicationDispatchBatchRequeueRead,
     CommunicationDispatchBatchRequeueRequest,
     CommunicationDispatchCreate,
@@ -58,6 +59,19 @@ def requeue_communication_dispatches_batch(
     _current_user=Depends(require_roles("admin")),
 ) -> CommunicationDispatchBatchRequeueRead:
     return CommunicationDispatchService(db).requeue_dispatches(payload.dispatch_ids)
+
+
+@router.get("/{dispatch_id}/attempts", response_model=list[CommunicationDispatchAttemptRead])
+def list_communication_dispatch_attempts(
+    dispatch_id: int,
+    limit: int = 50,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin", "receptionist")),
+) -> list[CommunicationDispatchAttemptRead]:
+    try:
+        return CommunicationDispatchService(db).list_attempts(dispatch_id, limit=limit)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post("", response_model=CommunicationDispatchRead, status_code=status.HTTP_201_CREATED)
