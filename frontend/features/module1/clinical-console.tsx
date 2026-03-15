@@ -590,6 +590,26 @@ export function ClinicalConsole() {
     }
   }
 
+  async function updateDispatchStatus(dispatchId: number, status: "sent" | "delivered" | "failed") {
+    setMessage("");
+    try {
+      const payload: Record<string, string> = { status };
+      if (status === "failed") {
+        const reason = window.prompt("Failure reason", "Manual admin failure update");
+        if (!reason) {
+          setMessage("Failure update cancelled.");
+          return;
+        }
+        payload.error_message = reason;
+      }
+      await apiPatch<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}`, payload);
+      await loadData();
+      setMessage(`Communication dispatch ${dispatchId} updated to ${status}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication dispatch update failed.");
+    }
+  }
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -994,15 +1014,44 @@ export function ClinicalConsole() {
                     {` · retry ${dispatch.retry_count}`}
                     {dispatch.next_attempt_at ? ` · next ${dispatch.next_attempt_at}` : ""}
                   </span>
-                  {hasAnyRole(currentRoles, ["admin"]) && dispatch.status === "failed" ? (
+                  {hasAnyRole(currentRoles, ["admin"]) ? (
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => requeueDispatch(dispatch.id)}
-                      >
-                        Requeue
-                      </button>
+                      {dispatch.status !== "sent" && dispatch.status !== "delivered" ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateDispatchStatus(dispatch.id, "sent")}
+                        >
+                          Mark sent
+                        </button>
+                      ) : null}
+                      {dispatch.status !== "delivered" ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateDispatchStatus(dispatch.id, "delivered")}
+                        >
+                          Mark delivered
+                        </button>
+                      ) : null}
+                      {dispatch.status !== "failed" ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateDispatchStatus(dispatch.id, "failed")}
+                        >
+                          Mark failed
+                        </button>
+                      ) : null}
+                      {dispatch.status === "failed" ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => requeueDispatch(dispatch.id)}
+                        >
+                          Requeue
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
