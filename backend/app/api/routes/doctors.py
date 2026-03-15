@@ -1,0 +1,39 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_db_session, require_roles
+from app.schemas.doctor import DoctorCreate, DoctorRead
+from app.services.doctor import DoctorService
+from app.services.errors import NotFoundError
+
+router = APIRouter()
+
+
+@router.get("", response_model=list[DoctorRead])
+def list_doctors(
+    query: str | None = None,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+) -> list[DoctorRead]:
+    return DoctorService(db).list_doctors(query=query)
+
+
+@router.get("/{doctor_id}", response_model=DoctorRead)
+def get_doctor(
+    doctor_id: int,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+) -> DoctorRead:
+    try:
+        return DoctorService(db).get_doctor(doctor_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("", response_model=DoctorRead, status_code=status.HTTP_201_CREATED)
+def create_doctor(
+    payload: DoctorCreate,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin")),
+) -> DoctorRead:
+    return DoctorService(db).create_doctor(payload)

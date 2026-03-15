@@ -1,0 +1,1143 @@
+División del sistema en 3 módulos
+Módulo 1. Atención clínica
+Este es el que quieres empezar ahorita.
+Incluye:
+    • pacientes
+    • expediente clínico
+    • citas / agenda
+    • consultas médicas
+    • diagnósticos
+    • recetas
+    • exámenes
+Es el módulo principal porque aquí vive la operación diaria del consultorio.
+Módulo 2. Administración y facturación
+Incluye:
+    • cobros
+    • caja
+    • seguros por paciente
+    • formularios por aseguradora
+    • cuentas por cobrar
+    • ingresos y egresos
+    • costos de clínica
+    • inventario / materiales
+Módulo 3. Inteligencia y apoyo operativo
+Incluye:
+    • bot para consultar pacientes
+    • recordatorios automáticos
+    • confirmaciones por WhatsApp
+    • resúmenes para médico
+    • reportes inteligentes
+    • alertas
+    • analítica
+
+Empecemos con el Módulo 1: Atención clínica
+Yo lo estructuraría en 3 submódulos internos:
+    1. Gestión de pacientes
+    2. Gestión de citas y agenda
+    3. Expediente clínico y consultas
+
+1. Submódulo: Gestión de pacientes
+Objetivo
+Tener una ficha única por paciente para identificarlo, contactarlo y enlazarlo con citas, consultas y expediente.
+Funciones principales
+    • crear paciente
+    • editar paciente
+    • buscar paciente
+    • ver historial de citas
+    • ver historial clínico
+    • ver datos de contacto
+    • adjuntar documentos básicos
+Datos del paciente
+Datos personales
+    • primer nombre
+    • segundo nombre
+    • primer apellido
+    • segundo apellido
+    • apellido de casada, si aplica
+    • sexo
+    • fecha de nacimiento
+    • edad calculada
+    • DPI o documento
+    • NIT, opcional
+Contacto
+    • teléfono principal
+    • teléfono secundario
+    • correo electrónico
+    • dirección
+    • municipio/departamento
+    • contacto de emergencia
+    • teléfono de emergencia
+Datos clínicos básicos
+    • alergias
+    • enfermedades crónicas
+    • antecedentes relevantes
+    • grupo sanguíneo, opcional
+    • observaciones generales
+Datos administrativos básicos
+    • número de expediente
+    • fecha de creación
+    • estado: activo / inactivo
+    • médico asignado, si aplica
+Reglas de negocio
+    • no debe existir duplicado exacto de paciente con mismo DPI
+    • si no hay DPI, validar duplicados por nombre + fecha de nacimiento + teléfono
+    • el número de expediente debe ser único
+    • no se debe borrar un paciente con historial; solo inactivar
+    • todo paciente debe poder ser localizado desde búsqueda rápida
+Búsquedas necesarias
+    • por nombre
+    • por apellido
+    • por teléfono
+    • por DPI
+    • por número de expediente
+
+2. Submódulo: Gestión de citas y agenda
+Objetivo
+Administrar el calendario del consultorio y controlar el ciclo completo de la cita.
+Funciones principales
+    • crear cita
+    • reprogramar cita
+    • cancelar cita
+    • confirmar cita
+    • marcar no asistió
+    • marcar atendida
+    • ver agenda diaria, semanal y mensual
+    • bloquear horarios no disponibles
+Datos de la cita
+    • paciente
+    • médico
+    • fecha
+    • hora inicio
+    • hora fin
+    • tipo de cita
+    • motivo de consulta
+    • estado de la cita
+    • observaciones
+    • canal de creación: recepción / WhatsApp / llamada / web
+    • usuario que creó la cita
+Estados de la cita
+    • pendiente
+    • confirmada
+    • cancelada
+    • reprogramada
+    • en espera
+    • en atención
+    • atendida
+    • no asistió
+Reglas de negocio
+    • no permitir doble reserva para el mismo médico en el mismo horario
+    • no permitir citas fuera del horario laboral configurado
+    • una reprogramación debe guardar historial
+    • una cancelación debe guardar motivo
+    • la cita atendida debe poder enlazarse con una consulta clínica
+    • debe poder configurarse duración por tipo de cita
+Tipos de cita sugeridos
+    • primera consulta
+    • seguimiento
+    • control
+    • emergencia
+    • procedimiento
+    • revisión de resultados
+Pantallas necesarias
+    • calendario diario
+    • calendario semanal
+    • lista de citas del día
+    • formulario de nueva cita
+    • historial de cambios de cita
+
+3. Submódulo: Expediente clínico y consultas
+Objetivo
+Registrar la atención médica de cada paciente de forma ordenada, histórica y segura.
+Estructura conceptual
+Un paciente tiene muchas consultas.
+Cada consulta pertenece a un paciente y puede venir de una cita.
+Funciones principales
+    • crear nueva consulta
+    • ver consultas anteriores
+    • editar consulta antes de cierre
+    • cerrar consulta
+    • adjuntar archivos
+    • imprimir o exportar resumen
+    • registrar diagnósticos
+    • registrar tratamiento
+    • registrar exámenes solicitados
+    • registrar evolución
+Datos de la consulta
+Encabezado
+    • paciente
+    • médico
+    • fecha y hora
+    • cita relacionada
+    • tipo de consulta
+Contenido clínico
+    • motivo de consulta
+    • historia de la enfermedad actual
+    • antecedentes relevantes
+    • signos vitales
+    • examen físico
+    • impresión clínica
+    • diagnóstico principal
+    • diagnósticos secundarios
+    • plan de manejo
+    • tratamiento indicado
+    • medicamentos recetados
+    • exámenes solicitados
+    • observaciones
+    • próxima recomendación o seguimiento
+Archivos adjuntos
+    • resultados de laboratorio
+    • ultrasonidos
+    • imágenes
+    • PDFs
+    • recetas firmadas
+    • documentos clínicos
+Reglas de negocio
+    • una consulta no debe borrarse físicamente; solo anularse o versionarse
+    • toda consulta debe guardar médico, fecha y paciente
+    • los cambios relevantes deben quedar auditados
+    • una consulta cerrada no debería editarse sin permiso especial
+    • cada diagnóstico debe quedar ligado a la consulta
+    • los exámenes solicitados deben poder consultarse después
+
+Entidades principales del Módulo 1
+A nivel lógico, este módulo tendría algo como esto:
+    • paciente
+    • contacto_paciente
+    • antecedente_paciente
+    • cita
+    • historial_cita
+    • consulta
+    • diagnostico
+    • receta
+    • medicamento_recetado
+    • examen_solicitado
+    • archivo_clinico
+    • medico
+    • usuario
+    • auditoria_clinica
+
+Flujo principal del Módulo 1
+Flujo 1: paciente nuevo con cita
+    1. recepción registra paciente
+    2. recepción agenda cita
+    3. llega el día de la consulta
+    4. se marca en atención
+    5. el médico abre expediente
+    6. registra consulta, diagnóstico, receta y exámenes
+    7. se cierra la atención
+Flujo 2: paciente ya existente
+    1. se busca paciente
+    2. se agenda o abre cita existente
+    3. el médico ve historial previo
+    4. registra nueva evolución
+    5. queda agregada al expediente
+
+Requerimientos funcionales del Módulo 1
+Pacientes
+RF-01. El sistema debe permitir registrar pacientes nuevos.
+RF-02. El sistema debe permitir editar la información de un paciente.
+RF-03. El sistema debe permitir buscar pacientes por nombre, teléfono, DPI o número de expediente.
+RF-04. El sistema debe evitar duplicados de pacientes según reglas configuradas.
+RF-05. El sistema debe mostrar el historial clínico y de citas del paciente.
+Citas
+RF-06. El sistema debe permitir crear citas asociadas a un paciente y un médico.
+RF-07. El sistema debe permitir reprogramar una cita conservando historial de cambios.
+RF-08. El sistema debe permitir cancelar citas registrando motivo.
+RF-09. El sistema debe impedir solapamientos de horario para un mismo médico.
+RF-10. El sistema debe mostrar agenda diaria, semanal y mensual.
+RF-11. El sistema debe manejar estados de cita.
+RF-12. El sistema debe enlazar una cita atendida con una consulta clínica.
+Expediente y consultas
+RF-13. El sistema debe permitir crear una consulta clínica para un paciente.
+RF-14. El sistema debe permitir registrar motivo de consulta, examen físico, diagnóstico y plan.
+RF-15. El sistema debe permitir registrar uno o varios diagnósticos por consulta.
+RF-16. El sistema debe permitir registrar recetas y exámenes solicitados.
+RF-17. El sistema debe permitir adjuntar archivos clínicos a una consulta.
+RF-18. El sistema debe permitir consultar el historial completo del expediente.
+RF-19. El sistema debe registrar auditoría de cambios en información clínica sensible.
+RF-20. El sistema debe restringir la edición de consultas cerradas según permisos.
+
+Requerimientos no funcionales del Módulo 1
+RNF-01. La búsqueda de pacientes debe ser rápida.
+RNF-02. El acceso al expediente debe estar protegido por roles.
+RNF-03. Debe existir auditoría de cambios en información clínica.
+RNF-04. La información clínica debe mantenerse íntegra y trazable.
+RNF-05. El sistema debe permitir respaldo de datos y documentos adjuntos.
+RNF-06. La interfaz debe funcionar bien en computadora y tablet.
+
+Pantallas mínimas del Módulo 1
+    • login
+    • dashboard
+    • listado de pacientes
+    • formulario de paciente
+    • ficha del paciente
+    • calendario de citas
+    • formulario de cita
+    • detalle de cita
+    • pantalla de consulta médica
+    • historial clínico
+    • detalle de consulta
+    • pantalla de adjuntos
+
+MVP del Módulo 1
+Si quieres arrancar sin hacerlo demasiado grande, el MVP sería:
+    • registro de pacientes
+    • búsqueda de pacientes
+    • agenda de citas
+    • reprogramación y cancelación
+    • consulta médica básica
+    • diagnósticos
+    • recetas simples
+    • exámenes solicitados
+    • historial clínico
+
+Recomendación de siguiente paso
+El mejor siguiente paso es convertir este Módulo 1 en una de estas 3 cosas:
+    1. historias de usuario
+    2. casos de uso
+    3. modelo de base de datos inicial
+Yo seguiría con historias de usuario + reglas de negocio, porque eso ya te deja listo para diseño y desarrollo.
+sigue con el modulo 2
+Perfecto. El Módulo 2 lo dejaría como el módulo de Administración y facturación, enfocado en dinero, seguros, formularios y control interno del consultorio.
+Módulo 2. Administración y facturación
+Objetivo
+Controlar la parte administrativa y financiera del consultorio:
+    • cobros a pacientes
+    • seguros y convenios
+    • formularios por aseguradora
+    • cuentas por cobrar
+    • ingresos y egresos
+    • costos operativos
+    • inventario e insumos
+Este módulo debe conectarse con el Módulo 1, porque casi todo nace de una cita, una consulta o un paciente.
+
+Submódulos del Módulo 2
+Yo lo dividiría en 7 submódulos:
+    1. Caja y cobros
+    2. Seguros por paciente
+    3. Aseguradoras y convenios
+    4. Formularios por aseguradora
+    5. Cuentas por cobrar
+    6. Gastos y costos de clínica
+    7. Inventario y materiales
+
+1. Submódulo: Caja y cobros
+Objetivo
+Registrar todo pago hecho por el paciente o relacionado con una atención médica.
+Funciones principales
+    • registrar cobro de consulta
+    • registrar cobro de procedimiento
+    • registrar anticipo
+    • registrar pago parcial
+    • registrar pago mixto
+    • anular cobro con permiso
+    • emitir comprobante
+    • consultar historial de pagos
+    • cierre de caja diario
+Datos del cobro
+    • paciente
+    • consulta o cita asociada
+    • fecha y hora
+    • servicio cobrado
+    • monto total
+    • monto pagado
+    • saldo pendiente
+    • forma de pago
+    • referencia de pago
+    • usuario que registró
+    • observaciones
+Formas de pago
+    • efectivo
+    • transferencia
+    • tarjeta
+    • QR
+    • cheque
+    • mixto
+Reglas de negocio
+    • todo cobro debe quedar asociado a paciente
+    • idealmente debe quedar asociado a consulta, cita o procedimiento
+    • no se debe permitir eliminar cobros; solo anular con auditoría
+    • si el pago es parcial, debe quedar saldo pendiente
+    • debe existir trazabilidad del usuario que cobró
+    • no se debe modificar un cobro cerrado sin permiso administrativo
+Reportes básicos
+    • ingresos por día
+    • ingresos por rango de fechas
+    • ingresos por médico
+    • ingresos por tipo de servicio
+    • pagos pendientes
+    • cierre de caja
+
+2. Submódulo: Seguros por paciente
+Objetivo
+Registrar y controlar la información de cobertura del paciente.
+Funciones principales
+    • agregar seguro a paciente
+    • editar vigencia y datos de póliza
+    • adjuntar carné o documentos
+    • marcar seguro principal
+    • validar vigencia
+    • ver historial de seguros
+Datos del seguro del paciente
+    • paciente
+    • aseguradora
+    • plan
+    • número de póliza
+    • número de afiliado
+    • titular
+    • parentesco
+    • fecha de vigencia inicio
+    • fecha de vigencia fin
+    • porcentaje de cobertura
+    • copago
+    • deducible
+    • autorización requerida
+    • observaciones
+    • documentos adjuntos
+Reglas de negocio
+    • un paciente puede tener varios seguros
+    • solo uno debería quedar como principal
+    • el seguro puede estar activo, vencido o suspendido
+    • antes de aplicar cobertura, el sistema debe validar vigencia
+    • debe quedar registro histórico de cambios de póliza
+
+3. Submódulo: Aseguradoras y convenios
+Objetivo
+Administrar las compañías aseguradoras y las condiciones negociadas con la clínica.
+Funciones principales
+    • registrar aseguradora
+    • registrar convenios
+    • definir tarifas por servicio
+    • definir documentos requeridos
+    • definir tiempo estimado de pago
+    • definir reglas de cobertura
+    • activar o inactivar convenios
+Datos de aseguradora
+    • nombre
+    • contacto principal
+    • teléfonos
+    • correo
+    • dirección
+    • convenio activo
+    • observaciones
+Datos del convenio
+    • aseguradora
+    • fecha de inicio
+    • fecha de fin
+    • estado
+    • condiciones generales
+    • porcentaje de cobertura habitual
+    • documentos requeridos
+    • tiempo de pago estimado
+    • servicios cubiertos
+    • restricciones
+Tarifario
+Debe soportar precios distintos según:
+    • consulta privada
+    • aseguradora
+    • tipo de procedimiento
+    • médico, si aplica
+Ejemplo:
+    • consulta privada: Q500
+    • aseguradora A: Q420
+    • aseguradora B: Q450
+Reglas de negocio
+    • una aseguradora puede tener varios planes o convenios
+    • cada convenio puede tener su propio tarifario
+    • el servicio facturable debe tomar la tarifa correcta según seguro aplicado
+
+4. Submódulo: Formularios por aseguradora
+Objetivo
+Generar documentos y formularios específicos requeridos por cada aseguradora.
+Funciones principales
+    • crear plantilla de formulario
+    • asociar formulario a aseguradora
+    • autollenar formulario
+    • guardar borrador
+    • generar PDF
+    • imprimir
+    • marcar estado del envío
+Tipos de formulario
+    • preautorización
+    • reclamación
+    • constancia de atención
+    • referencia médica
+    • reembolso
+    • formulario de accidente
+    • formulario para laboratorio o gabinete
+Datos del formulario
+    • aseguradora
+    • tipo de formulario
+    • paciente
+    • póliza asociada
+    • consulta asociada
+    • diagnóstico
+    • procedimiento
+    • médico
+    • fecha
+    • estado
+    • archivo generado
+Estados
+    • borrador
+    • generado
+    • firmado
+    • enviado
+    • aprobado
+    • rechazado
+    • vencido
+Reglas de negocio
+    • cada formulario debe asociarse a paciente y aseguradora
+    • los campos deben poder autollenarse con datos del sistema
+    • debe quedar versión del formulario generado
+    • debe mantenerse histórico de envíos y estados
+Recomendación técnica
+Hacerlo con plantillas configurables, no formularios codificados uno por uno.
+
+5. Submódulo: Cuentas por cobrar
+Objetivo
+Controlar montos pendientes de cobro, especialmente de aseguradoras.
+Funciones principales
+    • generar cuenta por cobrar
+    • asociar cuenta a consulta o procedimiento
+    • registrar pagos parciales
+    • marcar en revisión
+    • marcar rechazada
+    • marcar cobrada
+    • consultar antigüedad de saldos
+Datos de cuenta por cobrar
+    • paciente
+    • aseguradora
+    • consulta o servicio
+    • monto total
+    • monto cubierto
+    • monto pagado
+    • saldo pendiente
+    • fecha de emisión
+    • fecha esperada de pago
+    • estado
+    • observaciones
+    • documentos asociados
+Estados
+    • pendiente
+    • enviada
+    • en revisión
+    • pagada parcial
+    • pagada total
+    • rechazada
+    • anulada
+Reglas de negocio
+    • una cuenta por cobrar debe nacer de una atención o servicio real
+    • deben existir pagos parciales
+    • debe poder verse antigüedad del saldo
+    • si es rechazada, debe guardarse motivo
+Reportes clave
+    • cuentas por cobrar vigentes
+    • cuentas vencidas
+    • cuentas por aseguradora
+    • montos rechazados
+    • recuperación por mes
+
+6. Submódulo: Gastos y costos de clínica
+Objetivo
+Registrar todos los egresos para medir utilidad real del consultorio.
+Funciones principales
+    • registrar gasto
+    • clasificar gasto
+    • adjuntar comprobante
+    • editar gasto con permisos
+    • consultar gastos por fecha
+    • reportar costos por categoría
+Datos del gasto
+    • fecha
+    • categoría
+    • descripción
+    • proveedor
+    • monto
+    • forma de pago
+    • comprobante adjunto
+    • usuario que registró
+    • observaciones
+Categorías sugeridas
+    • alquiler
+    • salarios u honorarios
+    • luz
+    • agua
+    • internet
+    • insumos médicos
+    • papelería
+    • limpieza
+    • mantenimiento
+    • software
+    • publicidad
+    • transporte
+    • otros
+Reglas de negocio
+    • todo gasto debe tener categoría
+    • debe poder adjuntarse factura o comprobante
+    • no se debe eliminar gasto sin auditoría
+    • debe existir control por período
+Reportes
+    • gastos diarios
+    • gastos mensuales
+    • gastos por categoría
+    • utilidad bruta y neta
+    • comparación ingresos vs gastos
+
+7. Submódulo: Inventario y materiales
+Objetivo
+Controlar los insumos y materiales de la clínica.
+Funciones principales
+    • registrar producto o insumo
+    • registrar entradas
+    • registrar salidas
+    • ajustar inventario
+    • ver stock actual
+    • alertar bajo stock
+    • alertar vencimientos
+Datos del material
+    • nombre
+    • categoría
+    • código interno
+    • descripción
+    • unidad de medida
+    • stock actual
+    • stock mínimo
+    • costo unitario
+    • proveedor
+    • fecha de vencimiento, si aplica
+    • lote, si aplica
+    • estado
+Movimientos
+    • entrada por compra
+    • salida por uso
+    • ajuste manual
+    • salida por vencimiento o daño
+Reglas de negocio
+    • no permitir stock negativo
+    • toda salida debe quedar registrada
+    • si aplica vencimiento, debe alertarse antes
+    • debe poder relacionarse consumo con procedimientos o consultas, si luego lo quieres hacer más fino
+Reportes
+    • inventario actual
+    • materiales por vencer
+    • materiales con stock bajo
+    • consumo por período
+    • costo estimado de insumos
+
+Flujo principal del Módulo 2
+Flujo 1: Cobro privado
+    1. se atiende paciente
+    2. se genera cobro
+    3. el paciente paga
+    4. se emite comprobante
+    5. se refleja en ingresos
+Flujo 2: Cobro con seguro
+    1. se atiende paciente
+    2. se valida seguro
+    3. se calcula copago y parte aseguradora
+    4. se cobra al paciente su parte
+    5. se genera cuenta por cobrar a aseguradora
+    6. se llena formulario requerido
+    7. se da seguimiento al cobro
+Flujo 3: Registro de gasto
+    1. administración registra gasto
+    2. adjunta factura
+    3. gasto entra a reportes
+    4. se calcula utilidad del período
+Flujo 4: Inventario
+    1. se compran insumos
+    2. se registra entrada
+    3. se consumen en clínica
+    4. se registra salida
+    5. el sistema alerta si hay bajo stock
+
+Requerimientos funcionales del Módulo 2
+Caja y cobros
+RF-21. El sistema debe permitir registrar cobros asociados a pacientes y servicios.
+RF-22. El sistema debe permitir registrar pagos totales, parciales o mixtos.
+RF-23. El sistema debe permitir emitir comprobantes de pago.
+RF-24. El sistema debe permitir consultar historial de pagos por paciente.
+RF-25. El sistema debe permitir cierre de caja diario.
+RF-26. El sistema debe restringir la anulación o edición de cobros según permisos.
+Seguros
+RF-27. El sistema debe permitir registrar uno o varios seguros por paciente.
+RF-28. El sistema debe permitir validar vigencia del seguro del paciente.
+RF-29. El sistema debe permitir almacenar póliza, afiliación y documentos del seguro.
+RF-30. El sistema debe permitir marcar un seguro como principal.
+Aseguradoras y convenios
+RF-31. El sistema debe permitir registrar aseguradoras y sus convenios.
+RF-32. El sistema debe permitir definir tarifas por aseguradora y servicio.
+RF-33. El sistema debe permitir configurar documentos y requisitos por aseguradora.
+Formularios
+RF-34. El sistema debe permitir generar formularios asociados a aseguradoras.
+RF-35. El sistema debe permitir autollenar formularios con datos del paciente, consulta y médico.
+RF-36. El sistema debe permitir generar formularios en PDF.
+RF-37. El sistema debe permitir controlar estados de formularios.
+Cuentas por cobrar
+RF-38. El sistema debe permitir generar cuentas por cobrar a aseguradoras.
+RF-39. El sistema debe permitir registrar pagos parciales o totales de dichas cuentas.
+RF-40. El sistema debe permitir consultar saldos pendientes por aseguradora.
+RF-41. El sistema debe permitir registrar rechazo o incidencia de cobro.
+Gastos
+RF-42. El sistema debe permitir registrar gastos operativos de la clínica.
+RF-43. El sistema debe permitir clasificar gastos por categoría.
+RF-44. El sistema debe permitir adjuntar comprobantes de gasto.
+RF-45. El sistema debe permitir generar reportes de gastos por período.
+Inventario
+RF-46. El sistema debe permitir registrar materiales e insumos.
+RF-47. El sistema debe permitir movimientos de entrada y salida de inventario.
+RF-48. El sistema debe alertar stock mínimo y vencimientos.
+RF-49. El sistema debe generar reportes de inventario actual y consumo.
+
+Requerimientos no funcionales del Módulo 2
+RNF-07. Toda transacción financiera debe ser auditable.
+RNF-08. El sistema debe restringir acceso a datos financieros por rol.
+RNF-09. Los reportes deben poder filtrarse por fechas y exportarse.
+RNF-10. El sistema debe mantener trazabilidad entre consulta, cobro, seguro y cuenta por cobrar.
+RNF-11. Debe existir respaldo de documentos financieros y formularios.
+RNF-12. El sistema debe soportar cierres de caja sin pérdida de integridad.
+
+Entidades principales del Módulo 2
+    • pago
+    • detalle_pago
+    • caja
+    • cierre_caja
+    • aseguradora
+    • convenio_aseguradora
+    • tarifa_servicio
+    • poliza_paciente
+    • formulario_aseguradora
+    • plantilla_formulario
+    • cuenta_por_cobrar
+    • abono_cuenta_por_cobrar
+    • gasto
+    • categoria_gasto
+    • material
+    • movimiento_inventario
+    • proveedor
+    • comprobante
+
+Pantallas mínimas del Módulo 2
+    • caja / cobros
+    • detalle de pago
+    • cierre de caja
+    • seguros del paciente
+    • catálogo de aseguradoras
+    • convenios y tarifas
+    • formularios de seguro
+    • cuentas por cobrar
+    • gastos
+    • inventario
+    • reportes financieros
+
+MVP del Módulo 2
+Si quieres hacerlo manejable, el MVP sería:
+    • cobros a pacientes
+    • pagos parciales
+    • seguros por paciente básicos
+    • catálogo simple de aseguradoras
+    • cuentas por cobrar
+    • gastos de clínica
+    • inventario básico
+    • reportes de ingresos y gastos
+Y dejas para después:
+    • formularios configurables avanzados
+    • convenios complejos
+    • reglas finas de cobertura
+    • integración contable
+
+Recomendación
+Ya con Módulo 1 y Módulo 2, el siguiente sería el Módulo 3: Inteligencia y apoyo operativo, donde meteríamos:
+    • bot del médico
+    • recordatorios
+    • WhatsApp
+    • automatizaciones
+    • analítica
+Si quieres, en el siguiente paso te lo estructuro igual de formal.
+Ahora modulo 3
+Perfecto. El Módulo 3 lo dejaría como Inteligencia y apoyo operativo, o sea todo lo que hace al sistema más automático, más útil para el médico y más eficiente para la clínica.
+Aquí entran:
+    • bot para consultar pacientes
+    • recordatorios automáticos
+    • confirmaciones y reprogramación
+    • WhatsApp
+    • alertas
+    • resúmenes
+    • reportes inteligentes
+    • apoyo con IA para redacción y búsqueda
+
+Módulo 3. Inteligencia y apoyo operativo
+Objetivo
+Mejorar la operación diaria del consultorio con automatización e inteligencia asistida, sin reemplazar los controles clínicos ni administrativos.
+Este módulo debe ayudar a:
+    • reducir trabajo manual
+    • responder más rápido
+    • evitar olvidos
+    • facilitar consulta de información
+    • mejorar seguimiento a pacientes
+    • apoyar al médico en revisión y operación
+
+Submódulos del Módulo 3
+Yo lo dividiría en 7 submódulos:
+    1. Bot de consulta clínica para el médico
+    2. Recordatorios y confirmaciones de citas
+    3. Canal de mensajería y WhatsApp
+    4. Alertas y seguimiento
+    5. Resúmenes y asistencia clínica
+    6. Reportes inteligentes y analítica
+    7. Auditoría inteligente y seguridad operativa
+
+1. Submódulo: Bot de consulta clínica para el médico
+Objetivo
+Permitir que el médico consulte información de pacientes usando lenguaje natural, pero siempre sobre datos reales del sistema.
+Casos de uso
+    • “¿Cuándo fue la última cita de Ana López?”
+    • “¿Qué diagnóstico tuvo la vez pasada?”
+    • “¿Qué exámenes tiene pendientes?”
+    • “Resúmeme las últimas 3 consultas”
+    • “¿Qué tratamientos se le han dado por dolor pélvico?”
+    • “¿Tiene seguro activo?”
+    • “¿Qué medicamentos le receté en enero?”
+Funciones principales
+    • buscar paciente por nombre o expediente
+    • consultar historial clínico resumido
+    • consultar diagnósticos previos
+    • consultar exámenes solicitados y resultados
+    • consultar recetas previas
+    • consultar citas y estado
+    • consultar datos administrativos básicos
+    • responder con resumen y evidencia
+Reglas de negocio
+    • el bot no debe inventar datos
+    • el bot solo debe responder con base en datos recuperados del sistema
+    • el bot no debe modificar expediente por sí solo
+    • debe mostrar contexto suficiente para evitar confusión entre pacientes parecidos
+    • debe registrar log de cada consulta realizada
+    • según rol, algunas respuestas pueden ocultar datos sensibles
+Flujo recomendado
+    1. el médico hace una pregunta
+    2. el sistema identifica el paciente o pide seleccionar uno
+    3. el backend consulta datos reales
+    4. la IA resume o responde
+    5. se muestra la respuesta con fuente
+Ejemplo sano
+Pregunta:
+“¿Qué exámenes tiene pendientes María Gómez?”
+Respuesta:
+“María Gómez tiene pendientes biometría hemática y ultrasonido pélvico, solicitados en la consulta del 4 de marzo.”
+
+2. Submódulo: Recordatorios y confirmaciones de citas
+Objetivo
+Reducir ausencias y mejorar organización de agenda.
+Funciones principales
+    • enviar confirmación al crear cita
+    • enviar recordatorio automático antes de la cita
+    • permitir respuesta del paciente:
+        ◦ confirmar
+        ◦ cancelar
+        ◦ reprogramar
+    • notificar a recepción si no responde
+    • marcar automáticamente estado de confirmación
+    • generar resumen de citas del día siguiente
+Tipos de recordatorio
+    • al crear la cita
+    • 24 horas antes
+    • 2 horas antes, opcional
+    • seguimiento posterior, opcional
+Estados de confirmación
+    • pendiente de confirmar
+    • confirmada
+    • cancelada
+    • solicita reprogramación
+    • sin respuesta
+Reglas de negocio
+    • el sistema no debe modificar la hora final sin validación
+    • si el paciente pide reprogramar, debe pasar por flujo controlado
+    • todos los intentos de contacto deben quedar registrados
+    • recepción debe poder reenviar o confirmar manualmente
+
+3. Submódulo: Canal de mensajería y WhatsApp
+Objetivo
+Usar mensajería como medio operativo para pacientes y clínica.
+Casos de uso
+    • confirmación de cita
+    • recordatorio
+    • respuesta del paciente
+    • envío de ubicación
+    • indicaciones previas a consulta
+    • aviso de resultados disponibles
+    • seguimiento postconsulta
+Funciones principales
+    • enviar mensajes automáticos
+    • recibir respuestas
+    • clasificar intención del mensaje
+    • convertir respuesta en acción sugerida
+    • registrar historial de conversación
+    • asociar conversación a paciente y cita
+    • derivar a humano cuando sea necesario
+Reglas de negocio
+    • WhatsApp no debe ser la fuente única de verdad de la agenda
+    • una acción importante debe pasar por validación del backend
+    • los mensajes deben quedar asociados a paciente correcto
+    • debe existir control de plantillas y mensajes aprobados
+    • si la respuesta es ambigua, no se ejecuta acción automática
+Ejemplo
+Paciente responde:
+“Sí, pero mejor después de las 4”
+El sistema:
+    • detecta intención de reprogramación
+    • no cambia la cita automáticamente
+    • envía propuesta o lo manda a validación
+
+4. Submódulo: Alertas y seguimiento
+Objetivo
+Notificar eventos importantes para no depender de memoria humana.
+Alertas útiles
+    • paciente no confirmó cita
+    • paciente faltó a su cita
+    • examen solicitado sigue pendiente
+    • resultado de examen subido y no revisado
+    • póliza de seguro vencida
+    • formulario de aseguradora pendiente
+    • cuenta por cobrar vencida
+    • material con stock bajo
+    • material próximo a vencer
+    • caja no cerrada
+    • paciente con seguimiento recomendado no reagendado
+Funciones principales
+    • generar alertas automáticas
+    • asignar alerta a rol o usuario
+    • marcar alerta como atendida
+    • escalar alerta si pasa cierto tiempo
+    • filtrar alertas por tipo y prioridad
+Prioridades sugeridas
+    • alta
+    • media
+    • baja
+Reglas
+    • cada alerta debe tener origen claro
+    • debe poder verse fecha, responsable y estado
+    • algunas alertas deben generar acciones sugeridas
+
+5. Submódulo: Resúmenes y asistencia clínica
+Objetivo
+Ahorrarle tiempo al médico sin tomar decisiones por él.
+Funciones principales
+    • resumen del historial de un paciente
+    • resumen de últimas consultas
+    • resumen del embarazo o proceso clínico, si aplica a especialidad
+    • borrador de nota clínica basado en datos capturados
+    • sugerencia de estructura de consulta
+    • borrador de carta o constancia médica
+    • resumen de resultados de exámenes adjuntos
+Usos correctos
+    • redactar más rápido
+    • revisar antecedentes
+    • preparar una consulta
+    • resumir muchos datos en poco tiempo
+Límites
+    • no diagnosticar de forma autónoma
+    • no cerrar consulta automáticamente
+    • no generar tratamientos finales sin validación del médico
+    • toda nota generada debe ser editable y revisable
+Ejemplo
+El sistema puede proponer:
+“Paciente con antecedente de dolor pélvico recurrente, 3 consultas en los últimos 4 meses, último ultrasonido adjunto en febrero.”
+Eso ayuda mucho, pero el médico confirma.
+
+6. Submódulo: Reportes inteligentes y analítica
+Objetivo
+Dar visión útil del consultorio más allá de reportes básicos.
+Reportes inteligentes sugeridos
+    • pacientes nuevos vs recurrentes
+    • horas con más demanda
+    • diagnósticos más frecuentes
+    • causas más comunes de cancelación
+    • porcentaje de confirmación de citas
+    • exámenes más solicitados
+    • tiempos promedio entre cita y atención
+    • recuperación de cuentas por cobrar
+    • aseguradoras con más volumen
+    • pacientes con ausencias repetidas
+Funciones principales
+    • dashboards
+    • filtros por fecha
+    • gráficos
+    • comparativos mes a mes
+    • exportación
+    • detección de tendencias
+Reglas
+    • la analítica debe basarse en datos auditables
+    • no debe alterar datos originales
+    • debe poder filtrarse por médico, sede, rango de fechas y tipo de servicio, si aplica
+
+7. Submódulo: Auditoría inteligente y seguridad operativa
+Objetivo
+Asegurar que la automatización no rompa control ni confidencialidad.
+Funciones principales
+    • log de consultas al bot
+    • log de mensajes enviados y recibidos
+    • log de sugerencias generadas por IA
+    • log de acciones aprobadas o rechazadas
+    • detección de intentos de acceso inusual
+    • validación de identidad en acciones sensibles
+    • bitácora de cambios automáticos o semiautomáticos
+Casos importantes
+    • quién consultó expediente por bot
+    • quién aceptó una propuesta generada por IA
+    • qué mensaje disparó una reprogramación
+    • qué usuario confirmó el cambio final
+    • qué dato fue generado y luego editado
+Reglas
+    • toda acción automatizada debe ser trazable
+    • debe distinguirse claramente dato original vs sugerencia IA
+    • accesos sensibles deben quedar auditados
+    • ciertas acciones deben requerir confirmación humana
+
+Flujo principal del Módulo 3
+Flujo 1: Confirmación de cita
+    1. sistema detecta cita próxima
+    2. envía recordatorio por WhatsApp
+    3. paciente responde
+    4. sistema clasifica respuesta
+    5. backend valida acción
+    6. se actualiza estado o se deriva a recepción
+Flujo 2: Consulta al bot
+    1. médico abre módulo del asistente
+    2. pregunta sobre paciente
+    3. sistema recupera información estructurada
+    4. IA resume
+    5. sistema muestra respuesta con base en expediente real
+Flujo 3: Seguimiento automático
+    1. consulta genera examen pendiente
+    2. pasan ciertos días sin resultado
+    3. sistema genera alerta
+    4. recepción o médico revisa
+    5. se contacta al paciente o se registra seguimiento
+
+Requerimientos funcionales del Módulo 3
+Bot clínico
+RF-50. El sistema debe permitir al médico consultar información de pacientes en lenguaje natural.
+RF-51. El sistema debe responder únicamente con base en información recuperada del sistema.
+RF-52. El sistema debe mostrar contexto suficiente para identificar correctamente al paciente consultado.
+RF-53. El sistema debe registrar bitácora de consultas realizadas al bot.
+RF-54. El sistema debe restringir acceso a información según rol.
+Recordatorios y confirmaciones
+RF-55. El sistema debe enviar recordatorios automáticos de citas.
+RF-56. El sistema debe registrar respuestas de confirmación, cancelación o solicitud de reprogramación.
+RF-57. El sistema debe actualizar el estado de confirmación de una cita.
+RF-58. El sistema debe derivar a revisión humana las respuestas ambiguas o no concluyentes.
+Mensajería y WhatsApp
+RF-59. El sistema debe permitir envío y recepción de mensajes relacionados con citas y seguimiento.
+RF-60. El sistema debe asociar mensajes con paciente, cita y conversación correspondiente.
+RF-61. El sistema debe mantener historial de interacciones por paciente.
+RF-62. El sistema debe permitir uso de plantillas aprobadas para mensajes automáticos.
+Alertas
+RF-63. El sistema debe generar alertas automáticas por eventos configurables.
+RF-64. El sistema debe permitir gestionar estado, prioridad y responsable de una alerta.
+RF-65. El sistema debe permitir visualizar alertas activas por tipo.
+Resúmenes y asistencia
+RF-66. El sistema debe generar resúmenes clínicos de apoyo basados en el expediente del paciente.
+RF-67. El sistema debe permitir generar borradores de notas o documentos clínicos para revisión médica.
+RF-68. El sistema debe distinguir visualmente entre información registrada y sugerencias generadas por IA.
+Analítica
+RF-69. El sistema debe generar dashboards e indicadores operativos y clínicos.
+RF-70. El sistema debe permitir filtrar reportes por fecha, médico, aseguradora o tipo de servicio.
+RF-71. El sistema debe exportar reportes y vistas analíticas.
+Auditoría y seguridad
+RF-72. El sistema debe registrar toda acción automática o asistida por IA.
+RF-73. El sistema debe registrar trazabilidad de mensajes enviados y respuestas recibidas.
+RF-74. El sistema debe registrar qué usuario aprobó o rechazó acciones sugeridas por IA.
+
+Requerimientos no funcionales del Módulo 3
+RNF-13. Las respuestas del bot deben priorizar exactitud y trazabilidad sobre creatividad.
+RNF-14. Toda automatización crítica debe poder desactivarse o pasar a modo manual.
+RNF-15. El sistema debe registrar evidencia suficiente para auditar respuestas y acciones.
+RNF-16. La mensajería debe manejar errores de entrega y reintentos controlados.
+RNF-17. La información mostrada por IA debe respetar permisos y privacidad.
+RNF-18. Las integraciones externas no deben comprometer la integridad de agenda ni expediente.
+
+Entidades principales del Módulo 3
+    • conversacion_paciente
+    • mensaje
+    • plantilla_mensaje
+    • recordatorio
+    • respuesta_recordatorio
+    • alerta
+    • tipo_alerta
+    • consulta_bot
+    • respuesta_bot
+    • evidencia_respuesta_bot
+    • resumen_clinico_generado
+    • sugerencia_ia
+    • log_automatizacion
+    • configuracion_notificacion
+
+Pantallas mínimas del Módulo 3
+    • bandeja de conversaciones
+    • configuración de recordatorios
+    • panel de alertas
+    • asistente del médico
+    • historial de consultas al bot
+    • resumen del paciente
+    • dashboard inteligente
+    • configuración de automatizaciones
+    • bitácora de IA y auditoría
+
+MVP del Módulo 3
+Para un MVP razonable yo empezaría con:
+    • recordatorios automáticos de citas
+    • confirmación básica
+    • historial de mensajes
+    • alertas simples
+    • bot de consulta clínica solo lectura
+    • resumen de historial del paciente
+    • dashboard básico de confirmaciones y ausencias
+Y dejaría para después:
+    • reprogramación automática avanzada
+    • borradores de notas clínicas complejas
+    • análisis predictivo
+    • automatizaciones sofisticadas
+    • asistente conversacional más libre
+
+Resumen final de los 3 módulos
+Módulo 1. Atención clínica
+    • pacientes
+    • citas
+    • expediente
+    • diagnósticos
+    • recetas
+    • exámenes
+Módulo 2. Administración y facturación
+    • cobros
+    • seguros
+    • aseguradoras
+    • formularios
+    • cuentas por cobrar
+    • gastos
+    • inventario
+Módulo 3. Inteligencia y apoyo operativo
+    • bot clínico
+    • recordatorios
+    • WhatsApp
+    • alertas
+    • resúmenes
+    • analítica
+    • auditoría inteligente
+
+Mi recomendación de orden de construcción
+Yo lo haría así:
+Fase 1
+    • Módulo 1 completo básico
+Fase 2
+    • Módulo 2 básico
+Fase 3
+    • Módulo 3 MVP
+Porque si no existe bien:
+    • paciente
+    • cita
+    • consulta
+    • cobro
+entonces la IA y automatización no tienen base confiable.
+El siguiente paso ideal sería convertir estos 3 módulos en una matriz de alcance MVP / fase 2 / fase 3, para que ya te quede priorizado qué construir primero.
+

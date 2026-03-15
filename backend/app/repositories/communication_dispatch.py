@@ -1,0 +1,38 @@
+from typing import List
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.communication_dispatch import CommunicationDispatch
+
+
+class CommunicationDispatchRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create(self, dispatch: CommunicationDispatch) -> CommunicationDispatch:
+        self.db.add(dispatch)
+        self.db.flush()
+        return dispatch
+
+    def get(self, dispatch_id: int) -> CommunicationDispatch | None:
+        return self.db.get(CommunicationDispatch, dispatch_id)
+
+    def list(self, *, limit: int = 100) -> List[CommunicationDispatch]:
+        return list(
+            self.db.scalars(
+                select(CommunicationDispatch)
+                .order_by(CommunicationDispatch.created_at.desc(), CommunicationDispatch.id.desc())
+                .limit(limit)
+            )
+        )
+
+    def list_pending(self, *, limit: int = 100) -> List[CommunicationDispatch]:
+        return list(
+            self.db.scalars(
+                select(CommunicationDispatch)
+                .where(CommunicationDispatch.status == "pending")
+                .order_by(CommunicationDispatch.created_at.asc(), CommunicationDispatch.id.asc())
+                .limit(limit)
+            )
+        )
