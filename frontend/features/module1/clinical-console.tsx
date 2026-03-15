@@ -8,6 +8,7 @@ import type {
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationDispatchBatchRequeue,
+  CommunicationDispatchAttempt,
   CommunicationDispatchSummary,
   CommunicationTemplate,
   CommunicationTemplatePreview,
@@ -67,6 +68,8 @@ export function ClinicalConsole() {
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
+  const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
+  const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
   const [dispatchFilters, setDispatchFilters] = useState({
     status_filter: "",
@@ -613,6 +616,24 @@ export function ClinicalConsole() {
     }
   }
 
+  async function toggleDispatchAttempts(dispatchId: number) {
+    if (expandedDispatchId === dispatchId) {
+      setExpandedDispatchId(null);
+      return;
+    }
+
+    setMessage("");
+    try {
+      if (!dispatchAttempts[dispatchId]) {
+        const attempts = await apiGet<CommunicationDispatchAttempt[]>(`/api/communication-dispatches/${dispatchId}/attempts`);
+        setDispatchAttempts((current) => ({ ...current, [dispatchId]: attempts }));
+      }
+      setExpandedDispatchId(dispatchId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication dispatch attempts could not be loaded.");
+    }
+  }
+
   async function updateDispatchStatus(dispatchId: number, status: "sent" | "delivered" | "failed") {
     setMessage("");
     try {
@@ -1082,60 +1103,89 @@ export function ClinicalConsole() {
             </div>
             <div className="table-list">
               {communicationDispatches.map((dispatch) => (
-                <div className="row" key={`communication-dispatch-${dispatch.id}`}>
-                  <strong>
-                    #{dispatch.id} · {dispatch.channel} · {dispatch.status}
-                  </strong>
-                  <span>
-                    patient {dispatch.patient_id}
-                    {dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
-                    {dispatch.appointment_id ? ` · appointment ${dispatch.appointment_id}` : ""}
-                    {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
-                  </span>
-                  <span>{dispatch.recipient_phone}</span>
-                  <span>
-                    {dispatch.external_reference ?? "no external reference"}
-                    {` · retry ${dispatch.retry_count}`}
-                    {dispatch.next_attempt_at ? ` · next ${dispatch.next_attempt_at}` : ""}
-                  </span>
-                  {hasAnyRole(currentRoles, ["admin"]) ? (
+                <div key={`communication-dispatch-${dispatch.id}`}>
+                  <div className="row">
+                    <strong>
+                      #{dispatch.id} · {dispatch.channel} · {dispatch.status}
+                    </strong>
+                    <span>
+                      patient {dispatch.patient_id}
+                      {dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
+                      {dispatch.appointment_id ? ` · appointment ${dispatch.appointment_id}` : ""}
+                      {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
+                    </span>
+                    <span>{dispatch.recipient_phone}</span>
+                    <span>
+                      {dispatch.external_reference ?? "no external reference"}
+                      {` · retry ${dispatch.retry_count}`}
+                      {dispatch.next_attempt_at ? ` · next ${dispatch.next_attempt_at}` : ""}
+                    </span>
                     <div className="row-actions">
-                      {dispatch.status !== "sent" && dispatch.status !== "delivered" ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateDispatchStatus(dispatch.id, "sent")}
-                        >
-                          Mark sent
-                        </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => toggleDispatchAttempts(dispatch.id)}
+                      >
+                        {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
+                      </button>
+                      {hasAnyRole(currentRoles, ["admin"]) ? (
+                        <>
+                          {dispatch.status !== "sent" && dispatch.status !== "delivered" ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => updateDispatchStatus(dispatch.id, "sent")}
+                            >
+                              Mark sent
+                            </button>
+                          ) : null}
+                          {dispatch.status !== "delivered" ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => updateDispatchStatus(dispatch.id, "delivered")}
+                            >
+                              Mark delivered
+                            </button>
+                          ) : null}
+                          {dispatch.status !== "failed" ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => updateDispatchStatus(dispatch.id, "failed")}
+                            >
+                              Mark failed
+                            </button>
+                          ) : null}
+                          {dispatch.status === "failed" ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => requeueDispatch(dispatch.id)}
+                            >
+                              Requeue
+                            </button>
+                          ) : null}
+                        </>
                       ) : null}
-                      {dispatch.status !== "delivered" ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateDispatchStatus(dispatch.id, "delivered")}
-                        >
-                          Mark delivered
-                        </button>
-                      ) : null}
-                      {dispatch.status !== "failed" ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateDispatchStatus(dispatch.id, "failed")}
-                        >
-                          Mark failed
-                        </button>
-                      ) : null}
-                      {dispatch.status === "failed" ? (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => requeueDispatch(dispatch.id)}
-                        >
-                          Requeue
-                        </button>
-                      ) : null}
+                    </div>
+                  </div>
+                  {expandedDispatchId === dispatch.id ? (
+                    <div className="table-list">
+                      {dispatchAttempts[dispatch.id]?.length ? (
+                        dispatchAttempts[dispatch.id].map((attempt) => (
+                          <div className="row" key={`dispatch-attempt-${attempt.id}`}>
+                            <strong>
+                              {attempt.result_status} · {attempt.attempt_source}
+                            </strong>
+                            <span>{attempt.attempted_at}</span>
+                            <span>{attempt.external_reference ?? "no external reference"}</span>
+                            <span>{attempt.error_message ?? "no error"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="empty-state">No attempts recorded.</p>
+                      )}
                     </div>
                   ) : null}
                 </div>

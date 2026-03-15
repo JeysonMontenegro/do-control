@@ -174,3 +174,15 @@ export type CommunicationDispatchSummary = {
 export type CommunicationDispatchBatchRequeue = {
   requeued_count: number;
 };
+
+export type CommunicationDispatchAttempt = {
+  id: number;
+  dispatch_id: number;
+  attempt_source: string;
+  result_status: string;
+  attempted_at: string;
+  external_reference: string | null;
+  error_message: string | null;
+  rendered_message: string | null;
+  created_at: string;
+};
