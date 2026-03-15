@@ -129,6 +129,14 @@ export type CommunicationTemplate = {
   updated_at: string;
 };
 
+export type CommunicationTemplatePreview = {
+  rendered_message: string;
+  patient_id: number | null;
+  doctor_id: number | null;
+  appointment_id: number | null;
+  exam_order_id: number | null;
+};
+
 export type CommunicationDispatch = {
   id: number;
   patient_id: number;

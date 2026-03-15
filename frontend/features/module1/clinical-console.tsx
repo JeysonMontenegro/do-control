@@ -8,6 +8,7 @@ import type {
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationTemplate,
+  CommunicationTemplatePreview,
   Diagnosis,
   Doctor,
   Encounter,
@@ -63,6 +64,7 @@ export function ClinicalConsole() {
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
+  const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
   const [reminderRuleForm, setReminderRuleForm] = useState({
     doctor_id: "",
     channel: "whatsapp",
@@ -507,6 +509,7 @@ export function ClinicalConsole() {
         body: "",
         is_active: true,
       });
+      setTemplatePreview(null);
       await loadData();
       setMessage("Communication template created.");
     } catch (error) {
@@ -524,6 +527,29 @@ export function ClinicalConsole() {
       setMessage(`Communication template ${template.id} ${template.is_active ? "deactivated" : "activated"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Communication template update failed.");
+    }
+  }
+
+  async function previewTemplate() {
+    setMessage("");
+    try {
+      const firstExamOrderId =
+        selectedSummary?.encounters.flatMap((encounter) => encounter.exam_orders ?? []).find((exam) => exam.id)?.id ??
+        null;
+      const preview = await apiPost<CommunicationTemplatePreview>("/api/communication-templates/preview", {
+        doctor_id: templateForm.doctor_id ? Number(templateForm.doctor_id) : appointmentForm.doctor_id ? Number(appointmentForm.doctor_id) : null,
+        channel: templateForm.channel,
+        template_key: templateForm.template_key || "preview",
+        title: templateForm.title || "Preview",
+        body: templateForm.body,
+        patient_id: selectedPatientId ? Number(selectedPatientId) : null,
+        appointment_id: selectedSummary?.appointments[0]?.id ?? null,
+        exam_order_id: firstExamOrderId,
+      });
+      setTemplatePreview(preview);
+      setMessage("Communication template preview generated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication template preview failed.");
     }
   }
 
@@ -845,7 +871,15 @@ export function ClinicalConsole() {
                   required
                 />
               </label>
-              <button type="submit">Create template</button>
+              {templatePreview ? (
+                <p className="empty-state">Preview: {templatePreview.rendered_message || "(empty result)"}</p>
+              ) : null}
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={previewTemplate}>
+                  Preview
+                </button>
+                <button type="submit">Create template</button>
+              </div>
             </form>
           ) : (
             <article className="card table-card">

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.appointment import Appointment
 from app.models.communication_dispatch import CommunicationDispatch
+from app.models.communication_template import CommunicationTemplate
 from app.models.encounter import Encounter, ExamOrder
 from app.repositories.appointment import AppointmentRepository
 from app.repositories.communication_dispatch import CommunicationDispatchRepository
@@ -45,9 +46,14 @@ class CommunicationDispatchService:
             return None
 
         template = self.template_repository.get(dispatch.template_id)
-        patient = self.patient_repository.get(dispatch.patient_id)
-        if template is None or patient is None:
+        if template is None:
             return None
+        return self.render_template_message(template, dispatch)
+
+    def render_template_message(self, template: CommunicationTemplate, dispatch: CommunicationDispatch) -> str:
+        patient = self.patient_repository.get(dispatch.patient_id)
+        if patient is None:
+            return ""
 
         doctor_name = ""
         if dispatch.doctor_id is not None:

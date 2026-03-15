@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db_session, require_roles
 from app.schemas.communication_template import (
     CommunicationTemplateCreate,
+    CommunicationTemplatePreviewRead,
+    CommunicationTemplatePreviewRequest,
     CommunicationTemplateRead,
     CommunicationTemplateUpdate,
 )
@@ -29,6 +31,20 @@ def create_communication_template(
 ) -> CommunicationTemplateRead:
     try:
         return CommunicationTemplateService(db).create_template(payload)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/preview", response_model=CommunicationTemplatePreviewRead)
+def preview_communication_template(
+    payload: CommunicationTemplatePreviewRequest,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin")),
+) -> CommunicationTemplatePreviewRead:
+    try:
+        return CommunicationTemplateService(db).preview_template(payload)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:
