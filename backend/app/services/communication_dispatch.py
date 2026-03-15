@@ -226,8 +226,15 @@ class CommunicationDispatchService:
         self.db.commit()
         return created
 
-    def list_dispatches(self, *, limit: int = 100) -> list[CommunicationDispatch]:
-        return self.repository.list(limit=limit)
+    def list_dispatches(
+        self,
+        *,
+        limit: int = 100,
+        status: str | None = None,
+        channel: str | None = None,
+        query: str | None = None,
+    ) -> list[CommunicationDispatch]:
+        return self.repository.list(limit=limit, status=status, channel=channel, query=query)
 
     def list_pending_dispatches(self, *, limit: int = 100) -> list[CommunicationDispatch]:
         self.generate_due_dispatches()

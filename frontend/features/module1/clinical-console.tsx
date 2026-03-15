@@ -65,6 +65,11 @@ export function ClinicalConsole() {
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
+  const [dispatchFilters, setDispatchFilters] = useState({
+    status_filter: "",
+    channel: "",
+    query: "",
+  });
   const [reminderRuleForm, setReminderRuleForm] = useState({
     doctor_id: "",
     channel: "whatsapp",
@@ -134,6 +139,16 @@ export function ClinicalConsole() {
       const patientPath = patientSearch.trim()
         ? `/api/patients?query=${encodeURIComponent(patientSearch.trim())}`
         : "/api/patients";
+      const dispatchParams = new URLSearchParams({ limit: "20" });
+      if (dispatchFilters.status_filter) {
+        dispatchParams.set("status_filter", dispatchFilters.status_filter);
+      }
+      if (dispatchFilters.channel) {
+        dispatchParams.set("channel", dispatchFilters.channel);
+      }
+      if (dispatchFilters.query.trim()) {
+        dispatchParams.set("query", dispatchFilters.query.trim());
+      }
       const canViewReminderRules = hasAnyRole(currentRoles, ["admin", "receptionist"]);
       const canViewCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
 
@@ -146,7 +161,7 @@ export function ClinicalConsole() {
         canViewReminderRules ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
         canViewCommunications ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
         canViewCommunications
-          ? apiGet<CommunicationDispatch[]>("/api/communication-dispatches?limit=20")
+          ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
         ]);
 
@@ -193,7 +208,7 @@ export function ClinicalConsole() {
     if (isAuthenticated) {
       loadData();
     }
-  }, [isAuthenticated, patientSearch, currentRoles]);
+  }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -928,6 +943,38 @@ export function ClinicalConsole() {
                   Generate now
                 </button>
               ) : null}
+            </div>
+            <div className="row-actions">
+              <select
+                value={dispatchFilters.status_filter}
+                onChange={(event) =>
+                  setDispatchFilters((current) => ({ ...current, status_filter: event.target.value }))
+                }
+              >
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+                <option value="delivered">Delivered</option>
+                <option value="failed">Failed</option>
+              </select>
+              <select
+                value={dispatchFilters.channel}
+                onChange={(event) =>
+                  setDispatchFilters((current) => ({ ...current, channel: event.target.value }))
+                }
+              >
+                <option value="">All channels</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="sms">SMS</option>
+                <option value="email">Email</option>
+              </select>
+              <input
+                value={dispatchFilters.query}
+                onChange={(event) =>
+                  setDispatchFilters((current) => ({ ...current, query: event.target.value }))
+                }
+                placeholder="Phone, ref, error"
+              />
             </div>
             <div className="table-list">
               {communicationDispatches.map((dispatch) => (

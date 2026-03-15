@@ -17,10 +17,18 @@ router = APIRouter()
 @router.get("", response_model=list[CommunicationDispatchRead])
 def list_communication_dispatches(
     limit: int = 100,
+    status_filter: str | None = None,
+    channel: str | None = None,
+    query: str | None = None,
     db: Session = Depends(get_db_session),
     _current_user=Depends(require_roles("admin", "receptionist")),
 ) -> list[CommunicationDispatchRead]:
-    return CommunicationDispatchService(db).list_dispatches(limit=limit)
+    return CommunicationDispatchService(db).list_dispatches(
+        limit=limit,
+        status=status_filter,
+        channel=channel,
+        query=query,
+    )
 
 
 @router.post("/generate", response_model=CommunicationDispatchGenerationRead)

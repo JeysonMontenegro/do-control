@@ -20,10 +20,31 @@ class CommunicationDispatchRepository:
     def get(self, dispatch_id: int) -> CommunicationDispatch | None:
         return self.db.get(CommunicationDispatch, dispatch_id)
 
-    def list(self, *, limit: int = 100) -> List[CommunicationDispatch]:
+    def list(
+        self,
+        *,
+        limit: int = 100,
+        status: str | None = None,
+        channel: str | None = None,
+        query: str | None = None,
+    ) -> List[CommunicationDispatch]:
+        statement = select(CommunicationDispatch)
+        if status:
+            statement = statement.where(CommunicationDispatch.status == status)
+        if channel:
+            statement = statement.where(CommunicationDispatch.channel == channel)
+        if query:
+            pattern = f"%{query.strip()}%"
+            statement = statement.where(
+                or_(
+                    CommunicationDispatch.recipient_phone.ilike(pattern),
+                    CommunicationDispatch.external_reference.ilike(pattern),
+                    CommunicationDispatch.error_message.ilike(pattern),
+                )
+            )
         return list(
             self.db.scalars(
-                select(CommunicationDispatch)
+                statement
                 .order_by(CommunicationDispatch.created_at.desc(), CommunicationDispatch.id.desc())
                 .limit(limit)
             )
