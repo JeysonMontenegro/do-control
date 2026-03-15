@@ -14,7 +14,7 @@ from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.reminder_rule import ReminderRuleRepository
 from app.schemas.communication_dispatch import CommunicationDispatchCreate, CommunicationDispatchUpdate
-from app.schemas.communication_dispatch import CommunicationDispatchSummaryRead
+from app.schemas.communication_dispatch import CommunicationDispatchBatchRequeueRead, CommunicationDispatchSummaryRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
@@ -376,3 +376,13 @@ class CommunicationDispatchService:
         self.db.commit()
         self.db.refresh(dispatch)
         return dispatch
+
+    def requeue_dispatches(self, dispatch_ids: list[int]) -> CommunicationDispatchBatchRequeueRead:
+        requeued_count = 0
+        for dispatch_id in dispatch_ids:
+            dispatch = self.repository.get(dispatch_id)
+            if dispatch is None or dispatch.status != "failed":
+                continue
+            self.requeue_dispatch(dispatch_id)
+            requeued_count += 1
+        return CommunicationDispatchBatchRequeueRead(requeued_count=requeued_count)

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
 from app.schemas.communication_dispatch import (
+    CommunicationDispatchBatchRequeueRead,
+    CommunicationDispatchBatchRequeueRequest,
     CommunicationDispatchCreate,
     CommunicationDispatchGenerationRead,
     CommunicationDispatchRead,
@@ -47,6 +49,15 @@ def generate_communication_dispatches(
 ) -> CommunicationDispatchGenerationRead:
     created_count = CommunicationDispatchService(db).generate_due_dispatches()
     return CommunicationDispatchGenerationRead(created_count=created_count)
+
+
+@router.post("/requeue-batch", response_model=CommunicationDispatchBatchRequeueRead)
+def requeue_communication_dispatches_batch(
+    payload: CommunicationDispatchBatchRequeueRequest,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin")),
+) -> CommunicationDispatchBatchRequeueRead:
+    return CommunicationDispatchService(db).requeue_dispatches(payload.dispatch_ids)
 
 
 @router.post("", response_model=CommunicationDispatchRead, status_code=status.HTTP_201_CREATED)

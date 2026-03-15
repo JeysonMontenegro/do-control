@@ -170,3 +170,7 @@ export type CommunicationDispatchSummary = {
   failed: number;
   due_now: number;
 };
+
+export type CommunicationDispatchBatchRequeue = {
+  requeued_count: number;
+};

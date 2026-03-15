@@ -7,6 +7,7 @@ import type {
   Appointment,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
+  CommunicationDispatchBatchRequeue,
   CommunicationDispatchSummary,
   CommunicationTemplate,
   CommunicationTemplatePreview,
@@ -594,6 +595,24 @@ export function ClinicalConsole() {
     }
   }
 
+  async function requeueVisibleFailedDispatches() {
+    setMessage("");
+    try {
+      const failedDispatchIds = communicationDispatches.filter((dispatch) => dispatch.status === "failed").map((dispatch) => dispatch.id);
+      if (!failedDispatchIds.length) {
+        setMessage("No failed dispatches in the current view.");
+        return;
+      }
+      const result = await apiPost<CommunicationDispatchBatchRequeue>("/api/communication-dispatches/requeue-batch", {
+        dispatch_ids: failedDispatchIds,
+      });
+      await loadData();
+      setMessage(`Requeued ${result.requeued_count} failed dispatches.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Communication dispatch batch requeue failed.");
+    }
+  }
+
   async function updateDispatchStatus(dispatchId: number, status: "sent" | "delivered" | "failed") {
     setMessage("");
     try {
@@ -963,9 +982,14 @@ export function ClinicalConsole() {
             <div className="subsection-header">
               <h2>Communication dispatch log</h2>
               {hasAnyRole(currentRoles, ["admin"]) ? (
-                <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
-                  Generate now
-                </button>
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
+                    Generate now
+                  </button>
+                  <button type="button" className="secondary-button" onClick={requeueVisibleFailedDispatches}>
+                    Requeue failed visible
+                  </button>
+                </div>
               ) : null}
             </div>
             {communicationDispatchSummary ? (

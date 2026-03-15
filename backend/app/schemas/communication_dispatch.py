@@ -65,3 +65,11 @@ class CommunicationDispatchSummaryRead(BaseModel):
     delivered: int
     failed: int
     due_now: int
+
+
+class CommunicationDispatchBatchRequeueRequest(BaseModel):
+    dispatch_ids: list[int]
+
+
+class CommunicationDispatchBatchRequeueRead(BaseModel):
+    requeued_count: int
