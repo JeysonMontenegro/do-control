@@ -56,3 +56,12 @@ class CommunicationDispatchRead(BaseModel):
 
 class CommunicationDispatchGenerationRead(BaseModel):
     created_count: int
+
+
+class CommunicationDispatchSummaryRead(BaseModel):
+    total: int
+    pending: int
+    sent: int
+    delivered: int
+    failed: int
+    due_now: int

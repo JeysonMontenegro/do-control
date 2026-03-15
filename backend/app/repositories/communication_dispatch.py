@@ -2,7 +2,7 @@ from typing import List
 
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.communication_dispatch import CommunicationDispatch
@@ -92,3 +92,31 @@ class CommunicationDispatchRepository:
             .limit(1)
         )
         return self.db.scalar(statement) is not None
+
+    def summary(self, *, current_time: datetime | None = None) -> dict[str, int]:
+        now = current_time or datetime.now(timezone.utc)
+        counts = {
+            status: count
+            for status, count in self.db.execute(
+                select(CommunicationDispatch.status, func.count(CommunicationDispatch.id))
+                .group_by(CommunicationDispatch.status)
+            ).all()
+        }
+        due_now = self.db.scalar(
+            select(func.count(CommunicationDispatch.id)).where(
+                CommunicationDispatch.status == "pending",
+                or_(
+                    CommunicationDispatch.next_attempt_at.is_(None),
+                    CommunicationDispatch.next_attempt_at <= now,
+                ),
+            )
+        ) or 0
+        total = self.db.scalar(select(func.count(CommunicationDispatch.id))) or 0
+        return {
+            "total": total,
+            "pending": counts.get("pending", 0),
+            "sent": counts.get("sent", 0),
+            "delivered": counts.get("delivered", 0),
+            "failed": counts.get("failed", 0),
+            "due_now": due_now,
+        }

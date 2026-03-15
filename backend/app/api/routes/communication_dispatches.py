@@ -6,6 +6,7 @@ from app.schemas.communication_dispatch import (
     CommunicationDispatchCreate,
     CommunicationDispatchGenerationRead,
     CommunicationDispatchRead,
+    CommunicationDispatchSummaryRead,
     CommunicationDispatchUpdate,
 )
 from app.services.communication_dispatch import CommunicationDispatchService
@@ -29,6 +30,14 @@ def list_communication_dispatches(
         channel=channel,
         query=query,
     )
+
+
+@router.get("/summary", response_model=CommunicationDispatchSummaryRead)
+def get_communication_dispatch_summary(
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin", "receptionist")),
+) -> CommunicationDispatchSummaryRead:
+    return CommunicationDispatchService(db).get_summary()
 
 
 @router.post("/generate", response_model=CommunicationDispatchGenerationRead)

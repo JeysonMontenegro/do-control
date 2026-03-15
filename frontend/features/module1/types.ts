@@ -161,3 +161,12 @@ export type CommunicationDispatch = {
 export type CommunicationDispatchGeneration = {
   created_count: number;
 };
+
+export type CommunicationDispatchSummary = {
+  total: number;
+  pending: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  due_now: number;
+};

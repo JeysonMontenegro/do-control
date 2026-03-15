@@ -7,6 +7,7 @@ import type {
   Appointment,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
+  CommunicationDispatchSummary,
   CommunicationTemplate,
   CommunicationTemplatePreview,
   Diagnosis,
@@ -64,6 +65,7 @@ export function ClinicalConsole() {
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
+  const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
   const [dispatchFilters, setDispatchFilters] = useState({
     status_filter: "",
@@ -152,7 +154,7 @@ export function ClinicalConsole() {
       const canViewReminderRules = hasAnyRole(currentRoles, ["admin", "receptionist"]);
       const canViewCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
 
-      const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches] =
+      const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches, loadedDispatchSummary] =
         await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPath),
@@ -163,12 +165,14 @@ export function ClinicalConsole() {
         canViewCommunications
           ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
+        canViewCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
         ]);
 
       setData({ doctors, patients, appointments, encounters });
       setReminderRules(loadedReminderRules);
       setCommunicationTemplates(loadedTemplates);
       setCommunicationDispatches(loadedDispatches);
+      setCommunicationDispatchSummary(loadedDispatchSummary);
       if (!appointmentForm.doctor_id && doctors[0]) {
         setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
@@ -964,6 +968,62 @@ export function ClinicalConsole() {
                 </button>
               ) : null}
             </div>
+            {communicationDispatchSummary ? (
+              <div className="table-list">
+                <div className="row">
+                  <strong>Total</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "" }))}
+                  >
+                    {communicationDispatchSummary.total}
+                  </button>
+                  <strong>Pending</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "pending" }))}
+                  >
+                    {communicationDispatchSummary.pending}
+                  </button>
+                  <strong>Due now</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "pending" }))}
+                  >
+                    {communicationDispatchSummary.due_now}
+                  </button>
+                </div>
+                <div className="row">
+                  <strong>Sent</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "sent" }))}
+                  >
+                    {communicationDispatchSummary.sent}
+                  </button>
+                  <strong>Delivered</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "delivered" }))}
+                  >
+                    {communicationDispatchSummary.delivered}
+                  </button>
+                  <strong>Failed</strong>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "failed" }))}
+                  >
+                    {communicationDispatchSummary.failed}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="row-actions">
               <select
                 value={dispatchFilters.status_filter}

@@ -14,6 +14,7 @@ from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.reminder_rule import ReminderRuleRepository
 from app.schemas.communication_dispatch import CommunicationDispatchCreate, CommunicationDispatchUpdate
+from app.schemas.communication_dispatch import CommunicationDispatchSummaryRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
@@ -235,6 +236,9 @@ class CommunicationDispatchService:
         query: str | None = None,
     ) -> list[CommunicationDispatch]:
         return self.repository.list(limit=limit, status=status, channel=channel, query=query)
+
+    def get_summary(self) -> CommunicationDispatchSummaryRead:
+        return CommunicationDispatchSummaryRead(**self.repository.summary())
 
     def list_pending_dispatches(self, *, limit: int = 100) -> list[CommunicationDispatch]:
         self.generate_due_dispatches()
