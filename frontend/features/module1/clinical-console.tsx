@@ -785,6 +785,10 @@ export function ClinicalConsole() {
           {hasAnyRole(currentRoles, ["admin"]) ? (
             <form className="card form-card" onSubmit={submitTemplate}>
               <h2>Communication template</h2>
+              <p className="empty-state">
+                Allowed variables: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"}, {"{appointment_time}"},
+                {" {exam_name}"}, {" {expected_date}"}
+              </p>
               <label>
                 <span>Doctor scope</span>
                 <select
@@ -904,7 +908,11 @@ export function ClinicalConsole() {
                     {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
                   </span>
                   <span>{dispatch.recipient_phone}</span>
-                  <span>{dispatch.external_reference ?? "no external reference"}</span>
+                  <span>
+                    {dispatch.external_reference ?? "no external reference"}
+                    {` · retry ${dispatch.retry_count}`}
+                    {dispatch.next_attempt_at ? ` · next ${dispatch.next_attempt_at}` : ""}
+                  </span>
                   {hasAnyRole(currentRoles, ["admin"]) && dispatch.status === "failed" ? (
                     <div className="row-actions">
                       <button

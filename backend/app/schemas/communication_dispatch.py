@@ -13,6 +13,9 @@ class CommunicationDispatchCreate(BaseModel):
     channel: str = "whatsapp"
     recipient_phone: str
     status: str = "pending"
+    retry_count: int = 0
+    last_attempt_at: datetime | None = None
+    next_attempt_at: datetime | None = None
     external_reference: str | None = None
     rendered_message: str | None = None
     error_message: str | None = None
@@ -20,6 +23,9 @@ class CommunicationDispatchCreate(BaseModel):
 
 class CommunicationDispatchUpdate(BaseModel):
     status: str | None = None
+    retry_count: int | None = None
+    last_attempt_at: datetime | None = None
+    next_attempt_at: datetime | None = None
     external_reference: str | None = None
     rendered_message: str | None = None
     error_message: str | None = None
@@ -38,6 +44,9 @@ class CommunicationDispatchRead(BaseModel):
     channel: str
     recipient_phone: str
     status: str
+    retry_count: int
+    last_attempt_at: datetime | None
+    next_attempt_at: datetime | None
     external_reference: str | None
     rendered_message: str | None
     error_message: str | None

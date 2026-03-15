@@ -140,6 +140,9 @@ export type CommunicationDispatch = {
   channel: string;
   recipient_phone: string;
   status: string;
+  retry_count: number;
+  last_attempt_at: string | null;
+  next_attempt_at: string | null;
   external_reference: string | null;
   rendered_message: string | null;
   error_message: string | null;

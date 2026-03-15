@@ -18,6 +18,8 @@ from app.services.errors import NotFoundError, ValidationError
 
 
 class CommunicationDispatchService:
+    MAX_RETRIES = 5
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = CommunicationDispatchRepository(db)
@@ -26,6 +28,15 @@ class CommunicationDispatchService:
         self.appointment_repository = AppointmentRepository(db)
         self.reminder_rule_repository = ReminderRuleRepository(db)
         self.template_repository = CommunicationTemplateRepository(db)
+
+    def _next_retry_datetime(self, retry_count: int, *, from_time: datetime) -> datetime:
+        backoff_minutes = {
+            1: 5,
+            2: 15,
+            3: 60,
+            4: 180,
+        }.get(retry_count, 720)
+        return from_time + timedelta(minutes=backoff_minutes)
 
     def render_dispatch_message(self, dispatch: CommunicationDispatch) -> str | None:
         if dispatch.rendered_message:
@@ -125,6 +136,8 @@ class CommunicationDispatchService:
                     channel=rule.channel,
                     recipient_phone=appointment.patient.primary_phone,
                     status="pending",
+                    retry_count=0,
+                    next_attempt_at=current_time,
                 )
             )
             dispatch.rendered_message = self.render_dispatch_message(dispatch)
@@ -191,6 +204,8 @@ class CommunicationDispatchService:
                     channel=rule.channel,
                     recipient_phone=doctor_phone,
                     status="pending",
+                    retry_count=0,
+                    next_attempt_at=current_time,
                 )
             )
             dispatch.rendered_message = self.render_dispatch_message(dispatch)
@@ -235,6 +250,8 @@ class CommunicationDispatchService:
         dispatch = self.repository.create(CommunicationDispatch(**payload.model_dump()))
         if dispatch.rendered_message is None:
             dispatch.rendered_message = self.render_dispatch_message(dispatch)
+        if dispatch.next_attempt_at is None and dispatch.status == "pending":
+            dispatch.next_attempt_at = datetime.now(timezone.utc)
         create_audit_log(
             self.db,
             action="create",
@@ -258,11 +275,32 @@ class CommunicationDispatchService:
 
         before = {
             "status": dispatch.status,
+            "retry_count": dispatch.retry_count,
+            "last_attempt_at": dispatch.last_attempt_at.isoformat() if dispatch.last_attempt_at else None,
+            "next_attempt_at": dispatch.next_attempt_at.isoformat() if dispatch.next_attempt_at else None,
             "external_reference": dispatch.external_reference,
             "error_message": dispatch.error_message,
         }
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        update_data = payload.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
             setattr(dispatch, field, value)
+
+        now = datetime.now(timezone.utc)
+        requested_status = update_data.get("status")
+        if requested_status in {"sent", "delivered", "failed"}:
+            dispatch.last_attempt_at = now
+
+        if requested_status == "failed":
+            dispatch.retry_count += 1
+            if dispatch.retry_count >= self.MAX_RETRIES:
+                dispatch.next_attempt_at = None
+            else:
+                dispatch.status = "pending"
+                dispatch.next_attempt_at = self._next_retry_datetime(dispatch.retry_count, from_time=now)
+        elif requested_status in {"sent", "delivered"}:
+            dispatch.next_attempt_at = None
+        elif requested_status == "pending" and dispatch.next_attempt_at is None:
+            dispatch.next_attempt_at = now
 
         create_audit_log(
             self.db,
@@ -272,6 +310,9 @@ class CommunicationDispatchService:
             before_data=before,
             after_data={
                 "status": dispatch.status,
+                "retry_count": dispatch.retry_count,
+                "last_attempt_at": dispatch.last_attempt_at.isoformat() if dispatch.last_attempt_at else None,
+                "next_attempt_at": dispatch.next_attempt_at.isoformat() if dispatch.next_attempt_at else None,
                 "external_reference": dispatch.external_reference,
                 "error_message": dispatch.error_message,
             },
@@ -289,12 +330,16 @@ class CommunicationDispatchService:
 
         before = {
             "status": dispatch.status,
+            "retry_count": dispatch.retry_count,
             "external_reference": dispatch.external_reference,
             "error_message": dispatch.error_message,
         }
         dispatch.status = "pending"
+        dispatch.retry_count = 0
         dispatch.external_reference = None
         dispatch.error_message = None
+        dispatch.last_attempt_at = None
+        dispatch.next_attempt_at = datetime.now(timezone.utc)
         if dispatch.rendered_message is None:
             dispatch.rendered_message = self.render_dispatch_message(dispatch)
 
@@ -306,6 +351,7 @@ class CommunicationDispatchService:
             before_data=before,
             after_data={
                 "status": dispatch.status,
+                "retry_count": dispatch.retry_count,
                 "external_reference": dispatch.external_reference,
                 "error_message": dispatch.error_message,
             },

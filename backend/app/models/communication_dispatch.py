@@ -1,4 +1,6 @@
-from sqlalchemy import ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -18,6 +20,9 @@ class CommunicationDispatch(TimestampMixin, Base):
     channel: Mapped[str] = mapped_column(String(30), default="whatsapp", server_default="whatsapp")
     recipient_phone: Mapped[str] = mapped_column(String(30))
     status: Mapped[str] = mapped_column(String(30), default="pending", server_default="pending")
+    retry_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     external_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rendered_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

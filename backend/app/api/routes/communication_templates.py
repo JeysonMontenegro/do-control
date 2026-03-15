@@ -8,7 +8,7 @@ from app.schemas.communication_template import (
     CommunicationTemplateUpdate,
 )
 from app.services.communication_template import CommunicationTemplateService
-from app.services.errors import NotFoundError
+from app.services.errors import NotFoundError, ValidationError
 
 router = APIRouter()
 
@@ -31,6 +31,8 @@ def create_communication_template(
         return CommunicationTemplateService(db).create_template(payload)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.patch("/{template_id}", response_model=CommunicationTemplateRead)
@@ -44,3 +46,5 @@ def update_communication_template(
         return CommunicationTemplateService(db).update_template(template_id, payload)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
