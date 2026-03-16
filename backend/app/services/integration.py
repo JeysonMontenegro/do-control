@@ -1,4 +1,5 @@
 from datetime import date
+import unicodedata
 
 from sqlalchemy.orm import Session
 
@@ -64,13 +65,38 @@ class IntegrationService:
             primary_phone=primary_phone,
         )
 
+    @staticmethod
+    def _normalize_name(value: str) -> str:
+        normalized = unicodedata.normalize("NFKD", value)
+        ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+        return " ".join(ascii_only.lower().split())
+
+    def _patient_name_confidence(self, requested_name: str, patient_name: str) -> str | None:
+        normalized_requested = self._normalize_name(requested_name)
+        normalized_patient = self._normalize_name(patient_name)
+        if not normalized_requested or not normalized_patient:
+            return None
+        if normalized_requested == normalized_patient:
+            return "high"
+
+        requested_tokens = normalized_requested.split()
+        patient_tokens = normalized_patient.split()
+        if all(
+            any(requested_token in patient_token for patient_token in patient_tokens)
+            for requested_token in requested_tokens
+        ):
+            return "medium"
+        return None
+
     def match_patient(self, payload: PatientMatchRequest) -> PatientMatchResponse:
-        results = self.patient_service.list_patients(query=payload.phone_number)
+        results = self.patient_service.list_patients(query=payload.phone_number.strip() or None)
         candidates = []
-        requested_name = payload.patient_name.strip().lower()
+        requested_name = payload.patient_name.strip()
         for patient in results:
             patient_name = f"{patient.first_name} {patient.last_name}".strip()
-            confidence = "high" if patient_name.lower() == requested_name else "medium"
+            confidence = self._patient_name_confidence(requested_name, patient_name)
+            if confidence is None:
+                continue
             candidates.append(
                 PatientMatchCandidate(
                     patient_id=patient.id,
@@ -81,10 +107,13 @@ class IntegrationService:
                 )
             )
 
+        high_confidence_candidates = [candidate for candidate in candidates if candidate.confidence == "high"]
+
         if not candidates:
             status = "no_match"
-        elif len(candidates) == 1:
+        elif len(high_confidence_candidates) == 1:
             status = "matched"
+            candidates = high_confidence_candidates
         else:
             status = "candidate_matches"
 
