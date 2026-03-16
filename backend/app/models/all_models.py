@@ -1,4 +1,5 @@
 from app.models.appointment import Appointment, AppointmentHistory
+from app.models.appointment_review_item import AppointmentReviewItem
 from app.models.audit import AuditLog
 from app.models.communication_dispatch import CommunicationDispatch
 from app.models.communication_dispatch_attempt import CommunicationDispatchAttempt
@@ -15,6 +16,7 @@ from app.models.user import Role, User, UserRole
 __all__ = [
     "Appointment",
     "AppointmentHistory",
+    "AppointmentReviewItem",
     "AuditLog",
     "CommunicationDispatch",
     "CommunicationDispatchAttempt",

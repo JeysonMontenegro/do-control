@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 import time
 import unittest
 from urllib import error, request
@@ -53,8 +54,12 @@ class AppointmentHttpSmokeTests(unittest.TestCase):
     def test_proposed_appointment_keeps_source_and_history(self) -> None:
         unique_suffix = str(int(time.time() * 1000) % 10000000)
         unique_phone = f"557{int(time.time() * 1000) % 10000000:07d}"
-        scheduled_start = "2026-03-20T15:00:00Z"
-        scheduled_end = "2026-03-20T15:30:00Z"
+        base_time = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=7)
+        minute_offset = int(unique_suffix) % 600
+        scheduled_start_dt = base_time + timedelta(minutes=minute_offset)
+        scheduled_end_dt = scheduled_start_dt + timedelta(minutes=30)
+        scheduled_start = scheduled_start_dt.isoformat().replace("+00:00", "Z")
+        scheduled_end = scheduled_end_dt.isoformat().replace("+00:00", "Z")
 
         proposal_status, proposal_body = request_json(
             "/integrations/appointments/proposed",

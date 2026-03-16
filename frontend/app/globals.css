@@ -232,6 +232,48 @@ body {
   margin-top: 8px;
 }
 
+.inline-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(31, 42, 42, 0.08);
+  border: 1px solid rgba(31, 42, 42, 0.12);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.badge-accent {
+  background: rgba(15, 118, 110, 0.12);
+  border-color: rgba(15, 118, 110, 0.2);
+  color: var(--accent);
+}
+
+.badge-warn {
+  background: rgba(180, 83, 9, 0.12);
+  border-color: rgba(180, 83, 9, 0.22);
+  color: #9a3412;
+}
+
+.badge-danger {
+  background: rgba(185, 28, 28, 0.1);
+  border-color: rgba(185, 28, 28, 0.18);
+  color: #b91c1c;
+}
+
+.badge-neutral {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.14);
+  color: #1d4ed8;
+}
+
 .patient-focus {
   margin-top: 22px;
 }

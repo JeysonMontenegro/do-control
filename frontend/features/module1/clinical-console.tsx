@@ -6,6 +6,7 @@ import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
   AppointmentHistory,
+  AppointmentReviewItem,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationDispatchBatchRequeue,
@@ -50,6 +51,15 @@ const formatDateTime = (value: string | null) => {
   return new Date(value).toLocaleString();
 };
 
+const lastDispatchStatus = (dispatches: CommunicationDispatch[]) => {
+  if (!dispatches.length) {
+    return null;
+  }
+  return [...dispatches]
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0]
+    .status;
+};
+
 function hasAnyRole(currentRoles: string[], allowedRoles: string[]) {
   return allowedRoles.some((role) => currentRoles.includes(role));
 }
@@ -78,7 +88,10 @@ export function ClinicalConsole() {
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
   const [appointmentHistory, setAppointmentHistory] = useState<Record<number, AppointmentHistory[]>>({});
+  const [appointmentDispatches, setAppointmentDispatches] = useState<Record<number, CommunicationDispatch[]>>({});
   const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
+  const [appointmentReviewItems, setAppointmentReviewItems] = useState<AppointmentReviewItem[]>([]);
+  const [appointmentFilter, setAppointmentFilter] = useState<"all" | "ws" | "pending_confirmation" | "needs_attention">("all");
   const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
   const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
@@ -168,8 +181,9 @@ export function ClinicalConsole() {
       }
       const canViewReminderRules = hasAnyRole(currentRoles, ["admin", "receptionist"]);
       const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+      const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
 
-      const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches, loadedDispatchSummary] =
+      const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches, loadedDispatchSummary, loadedReviewItems] =
         await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPath),
@@ -181,6 +195,7 @@ export function ClinicalConsole() {
           ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
         canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
+        canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
         ]);
 
       setData({ doctors, patients, appointments, encounters });
@@ -188,6 +203,7 @@ export function ClinicalConsole() {
       setCommunicationTemplates(loadedTemplates);
       setCommunicationDispatches(loadedDispatches);
       setCommunicationDispatchSummary(loadedDispatchSummary);
+      setAppointmentReviewItems(loadedReviewItems);
       if (!appointmentForm.doctor_id && doctors[0]) {
         setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
@@ -447,9 +463,19 @@ export function ClinicalConsole() {
 
     setMessage("");
     try {
+      const [history, dispatches] = await Promise.all([
+        appointmentHistory[appointmentId]
+          ? Promise.resolve(appointmentHistory[appointmentId])
+          : apiGet<AppointmentHistory[]>(`/api/appointments/${appointmentId}/history`),
+        appointmentDispatches[appointmentId]
+          ? Promise.resolve(appointmentDispatches[appointmentId])
+          : apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?appointment_id=${appointmentId}&limit=20`),
+      ]);
       if (!appointmentHistory[appointmentId]) {
-        const history = await apiGet<AppointmentHistory[]>(`/api/appointments/${appointmentId}/history`);
         setAppointmentHistory((current) => ({ ...current, [appointmentId]: history }));
+      }
+      if (!appointmentDispatches[appointmentId]) {
+        setAppointmentDispatches((current) => ({ ...current, [appointmentId]: dispatches }));
       }
       setExpandedAppointmentId(appointmentId);
     } catch (error) {
@@ -708,6 +734,32 @@ export function ClinicalConsole() {
     }
   }
 
+  const reviewQueueByAppointmentId = new Map(
+    appointmentReviewItems
+      .filter((item) => item.existing_appointment_id !== null)
+      .map((item) => [item.existing_appointment_id as number, item]),
+  );
+
+  const filteredAppointments = data.appointments.filter((appointment) => {
+    const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+    const latestDispatchStatus = lastDispatchStatus(relatedDispatches);
+    const needsAttention =
+      appointment.confirmation_status === "pending" ||
+      latestDispatchStatus === "failed" ||
+      reviewQueueByAppointmentId.has(appointment.id);
+
+    if (appointmentFilter === "ws") {
+      return appointment.source === "appoint-me";
+    }
+    if (appointmentFilter === "pending_confirmation") {
+      return appointment.confirmation_status === "pending";
+    }
+    if (appointmentFilter === "needs_attention") {
+      return needsAttention;
+    }
+    return true;
+  });
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -905,6 +957,41 @@ export function ClinicalConsole() {
               ))}
               {!selectedPatientDispatches.length ? (
                 <p className="empty-state">No WhatsApp communication timeline for this patient yet.</p>
+              ) : null}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]) ? (
+        <section className="workspace-grid">
+          <article className="card table-card span-three">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Manual review</p>
+                <h2>Appoint-me review queue</h2>
+              </div>
+              <span>{appointmentReviewItems.length} pending</span>
+            </div>
+            <div className="table-list">
+              {appointmentReviewItems.map((item) => (
+                <div className="row" key={`appointment-review-item-${item.id}`}>
+                  <strong>
+                    {item.patient_name} · {item.appointment_type}
+                  </strong>
+                  <span>
+                    {item.doctor_name ?? item.doctor_phone_number ?? "doctor unresolved"}
+                    {` · ${formatDateTime(item.scheduled_start)}`}
+                  </span>
+                  <span>{item.review_reason}</span>
+                  <span>{item.review_message}</span>
+                  <span>
+                    {item.existing_appointment_id ? `existing appointment #${item.existing_appointment_id}` : item.phone_number}
+                  </span>
+                </div>
+              ))}
+              {!appointmentReviewItems.length ? (
+                <p className="empty-state">No appoint-me proposals waiting for manual review.</p>
               ) : null}
             </div>
           </article>
@@ -1759,11 +1846,38 @@ export function ClinicalConsole() {
           </div>
         </article>
 
-        <article className="card table-card">
-          <h2>Appointments</h2>
+        <article className="card table-card span-two">
+          <div className="subsection-header">
+            <div>
+              <h2>Appointments calendar feed</h2>
+              <p className="empty-state">One operational calendar, with origin and WhatsApp state visible inside each appointment.</p>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={() => setAppointmentFilter("all")}>
+                All
+              </button>
+              <button type="button" className="secondary-button" onClick={() => setAppointmentFilter("ws")}>
+                WS-originated
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setAppointmentFilter("pending_confirmation")}
+              >
+                Pending confirmation
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setAppointmentFilter("needs_attention")}
+              >
+                Needs attention
+              </button>
+            </div>
+          </div>
           <div className="table-list">
-            {data.appointments.map((appointment) => (
-              <div key={appointment.id}>
+            {filteredAppointments.map((appointment) => (
+              <div key={`appointment-feed-${appointment.id}`}>
                 <div className="row">
                   <strong>#{appointment.id}</strong>
                   <span>
@@ -1776,17 +1890,35 @@ export function ClinicalConsole() {
                   <span>
                     {appointment.status} · {appointment.confirmation_status}
                   </span>
-                  <span>
-                    {appointment.source}
-                    {appointment.created_by ? ` · ${appointment.created_by}` : ""}
-                  </span>
+                  <div className="inline-badges">
+                    <span className={`badge ${appointment.source === "appoint-me" ? "badge-accent" : ""}`}>
+                      {appointment.source === "appoint-me" ? "WS / appoint-me" : appointment.source}
+                    </span>
+                    <span className={`badge ${appointment.confirmation_status === "pending" ? "badge-warn" : "badge-neutral"}`}>
+                      {appointment.confirmation_status}
+                    </span>
+                    {communicationDispatches.some((dispatch) => dispatch.appointment_id === appointment.id) ? (
+                      <span
+                        className={`badge ${
+                          lastDispatchStatus(communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id)) === "failed"
+                            ? "badge-danger"
+                            : "badge-neutral"
+                        }`}
+                      >
+                        comms {lastDispatchStatus(communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id)) ?? "linked"}
+                      </span>
+                    ) : null}
+                    {reviewQueueByAppointmentId.has(appointment.id) ? (
+                      <span className="badge badge-danger">review pending</span>
+                    ) : null}
+                  </div>
                   <div className="row-actions">
                     <button
                       type="button"
                       className="secondary-button"
                       onClick={() => toggleAppointmentHistory(appointment.id)}
                     >
-                      {expandedAppointmentId === appointment.id ? "Hide history" : "History"}
+                      {expandedAppointmentId === appointment.id ? "Hide timeline" : "Timeline"}
                     </button>
                     {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
                       <>
@@ -1817,12 +1949,17 @@ export function ClinicalConsole() {
                 </div>
                 {expandedAppointmentId === appointment.id ? (
                   <div className="table-list">
+                    <div className="row">
+                      <strong>Appointment lifecycle</strong>
+                      <span>{appointment.source === "appoint-me" ? "Came from WhatsApp proposal flow" : "Created inside do-control"}</span>
+                      <span>{appointment.created_by ?? "system"}</span>
+                    </div>
                     {appointmentHistory[appointment.id]?.length ? (
                       appointmentHistory[appointment.id].map((entry) => (
-                          <div className="row" key={`appointment-history-${entry.id}`}>
-                            <strong>
-                              {entry.old_status ?? "new"} {"->"} {entry.new_status}
-                            </strong>
+                        <div className="row" key={`appointment-history-${entry.id}`}>
+                          <strong>
+                            {entry.old_status ?? "new"} {"->"} {entry.new_status}
+                          </strong>
                           <span>{formatDateTime(entry.created_at)}</span>
                           <span>{entry.changed_by ?? "system"}</span>
                           <span>{entry.change_reason ?? "no reason"}</span>
@@ -1831,10 +1968,63 @@ export function ClinicalConsole() {
                     ) : (
                       <p className="empty-state">No appointment history recorded.</p>
                     )}
+                    <div className="row">
+                      <strong>Communication events</strong>
+                      <span>{appointmentDispatches[appointment.id]?.length ?? 0} related dispatches</span>
+                    </div>
+                    {appointmentDispatches[appointment.id]?.length ? (
+                      appointmentDispatches[appointment.id].map((dispatch) => (
+                        <div key={`appointment-dispatch-${dispatch.id}`}>
+                          <div className="row">
+                            <strong>
+                              #{dispatch.id} · {dispatch.channel} · {dispatch.status}
+                            </strong>
+                            <span>{dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}</span>
+                            <span>{formatDateTime(dispatch.created_at)}</span>
+                            <span>{dispatch.external_reference ?? "no external reference"}</span>
+                            <div className="row-actions">
+                              {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => toggleDispatchAttempts(dispatch.id)}
+                                >
+                                  {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="row">
+                            <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
+                          </div>
+                          {expandedDispatchId === dispatch.id && hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                            <div className="table-list">
+                              {dispatchAttempts[dispatch.id]?.length ? (
+                                dispatchAttempts[dispatch.id].map((attempt) => (
+                                  <div className="row" key={`appointment-dispatch-attempt-${attempt.id}`}>
+                                    <strong>
+                                      {attempt.result_status} · {attempt.attempt_source}
+                                    </strong>
+                                    <span>{formatDateTime(attempt.attempted_at)}</span>
+                                    <span>{attempt.external_reference ?? "no external reference"}</span>
+                                    <span>{attempt.error_message ?? "no error"}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="empty-state">No attempts recorded.</p>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">No WhatsApp communication linked to this appointment.</p>
+                    )}
                   </div>
                 ) : null}
               </div>
             ))}
+            {!filteredAppointments.length ? <p className="empty-state">No appointments match the current filter.</p> : null}
           </div>
         </article>
 

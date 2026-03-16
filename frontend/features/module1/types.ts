@@ -40,6 +40,26 @@ export type AppointmentHistory = {
   created_at: string;
 };
 
+export type AppointmentReviewItem = {
+  id: number;
+  patient_name: string;
+  phone_number: string;
+  doctor_id: number | null;
+  doctor_name: string | null;
+  doctor_phone_number: string | null;
+  scheduled_start: string;
+  scheduled_end: string;
+  appointment_type: string;
+  reason: string | null;
+  source: string;
+  review_status: string;
+  review_reason: string;
+  review_message: string;
+  existing_appointment_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Encounter = {
   id: number;
   patient_id: number;

@@ -32,6 +32,7 @@ from app.schemas.integration import (
 )
 from app.schemas.patient import PatientCreate
 from app.services.appointment import AppointmentService
+from app.services.appointment_review_item import AppointmentReviewItemService
 from app.services.audit import create_audit_log
 from app.services.communication_dispatch import CommunicationDispatchService
 from app.services.doctor import DoctorService
@@ -45,6 +46,7 @@ class IntegrationService:
         self.db = db
         self.patient_service = PatientService(db)
         self.appointment_service = AppointmentService(db)
+        self.appointment_review_item_service = AppointmentReviewItemService(db)
         self.communication_dispatch_service = CommunicationDispatchService(db)
         self.communication_template_repository = CommunicationTemplateRepository(db)
         self.doctor_service = DoctorService(db)
@@ -210,9 +212,27 @@ class IntegrationService:
         raise ValidationError("Doctor not found for the provided phone number.")
 
     def create_proposed_appointment(self, payload: ProposedAppointmentRequest) -> ProposedAppointmentResponse:
+        def create_review_item(*, review_reason: str, review_message: str, doctor_id: int | None = None, existing_appointment_id: int | None = None) -> None:
+            self.appointment_review_item_service.create_item(
+                patient_name=payload.patient_name,
+                phone_number=payload.phone_number,
+                doctor_id=doctor_id,
+                doctor_name=payload.doctor_name,
+                doctor_phone_number=payload.doctor_phone_number,
+                scheduled_start=payload.scheduled_start,
+                scheduled_end=payload.scheduled_end,
+                appointment_type=payload.appointment_type,
+                reason=payload.reason,
+                source=payload.source,
+                review_reason=review_reason,
+                review_message=review_message,
+                existing_appointment_id=existing_appointment_id,
+            )
+
         try:
             doctor = self._resolve_doctor(payload)
         except (NotFoundError, ValidationError) as exc:
+            create_review_item(review_reason="doctor_resolution", review_message=str(exc))
             return ProposedAppointmentResponse(status="needs_manual_review", message=str(exc))
 
         match = self.match_patient(
@@ -223,10 +243,12 @@ class IntegrationService:
         if match.status == "matched":
             patient_id = match.candidate_matches[0].patient_id
         elif match.status == "candidate_matches":
+            review_message = "Multiple patient candidates found for the provided phone number."
+            create_review_item(review_reason="patient_resolution", review_message=review_message, doctor_id=doctor.id)
             return ProposedAppointmentResponse(
                 status="needs_manual_review",
                 doctor_id=doctor.id,
-                message="Multiple patient candidates found for the provided phone number.",
+                message=review_message,
             )
         elif payload.create_patient_if_missing:
             first_name, last_name = self.patient_service.split_full_name(payload.patient_name)
@@ -235,10 +257,12 @@ class IntegrationService:
             )
             patient_id = patient.id
         else:
+            review_message = "No patient match found and automatic creation is disabled."
+            create_review_item(review_reason="patient_missing", review_message=review_message, doctor_id=doctor.id)
             return ProposedAppointmentResponse(
                 status="no_match",
                 doctor_id=doctor.id,
-                message="No patient match found and automatic creation is disabled.",
+                message=review_message,
             )
 
         overlap = self.appointment_service.repository.find_overlap(
@@ -247,12 +271,19 @@ class IntegrationService:
             payload.scheduled_end,
         )
         if overlap is not None:
+            review_message = "Doctor already has an appointment in that time range."
+            create_review_item(
+                review_reason="schedule_conflict",
+                review_message=review_message,
+                doctor_id=doctor.id,
+                existing_appointment_id=overlap.id,
+            )
             return ProposedAppointmentResponse(
                 status="conflict",
                 patient_id=patient_id,
                 doctor_id=doctor.id,
                 existing_appointment_id=overlap.id,
-                message="Doctor already has an appointment in that time range.",
+                message=review_message,
             )
 
         try:
@@ -269,6 +300,7 @@ class IntegrationService:
                 )
             )
         except (ConflictError, ValidationError) as exc:
+            create_review_item(review_reason="validation_rejected", review_message=str(exc), doctor_id=doctor.id)
             return ProposedAppointmentResponse(
                 status="rejected",
                 patient_id=patient_id,
@@ -310,7 +342,7 @@ class IntegrationService:
         return AppointmentCancelResponse(
             status="cancelled",
             appointment_id=appointment.id,
-            patient_name=f"{appointment.patient.first_name} {appointment.patient.last_name}".strip(),
+            patient_name=appointment.patient_name,
             scheduled_start=appointment.scheduled_start,
         )
 
