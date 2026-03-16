@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("", response_model=list[ReminderRuleRead])
 def list_reminder_rules(
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[ReminderRuleRead]:
     return ReminderRuleService(db).list_rules()
 
@@ -21,7 +21,7 @@ def list_reminder_rules(
 def create_reminder_rule(
     payload: ReminderRuleCreate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin")),
+    _current_user=Depends(require_roles("admin", "doctor")),
 ) -> ReminderRuleRead:
     try:
         return ReminderRuleService(db).create_rule(payload)
@@ -34,7 +34,7 @@ def update_reminder_rule(
     reminder_rule_id: int,
     payload: ReminderRuleUpdate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin")),
+    _current_user=Depends(require_roles("admin", "doctor")),
 ) -> ReminderRuleRead:
     try:
         return ReminderRuleService(db).update_rule(reminder_rule_id, payload)

@@ -118,6 +118,25 @@ class AppointmentCancelResponse(BaseModel):
     scheduled_start: datetime | None = None
 
 
+class AppointmentRescheduleRequest(BaseModel):
+    doctor_id: int
+    patient_name: str
+    date: date_cls | None = None
+    requested_start: datetime | None = None
+    requested_end: datetime | None = None
+    note: str | None = None
+
+
+class AppointmentRescheduleResponse(BaseModel):
+    status: str
+    appointment_id: int | None = None
+    review_item_id: int | None = None
+    patient_name: str | None = None
+    current_scheduled_start: datetime | None = None
+    requested_start: datetime | None = None
+    requested_end: datetime | None = None
+
+
 class DoctorScheduleAppointmentRead(BaseModel):
     appointment_id: int
     patient_name: str

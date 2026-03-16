@@ -158,6 +158,20 @@ class AppointmentService:
         self.db.refresh(appointment)
         return self._serialize_appointment(appointment)
 
+    def find_for_doctor_patient_name(
+        self,
+        doctor_id: int,
+        patient_name: str,
+        *,
+        target_date: date | None,
+    ) -> Appointment:
+        if self.doctor_repository.get(doctor_id) is None:
+            raise NotFoundError("Doctor not found.")
+        appointment = self.repository.find_cancel_candidate(doctor_id, patient_name, target_date)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        return appointment
+
     def update_status(self, appointment_id: int, payload: AppointmentStatusUpdate) -> AppointmentRead:
         appointment = self.repository.get(appointment_id)
         if appointment is None:

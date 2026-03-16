@@ -9,6 +9,8 @@ from app.schemas.integration import (
     AppointmentActionResponse,
     AppointmentCancelRequest,
     AppointmentCancelResponse,
+    AppointmentRescheduleRequest,
+    AppointmentRescheduleResponse,
     CommunicationDispatchStatusUpdate,
     DoctorMatchRequest,
     DoctorMatchResponse,
@@ -116,6 +118,15 @@ def cancel_appointment(
     _key: str = Depends(require_integration_key),
 ) -> AppointmentCancelResponse:
     return IntegrationService(db).cancel_appointment(payload)
+
+
+@router.post("/appointments/reschedule", response_model=AppointmentRescheduleResponse)
+def request_appointment_reschedule(
+    payload: AppointmentRescheduleRequest,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> AppointmentRescheduleResponse:
+    return IntegrationService(db).request_reschedule(payload)
 
 
 @router.get("/appointments/schedule", response_model=list[DoctorScheduleAppointmentRead])

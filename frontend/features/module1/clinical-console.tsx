@@ -48,7 +48,7 @@ const consoleTabs: Array<{ id: ConsoleTab; label: string }> = [
   { id: "consultas", label: "Consultas" },
   { id: "mensajes", label: "Mensajes" },
   { id: "pendientes", label: "Pendientes" },
-  { id: "gestion", label: "Gestión" },
+  { id: "gestion", label: "Configuración" },
 ];
 
 const nowPlusMinutes = (minutes: number) => {
@@ -156,6 +156,20 @@ const dispatchStatusLabel = (value: string) => {
   return labels[value] ?? value.replaceAll("_", " ");
 };
 
+const communicationKindLabel = (dispatch: CommunicationDispatch) => {
+  const content = `${dispatch.template_title ?? ""} ${dispatch.template_key ?? ""} ${dispatch.rendered_message ?? ""}`.toLowerCase();
+  if (content.includes("cancel")) {
+    return "Cancelación";
+  }
+  if (content.includes("confirm")) {
+    return "Confirmación";
+  }
+  if (content.includes("record") || content.includes("reminder") || content.includes("cita")) {
+    return "Recordatorio";
+  }
+  return "Comunicación";
+};
+
 const confirmationLabel = (value: string) => {
   const labels: Record<string, string> = {
     pending: "Pendiente de confirmar",
@@ -164,6 +178,16 @@ const confirmationLabel = (value: string) => {
     cancelled: "Cancelada",
   };
   return labels[value] ?? value;
+};
+
+const reviewReasonLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    doctor_resolution: "Resolver doctor",
+    patient_resolution: "Resolver paciente",
+    validation_rejected: "Validación rechazada",
+    reschedule_request: "Solicitud de reagendar",
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
 };
 
 const sourceLabel = (value: string) => {
@@ -212,6 +236,11 @@ const lastDispatchStatus = (dispatches: CommunicationDispatch[]) => {
     .status;
 };
 
+const CONFIRMATION_TEMPLATE_KEY = "appointment_confirmation_doctor";
+const DEFAULT_CONFIRMATION_TITLE = "Confirmación de cita";
+const DEFAULT_CONFIRMATION_BODY =
+  "Hola {patient_name}, te saludamos de la clínica del doctor {doctor_name}. Solicitamos tu confirmación para tu cita el día de mañana a las {appointment_time}. Por favor responde con SI si asistirás, NO si no asistirás, o RECALENDAR si deseas agendar nuevamente otro día y horario sujeto a disponibilidad.";
+
 function hasAnyRole(currentRoles: string[], allowedRoles: string[]) {
   return allowedRoles.some((role) => currentRoles.includes(role));
 }
@@ -228,6 +257,7 @@ export function ClinicalConsole() {
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
   const [doctorFilter, setDoctorFilter] = useState("");
+  const [topbarSearch, setTopbarSearch] = useState("");
   const [loginForm, setLoginForm] = useState({
     email: "doctor@docontrol.local",
     password: "Doctor123!",
@@ -269,9 +299,9 @@ export function ClinicalConsole() {
   const [templateForm, setTemplateForm] = useState({
     doctor_id: "",
     channel: "whatsapp",
-    template_key: "appointment_custom",
-    title: "",
-    body: "",
+    template_key: CONFIRMATION_TEMPLATE_KEY,
+    title: DEFAULT_CONFIRMATION_TITLE,
+    body: DEFAULT_CONFIRMATION_BODY,
     is_active: true,
   });
   const [patientForm, setPatientForm] = useState({
@@ -330,7 +360,7 @@ export function ClinicalConsole() {
   const canViewMessages = hasAnyRole(currentRoles, ["admin", "receptionist", "doctor"]);
   const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
   const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const canViewGestion = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+  const canViewGestion = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const isAdmin = hasAnyRole(currentRoles, ["admin"]);
 
   async function loadData() {
@@ -366,7 +396,7 @@ export function ClinicalConsole() {
         apiGet<Appointment[]>("/api/appointments"),
         apiGet<Encounter[]>("/api/encounters"),
         canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
-        canViewGlobalCommunications ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
+        canViewGestion ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
         canViewGlobalCommunications
           ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
@@ -391,6 +421,12 @@ export function ClinicalConsole() {
       }
       if (!doctorFilter && doctors[0] && currentRoles.includes("doctor")) {
         setDoctorFilter(String(doctors[0].id));
+      }
+      if (!reminderRuleForm.doctor_id && doctors[0] && currentRoles.includes("doctor")) {
+        setReminderRuleForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
+      }
+      if (!templateForm.doctor_id && doctors[0] && currentRoles.includes("doctor")) {
+        setTemplateForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la información clínica.");
@@ -833,9 +869,9 @@ export function ClinicalConsole() {
       setTemplateForm({
         doctor_id: "",
         channel: "whatsapp",
-        template_key: "appointment_custom",
-        title: "",
-        body: "",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        title: DEFAULT_CONFIRMATION_TITLE,
+        body: DEFAULT_CONFIRMATION_BODY,
         is_active: true,
       });
       setTemplatePreview(null);
@@ -843,6 +879,34 @@ export function ClinicalConsole() {
       setMessage("Plantilla creada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear la plantilla.");
+    }
+  }
+
+  async function saveConfirmationTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      const payload = {
+        doctor_id: currentRoles.includes("doctor") ? (selectedDoctor?.id ?? null) : templateForm.doctor_id ? Number(templateForm.doctor_id) : null,
+        channel: "whatsapp",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        title: templateForm.title || "Confirmación de cita",
+        body: templateForm.body,
+        is_active: true,
+      };
+
+      if (confirmationTemplate) {
+        await apiPatch<CommunicationTemplate>(`/api/communication-templates/${confirmationTemplate.id}`, payload);
+        setMessage("Mensaje de confirmación actualizado.");
+      } else {
+        await apiPost<CommunicationTemplate>("/api/communication-templates", payload);
+        setMessage("Mensaje de confirmación guardado.");
+      }
+
+      await loadData();
+      setTemplatePreview(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar el mensaje de confirmación.");
     }
   }
 
@@ -870,6 +934,29 @@ export function ClinicalConsole() {
         channel: templateForm.channel,
         template_key: templateForm.template_key || "preview",
         title: templateForm.title || "Vista previa",
+        body: templateForm.body,
+        patient_id: selectedPatientId ? Number(selectedPatientId) : null,
+        appointment_id: selectedSummary?.appointments[0]?.id ?? null,
+        exam_order_id: firstExamOrderId,
+      });
+      setTemplatePreview(preview);
+      setMessage("Vista previa generada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa.");
+    }
+  }
+
+  async function previewConfirmationTemplate() {
+    setMessage("");
+    try {
+      const firstExamOrderId =
+        selectedSummary?.encounters.flatMap((encounter) => encounter.exam_orders ?? []).find((exam) => exam.id)?.id ??
+        null;
+      const preview = await apiPost<CommunicationTemplatePreview>("/api/communication-templates/preview", {
+        doctor_id: currentRoles.includes("doctor") ? (selectedDoctor?.id ?? null) : templateForm.doctor_id ? Number(templateForm.doctor_id) : null,
+        channel: "whatsapp",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        title: templateForm.title || "Confirmación de cita",
         body: templateForm.body,
         patient_id: selectedPatientId ? Number(selectedPatientId) : null,
         appointment_id: selectedSummary?.appointments[0]?.id ?? null,
@@ -1083,6 +1170,53 @@ export function ClinicalConsole() {
     [appointmentForm.doctor_id, data.doctors, doctorFilter, encounterForm.doctor_id],
   );
 
+  const scopedDoctorId = useMemo(() => {
+    if (currentRoles.includes("doctor")) {
+      return selectedDoctor?.id ?? null;
+    }
+    return doctorFilter ? Number(doctorFilter) : null;
+  }, [currentRoles, doctorFilter, selectedDoctor]);
+
+  const scopedReminderRules = useMemo(
+    () =>
+      reminderRules.filter((rule) => rule.is_active && (scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)),
+    [reminderRules, scopedDoctorId],
+  );
+
+  const scopedUpcomingAppointments = useMemo(() => {
+    const now = Date.now();
+    return data.appointments.filter((appointment) => {
+      if (scopedDoctorId !== null && appointment.doctor_id !== scopedDoctorId) {
+        return false;
+      }
+      if (appointment.status === "cancelled" || appointment.confirmation_status === "cancelled") {
+        return false;
+      }
+      return new Date(appointment.scheduled_start).getTime() >= now;
+    });
+  }, [data.appointments, scopedDoctorId]);
+
+  const remindersScheduledCount = scopedReminderRules.length ? scopedUpcomingAppointments.length : 0;
+  const confirmedUpcomingCount = scopedUpcomingAppointments.filter((appointment) => appointment.confirmation_status === "confirmed").length;
+  const unconfirmedUpcomingCount = scopedUpcomingAppointments.filter((appointment) => appointment.confirmation_status !== "confirmed").length;
+  const cancelledUpcomingCount = data.appointments.filter((appointment) => {
+    if (scopedDoctorId !== null && appointment.doctor_id !== scopedDoctorId) {
+      return false;
+    }
+    const startsAt = new Date(appointment.scheduled_start).getTime();
+    return startsAt >= Date.now() && (appointment.status === "cancelled" || appointment.confirmation_status === "cancelled");
+  }).length;
+
+  const confirmationTemplate = useMemo(
+    () =>
+      communicationTemplates.find(
+        (template) => template.template_key === CONFIRMATION_TEMPLATE_KEY && scopedDoctorId !== null && template.doctor_id === scopedDoctorId,
+      ) ??
+      communicationTemplates.find((template) => template.template_key === CONFIRMATION_TEMPLATE_KEY && template.doctor_id === null) ??
+      null,
+    [communicationTemplates, scopedDoctorId],
+  );
+
   const sortedPatientEncounters = useMemo(() => {
     if (!selectedSummary) {
       return [];
@@ -1093,6 +1227,33 @@ export function ClinicalConsole() {
   }, [selectedSummary]);
 
   const selectedPatient = selectedSummary?.patient ?? null;
+
+  useEffect(() => {
+    if (!currentRoles.includes("doctor") || !selectedDoctor) {
+      return;
+    }
+    if (reminderRuleForm.doctor_id !== String(selectedDoctor.id)) {
+      setReminderRuleForm((current) => ({ ...current, doctor_id: String(selectedDoctor.id) }));
+    }
+    if (templateForm.doctor_id !== String(selectedDoctor.id)) {
+      setTemplateForm((current) => ({ ...current, doctor_id: String(selectedDoctor.id) }));
+    }
+  }, [currentRoles, reminderRuleForm.doctor_id, selectedDoctor, templateForm.doctor_id]);
+
+  useEffect(() => {
+    if (!confirmationTemplate || templateForm.body.trim()) {
+      return;
+    }
+    setTemplateForm((current) => ({
+      ...current,
+      doctor_id: confirmationTemplate.doctor_id ? String(confirmationTemplate.doctor_id) : current.doctor_id,
+      channel: confirmationTemplate.channel,
+      template_key: confirmationTemplate.template_key,
+      title: confirmationTemplate.title,
+      body: confirmationTemplate.body,
+      is_active: confirmationTemplate.is_active,
+    }));
+  }, [confirmationTemplate, templateForm.body]);
 
   const calendarMetrics = (appointment: Appointment) => {
     const start = new Date(appointment.scheduled_start);
@@ -1192,7 +1353,11 @@ export function ClinicalConsole() {
             Mensaje: {dispatchStatusLabel(latestMessageStatus)}
           </span>
         ) : null}
-        {reviewItem ? <span className="badge badge-danger">Revisión manual</span> : null}
+        {reviewItem ? (
+          <span className={`badge ${reviewItem.review_reason === "reschedule_request" ? "badge-accent" : "badge-danger"}`}>
+            {reviewItem.review_reason === "reschedule_request" ? "Reagendar solicitado" : "Revisión manual"}
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -1224,7 +1389,15 @@ export function ClinicalConsole() {
                     <button
                       type="button"
                       key={`month-appointment-${appointment.id}`}
-                      className="month-event"
+                      className={`month-event ${
+                        appointment.status === "cancelled"
+                          ? "month-event-cancelled"
+                          : appointment.confirmation_status === "confirmed"
+                            ? "month-event-confirmed"
+                          : appointment.source === "appoint-me"
+                            ? "month-event-ws"
+                            : ""
+                      }`}
                       onClick={() => toggleAppointmentHistory(appointment.id)}
                     >
                       <span>{formatTime(appointment.scheduled_start)}</span>
@@ -1320,6 +1493,7 @@ export function ClinicalConsole() {
     }
 
     const relatedDispatches = appointmentDispatches[focusedAppointment.id] ?? [];
+    const reviewItem = reviewQueueByAppointmentId.get(focusedAppointment.id);
 
     return (
       <article className="card section-card">
@@ -1336,6 +1510,13 @@ export function ClinicalConsole() {
             <span>{appointmentTypeLabel(focusedAppointment.appointment_type)}</span>
             <span>{appointmentStatusLabel(focusedAppointment.status)}</span>
             {renderAppointmentBadges(focusedAppointment)}
+            {reviewItem ? (
+              <div className="timeline-item">
+                <strong>{reviewReasonLabel(reviewItem.review_reason)}</strong>
+                <span>{reviewItem.review_message}</span>
+                <span>Horario solicitado: {formatDateTime(reviewItem.scheduled_start)}</span>
+              </div>
+            ) : null}
             {canManageAppointments ? (
               <div className="row-actions">
                 <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
@@ -2136,40 +2317,124 @@ export function ClinicalConsole() {
       <article className="card section-card">
         <div className="subsection-header">
           <div>
+            <p className="eyebrow">Paciente</p>
+            <h2>Filtro de comunicaciones</h2>
+          </div>
+        </div>
+        <label>
+          <span>Paciente seleccionado</span>
+          <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
+            <option value="">Seleccionar paciente</option>
+            {data.patients.map((patient) => (
+              <option key={`message-patient-${patient.id}`} value={patient.id}>
+                {patient.first_name} {patient.last_name} · {patient.medical_record_number}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="empty-state">
+          Esta vista muestra las comunicaciones del paciente seleccionado, no una conversación global de todos los pacientes.
+        </p>
+      </article>
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
             <p className="eyebrow">Mensajes</p>
-            <h2>Historial por paciente</h2>
+            <h2>Timeline del paciente</h2>
           </div>
         </div>
         {selectedSummary ? (
           <>
-            <p className="empty-state">
-              {selectedSummary.patient.first_name} {selectedSummary.patient.last_name} · {selectedSummary.patient.medical_record_number}
-            </p>
+            <div className="detail-panel compact-panel">
+              <strong>
+                {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
+              </strong>
+              <span>{selectedSummary.patient.medical_record_number}</span>
+              <span>{selectedSummary.patient.primary_phone}</span>
+            </div>
             <div className="table-list">
               {selectedPatientDispatches.length ? (
                 selectedPatientDispatches.map((dispatch) => (
-                  <div className="simple-list-item" key={`patient-dispatch-${dispatch.id}`}>
-                    <strong>{dispatch.template_title ?? "Mensaje"}</strong>
-                    <span>{formatDateTime(dispatch.created_at)}</span>
-                    <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
-                    <span>{dispatch.rendered_message ?? "Sin texto generado."}</span>
+                  <div className="timeline-item" key={`patient-dispatch-${dispatch.id}`}>
+                    <div className="row-actions">
+                      <strong>{communicationKindLabel(dispatch)}</strong>
+                      <span className={`badge ${
+                        dispatch.status === "failed"
+                          ? "badge-danger"
+                          : dispatch.status === "delivered"
+                            ? "badge-success"
+                            : dispatch.status === "pending"
+                              ? "badge-warn"
+                              : "badge-neutral"
+                      }`}>
+                        {dispatchStatusLabel(dispatch.status)}
+                      </span>
+                    </div>
+                    <span>
+                      {dispatch.template_title ?? "Mensaje clínico"}
+                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
+                    </span>
+                    <span>
+                      {dispatch.appointment_scheduled_start
+                        ? `Cita: ${formatDateTime(dispatch.appointment_scheduled_start)}`
+                        : formatDateTime(dispatch.created_at)}
+                    </span>
+                    <div className="message-preview">{dispatch.rendered_message ?? "Sin texto generado."}</div>
+                    {dispatch.error_message ? <span>Error: {dispatch.error_message}</span> : null}
                   </div>
                 ))
               ) : (
-                <p className="empty-state">Este paciente todavía no tiene mensajes registrados.</p>
+                <p className="empty-state">Este paciente todavía no tiene comunicaciones registradas.</p>
               )}
             </div>
           </>
         ) : (
-          <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su historial.</p>
+          <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su timeline de comunicaciones.</p>
+        )}
+      </article>
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Citas</p>
+            <h2>Eventos de cita</h2>
+          </div>
+        </div>
+        {selectedSummary ? (
+          <div className="table-list">
+            {selectedSummary.appointments.length ? (
+              selectedSummary.appointments.map((appointment) => {
+                const relatedDispatches = selectedPatientDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+                return (
+                  <button
+                    type="button"
+                    className="simple-list-item"
+                    key={`message-appointment-${appointment.id}`}
+                    onClick={() => {
+                      setActiveTab("agenda");
+                      toggleAppointmentHistory(appointment.id);
+                    }}
+                  >
+                    <strong>{formatDateTime(appointment.scheduled_start)}</strong>
+                    <span>{appointmentTypeLabel(appointment.appointment_type)}</span>
+                    <span>{confirmationLabel(appointment.confirmation_status)}</span>
+                    <span>{relatedDispatches.length ? `${relatedDispatches.length} mensajes ligados` : "Sin mensajes ligados"}</span>
+                  </button>
+                );
+              })
+            ) : (
+              <p className="empty-state">Este paciente no tiene citas registradas.</p>
+            )}
+          </div>
+        ) : (
+          <p className="empty-state">Selecciona un paciente para relacionar mensajes con sus citas.</p>
         )}
       </article>
       {canViewGlobalCommunications ? (
-        <article className="card section-card span-two">
+        <article className="card section-card span-three">
           <div className="subsection-header">
             <div>
               <p className="eyebrow">Seguimiento operativo</p>
-              <h2>Mensajes recientes</h2>
+              <h2>Comunicaciones recientes</h2>
             </div>
             {isAdmin ? (
               <div className="row-actions">
@@ -2231,7 +2496,7 @@ export function ClinicalConsole() {
             {communicationDispatches.map((dispatch) => (
               <div className="simple-list-item" key={`dispatch-${dispatch.id}`}>
                 <strong>
-                  {dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {dispatch.template_title ?? "Mensaje"}
+                  {dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {communicationKindLabel(dispatch)}
                 </strong>
                 <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
                 <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
@@ -2305,6 +2570,7 @@ export function ClinicalConsole() {
                   <strong>{item.patient_name}</strong>
                   <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
                   <span>{formatDateTime(item.scheduled_start)}</span>
+                  <span>{reviewReasonLabel(item.review_reason)}</span>
                   <span>{item.review_message}</span>
                   <div className="row-actions">
                     <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
@@ -2363,12 +2629,96 @@ export function ClinicalConsole() {
       <article className="card section-card">
         <div className="subsection-header">
           <div>
-            <p className="eyebrow">Gestión</p>
-            <h2>Recordatorios</h2>
+            <p className="eyebrow">Configuración</p>
+            <h2>Mensaje de confirmación</h2>
+          </div>
+          {selectedDoctor ? <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div> : null}
+        </div>
+        <form className="form-card compact-form" onSubmit={saveConfirmationTemplate}>
+          <label>
+            <span>Título interno</span>
+            <input
+              value={templateForm.title}
+              onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder={DEFAULT_CONFIRMATION_TITLE}
+            />
+          </label>
+          <label>
+            <span>Mensaje</span>
+            <textarea
+              value={templateForm.body}
+              onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
+              placeholder={DEFAULT_CONFIRMATION_BODY}
+              required
+            />
+          </label>
+          <p className="empty-state">
+            Variables disponibles: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"} y {"{appointment_time}"}.
+          </p>
+          {templatePreview ? <div className="message-preview">{templatePreview.rendered_message}</div> : null}
+          <div className="row-actions">
+            <button type="button" className="secondary-button" onClick={previewConfirmationTemplate}>
+              Vista previa
+            </button>
+            <button type="submit">Guardar mensaje</button>
+          </div>
+        </form>
+      </article>
+
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Resumen</p>
+            <h2>Seguimiento de recordatorios</h2>
           </div>
         </div>
-        {isAdmin ? (
-          <form className="form-card compact-form" onSubmit={submitReminderRule}>
+        <div className="summary-grid">
+          <div className="metric-card" title="Citas futuras con reglas activas de recordatorio.">
+            <strong>{remindersScheduledCount}</strong>
+            <span>Recordatorios por enviar</span>
+          </div>
+          <div className="metric-card" title="Citas futuras que ya quedaron confirmadas.">
+            <strong>{confirmedUpcomingCount}</strong>
+            <span>Confirmadas</span>
+          </div>
+          <div className="metric-card" title="Citas futuras que aún están pendientes de respuesta.">
+            <strong>{unconfirmedUpcomingCount}</strong>
+            <span>Sin confirmar</span>
+          </div>
+          <div className="metric-card" title="Citas futuras canceladas que siguen en agenda histórica.">
+            <strong>{cancelledUpcomingCount}</strong>
+            <span>Canceladas</span>
+          </div>
+        </div>
+        <div className="table-list">
+          {scopedUpcomingAppointments.slice(0, 6).map((appointment) => (
+            <button
+              type="button"
+              className="simple-list-item"
+              key={`gestion-upcoming-${appointment.id}`}
+              onClick={() => {
+                setActiveTab("agenda");
+                toggleAppointmentHistory(appointment.id);
+              }}
+            >
+              <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
+              <span>{formatDateTime(appointment.scheduled_start)}</span>
+              {renderAppointmentBadges(appointment)}
+            </button>
+          ))}
+          {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este doctor.</p> : null}
+        </div>
+      </article>
+
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Configuración</p>
+            <h2>Recordatorios automáticos</h2>
+          </div>
+        </div>
+        <form className="form-card compact-form" onSubmit={submitReminderRule}>
+          {isAdmin ? (
             <label>
               <span>Doctor</span>
               <select
@@ -2383,95 +2733,79 @@ export function ClinicalConsole() {
                 ))}
               </select>
             </label>
+          ) : selectedDoctor ? (
             <label>
-              <span>Minutos antes</span>
-              <input
-                type="number"
-                value={reminderRuleForm.minutes_before}
-                onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
-              />
+              <span>Doctor</span>
+              <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
             </label>
-            <label>
-              <span>Clave de plantilla</span>
-              <input
-                value={reminderRuleForm.template_key}
-                onChange={(event) => setReminderRuleForm((current) => ({ ...current, template_key: event.target.value }))}
-              />
-            </label>
-            <button type="submit">Guardar regla</button>
-          </form>
-        ) : (
-          <p className="empty-state">Recepción puede revisar la configuración activa.</p>
-        )}
+          ) : null}
+          <label>
+            <span>Minutos antes de la cita</span>
+            <input
+              type="number"
+              value={reminderRuleForm.minutes_before}
+              onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
+            />
+          </label>
+          <button type="submit">Guardar regla</button>
+        </form>
         <div className="table-list">
-          {reminderRules.map((rule) => (
-            <div className="simple-list-item" key={`reminder-${rule.id}`}>
-              <strong>Recordatorio activo</strong>
-              <span>{rule.minutes_before} minutos antes</span>
-              <span>{rule.doctor_id ? `Doctor ${rule.doctor_id}` : isAdmin ? "Todos los doctores" : "Clínica actual"}</span>
-              {isAdmin ? (
+          {reminderRules
+            .filter((rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)
+            .map((rule) => (
+              <div className="simple-list-item" key={`reminder-${rule.id}`}>
+                <strong>{rule.is_active ? "Recordatorio activo" : "Recordatorio inactivo"}</strong>
+                <span>{rule.minutes_before} minutos antes</span>
+                <span>{rule.doctor_id ? "Doctor actual" : "General"}</span>
                 <button type="button" className="secondary-button" onClick={() => toggleReminderRule(rule)}>
                   {rule.is_active ? "Desactivar" : "Activar"}
                 </button>
-              ) : null}
-            </div>
-          ))}
+              </div>
+            ))}
+          {!reminderRules.length ? <p className="empty-state">Todavía no hay reglas de recordatorio configuradas.</p> : null}
         </div>
       </article>
+
       <article className="card section-card span-two">
         <div className="subsection-header">
           <div>
-            <p className="eyebrow">Gestión</p>
-            <h2>Plantillas de mensaje</h2>
+            <p className="eyebrow">Configuración</p>
+            <h2>Mensajes activos</h2>
           </div>
         </div>
-        {isAdmin ? (
-          <form className="form-card compact-form" onSubmit={submitTemplate}>
-            <div className="two-column-grid">
-              <label>
-                <span>Clave</span>
-                <input
-                  value={templateForm.template_key}
-                  onChange={(event) => setTemplateForm((current) => ({ ...current, template_key: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Título</span>
-                <input value={templateForm.title} onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))} required />
-              </label>
-            </div>
-            <label>
-              <span>Mensaje</span>
-              <textarea
-                value={templateForm.body}
-                onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
-                placeholder="Hola {patient_name}, le recordamos..."
-                required
-              />
-            </label>
-            {templatePreview ? <p className="empty-state">Vista previa: {templatePreview.rendered_message}</p> : null}
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={previewTemplate}>
-                Vista previa
-              </button>
-              <button type="submit">Guardar plantilla</button>
-            </div>
-          </form>
-        ) : null}
         <div className="table-list">
-          {communicationTemplates.map((template) => (
-            <div className="simple-list-item" key={`template-${template.id}`}>
-              <strong>{template.title}</strong>
-              <span>{template.title}</span>
-              <span>{template.is_active ? "Activa" : "Inactiva"}</span>
-              {isAdmin ? (
-                <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
-                  {template.is_active ? "Desactivar" : "Activar"}
-                </button>
-              ) : null}
-            </div>
-          ))}
+          {communicationTemplates
+            .filter((template) => scopedDoctorId === null || template.doctor_id === null || template.doctor_id === scopedDoctorId)
+            .map((template) => (
+              <div className="simple-list-item" key={`template-${template.id}`}>
+                <strong>{template.title}</strong>
+                <span>{template.template_key === CONFIRMATION_TEMPLATE_KEY ? "Mensaje de confirmación" : "Mensaje automático"}</span>
+                <span>{template.is_active ? "Activo" : "Inactivo"}</span>
+                <div className="message-preview">{template.body}</div>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setTemplateForm({
+                        doctor_id: template.doctor_id ? String(template.doctor_id) : "",
+                        channel: template.channel,
+                        template_key: template.template_key,
+                        title: template.title,
+                        body: template.body,
+                        is_active: template.is_active,
+                      })
+                    }
+                  >
+                    Usar como base
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
+                    {template.is_active ? "Desactivar" : "Activar"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          {!communicationTemplates.length ? <p className="empty-state">Todavía no hay mensajes configurados.</p> : null}
         </div>
       </article>
     </section>
@@ -2738,13 +3072,8 @@ export function ClinicalConsole() {
                 <input
                   className="search-input topbar-search"
                   placeholder="Buscar paciente o expediente"
-                  value={patientSearch}
-                  onChange={(event) => {
-                    setPatientSearch(event.target.value);
-                    if (activeTab !== "pacientes") {
-                      setActiveTab("pacientes");
-                    }
-                  }}
+                  value={topbarSearch}
+                  onChange={(event) => setTopbarSearch(event.target.value)}
                 />
               </div>
             </header>

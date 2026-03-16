@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get("", response_model=list[CommunicationTemplateRead])
 def list_communication_templates(
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[CommunicationTemplateRead]:
     return CommunicationTemplateService(db).list_templates()
 
@@ -27,7 +27,7 @@ def list_communication_templates(
 def create_communication_template(
     payload: CommunicationTemplateCreate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin")),
+    _current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplateRead:
     try:
         return CommunicationTemplateService(db).create_template(payload)
@@ -41,7 +41,7 @@ def create_communication_template(
 def preview_communication_template(
     payload: CommunicationTemplatePreviewRequest,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin")),
+    _current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplatePreviewRead:
     try:
         return CommunicationTemplateService(db).preview_template(payload)
@@ -56,7 +56,7 @@ def update_communication_template(
     template_id: int,
     payload: CommunicationTemplateUpdate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin")),
+    _current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplateRead:
     try:
         return CommunicationTemplateService(db).update_template(template_id, payload)

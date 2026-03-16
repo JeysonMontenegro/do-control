@@ -12,6 +12,8 @@ from app.schemas.integration import (
     AppointmentActionResponse,
     AppointmentCancelRequest,
     AppointmentCancelResponse,
+    AppointmentRescheduleRequest,
+    AppointmentRescheduleResponse,
     CommunicationDispatchStatusUpdate,
     DoctorMatchCandidate,
     DoctorMatchRequest,
@@ -344,6 +346,61 @@ class IntegrationService:
             appointment_id=appointment.id,
             patient_name=appointment.patient_name,
             scheduled_start=appointment.scheduled_start,
+        )
+
+    def request_reschedule(self, payload: AppointmentRescheduleRequest) -> AppointmentRescheduleResponse:
+        try:
+            appointment = self.appointment_service.find_for_doctor_patient_name(
+                payload.doctor_id,
+                payload.patient_name,
+                target_date=payload.date,
+            )
+        except NotFoundError:
+            return AppointmentRescheduleResponse(status="not_found")
+
+        requested_start = payload.requested_start or appointment.scheduled_start
+        requested_end = payload.requested_end or appointment.scheduled_end
+        note = payload.note or "Paciente solicitó reagendar desde WhatsApp."
+        patient_name = (
+            f"{appointment.patient.first_name} {appointment.patient.last_name}".strip()
+            if appointment.patient is not None
+            else payload.patient_name
+        )
+        review_item = self.appointment_review_item_service.create_item(
+            patient_name=patient_name,
+            phone_number=appointment.patient.primary_phone,
+            doctor_id=appointment.doctor_id,
+            doctor_name=f"{appointment.doctor.first_name} {appointment.doctor.last_name}".strip() if appointment.doctor else None,
+            doctor_phone_number=None,
+            scheduled_start=requested_start,
+            scheduled_end=requested_end,
+            appointment_type=appointment.appointment_type,
+            reason=appointment.reason,
+            source="appoint-me",
+            review_reason="reschedule_request",
+            review_message=note,
+            existing_appointment_id=appointment.id,
+        )
+        create_audit_log(
+            self.db,
+            action="integration_reschedule_request",
+            entity_type="appointment",
+            entity_id=str(appointment.id),
+            after_data={
+                "review_item_id": review_item.id,
+                "requested_start": requested_start.isoformat(),
+                "requested_end": requested_end.isoformat(),
+            },
+        )
+        self.db.commit()
+        return AppointmentRescheduleResponse(
+            status="pending_review",
+            appointment_id=appointment.id,
+            review_item_id=review_item.id,
+            patient_name=patient_name,
+            current_scheduled_start=appointment.scheduled_start,
+            requested_start=requested_start,
+            requested_end=requested_end,
         )
 
     def list_schedule(self, doctor_id: int, target_date: date) -> list[DoctorScheduleAppointmentRead]:

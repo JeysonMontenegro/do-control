@@ -368,6 +368,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 .patients-layout {
@@ -676,6 +677,21 @@ textarea {
   cursor: pointer;
 }
 
+.month-event-ws {
+  background: #fff3e3;
+  border-color: rgba(240, 164, 58, 0.32);
+}
+
+.month-event-confirmed {
+  background: #e8f8ee;
+  border-color: rgba(54, 157, 91, 0.34);
+}
+
+.month-event-cancelled {
+  background: #fff0ec;
+  border-color: rgba(207, 94, 78, 0.35);
+}
+
 .detail-panel,
 .timeline-item,
 .simple-list-item {
@@ -709,6 +725,16 @@ textarea {
 
 .timeline-item {
   background: var(--panel-soft);
+}
+
+.message-preview {
+  white-space: pre-wrap;
+  line-height: 1.55;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid #e1eaf7;
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 
 .simple-list-item {
