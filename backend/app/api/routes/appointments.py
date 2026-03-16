@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
-from app.schemas.appointment import AppointmentCreate, AppointmentRead, AppointmentStatusUpdate
+from app.schemas.appointment import AppointmentCreate, AppointmentHistoryRead, AppointmentRead, AppointmentStatusUpdate
 from app.services.appointment import AppointmentService
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 
@@ -40,5 +40,17 @@ def update_appointment_status(
 ) -> AppointmentRead:
     try:
         return AppointmentService(db).update_status(appointment_id, payload)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/{appointment_id}/history", response_model=list[AppointmentHistoryRead])
+def list_appointment_history(
+    appointment_id: int,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+) -> list[AppointmentHistoryRead]:
+    try:
+        return AppointmentService(db).list_history(appointment_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

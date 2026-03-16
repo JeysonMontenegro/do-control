@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
+  AppointmentHistory,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationDispatchBatchRequeue,
@@ -76,6 +77,8 @@ export function ClinicalConsole() {
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
+  const [appointmentHistory, setAppointmentHistory] = useState<Record<number, AppointmentHistory[]>>({});
+  const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
   const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
   const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
@@ -433,6 +436,24 @@ export function ClinicalConsole() {
       setMessage(`Appointment ${appointmentId} updated to ${status}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Appointment update failed.");
+    }
+  }
+
+  async function toggleAppointmentHistory(appointmentId: number) {
+    if (expandedAppointmentId === appointmentId) {
+      setExpandedAppointmentId(null);
+      return;
+    }
+
+    setMessage("");
+    try {
+      if (!appointmentHistory[appointmentId]) {
+        const history = await apiGet<AppointmentHistory[]>(`/api/appointments/${appointmentId}/history`);
+        setAppointmentHistory((current) => ({ ...current, [appointmentId]: history }));
+      }
+      setExpandedAppointmentId(appointmentId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Appointment history could not be loaded.");
     }
   }
 
@@ -1742,33 +1763,74 @@ export function ClinicalConsole() {
           <h2>Appointments</h2>
           <div className="table-list">
             {data.appointments.map((appointment) => (
-              <div className="row" key={appointment.id}>
-                <strong>#{appointment.id}</strong>
-                <span>{appointment.appointment_type}</span>
-                <span>{appointment.status}</span>
-                {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+              <div key={appointment.id}>
+                <div className="row">
+                  <strong>#{appointment.id}</strong>
+                  <span>
+                    {appointment.patient_name ?? `patient ${appointment.patient_id}`}
+                    {appointment.doctor_name ? ` · ${appointment.doctor_name}` : ""}
+                  </span>
+                  <span>
+                    {appointment.appointment_type} · {formatDateTime(appointment.scheduled_start)}
+                  </span>
+                  <span>
+                    {appointment.status} · {appointment.confirmation_status}
+                  </span>
+                  <span>
+                    {appointment.source}
+                    {appointment.created_by ? ` · ${appointment.created_by}` : ""}
+                  </span>
                   <div className="row-actions">
                     <button
                       type="button"
                       className="secondary-button"
-                      onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
+                      onClick={() => toggleAppointmentHistory(appointment.id)}
                     >
-                      Confirm
+                      {expandedAppointmentId === appointment.id ? "Hide history" : "History"}
                     </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => updateAppointmentStatus(appointment.id, "completed")}
-                    >
-                      Complete
-                    </button>
+                    {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                      <>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => updateAppointmentStatus(appointment.id, "completed")}
+                        >
+                          Complete
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+                {expandedAppointmentId === appointment.id ? (
+                  <div className="table-list">
+                    {appointmentHistory[appointment.id]?.length ? (
+                      appointmentHistory[appointment.id].map((entry) => (
+                          <div className="row" key={`appointment-history-${entry.id}`}>
+                            <strong>
+                              {entry.old_status ?? "new"} {"->"} {entry.new_status}
+                            </strong>
+                          <span>{formatDateTime(entry.created_at)}</span>
+                          <span>{entry.changed_by ?? "system"}</span>
+                          <span>{entry.change_reason ?? "no reason"}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">No appointment history recorded.</p>
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -1807,28 +1869,62 @@ export function ClinicalConsole() {
             <h2>Patient appointments</h2>
             <div className="table-list">
               {selectedSummary.appointments.map((appointment) => (
-                <div className="row" key={`summary-appointment-${appointment.id}`}>
-                  <strong>#{appointment.id}</strong>
-                  <span>{appointment.appointment_type}</span>
-                  <span>
-                    {appointment.status} · {appointment.confirmation_status}
-                  </span>
-                  {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                <div key={`summary-appointment-${appointment.id}`}>
+                  <div className="row">
+                    <strong>#{appointment.id}</strong>
+                    <span>{appointment.appointment_type}</span>
+                    <span>{formatDateTime(appointment.scheduled_start)}</span>
+                    <span>
+                      {appointment.status} · {appointment.confirmation_status}
+                    </span>
+                    <span>
+                      {appointment.source}
+                      {appointment.created_by ? ` · ${appointment.created_by}` : ""}
+                    </span>
                     <div className="row-actions">
                       <button
                         type="button"
                         className="secondary-button"
-                        onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
+                        onClick={() => toggleAppointmentHistory(appointment.id)}
                       >
-                        Confirm
+                        {expandedAppointmentId === appointment.id ? "Hide history" : "History"}
                       </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
-                      >
-                        Cancel
-                      </button>
+                      {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                        <>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                  {expandedAppointmentId === appointment.id ? (
+                    <div className="table-list">
+                      {appointmentHistory[appointment.id]?.length ? (
+                        appointmentHistory[appointment.id].map((entry) => (
+                          <div className="row" key={`summary-appointment-history-${entry.id}`}>
+                            <strong>
+                              {entry.old_status ?? "new"} {"->"} {entry.new_status}
+                            </strong>
+                            <span>{formatDateTime(entry.created_at)}</span>
+                            <span>{entry.changed_by ?? "system"}</span>
+                            <span>{entry.change_reason ?? "no reason"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="empty-state">No appointment history recorded.</p>
+                      )}
                     </div>
                   ) : null}
                 </div>

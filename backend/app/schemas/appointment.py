@@ -34,6 +34,8 @@ class AppointmentRead(BaseModel):
     confirmation_status: str
     source: str
     created_by: str | None
+    patient_name: str | None = None
+    doctor_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -48,3 +50,15 @@ class AppointmentSummaryRead(BaseModel):
     appointment_type: str
     status: str
     confirmation_status: str
+
+
+class AppointmentHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    appointment_id: int
+    old_status: str | None
+    new_status: str
+    change_reason: str | None
+    changed_by: str | None
+    created_at: datetime

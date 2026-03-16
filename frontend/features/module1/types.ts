@@ -24,6 +24,20 @@ export type Appointment = {
   appointment_type: string;
   status: string;
   confirmation_status: string;
+  source: string;
+  created_by: string | null;
+  patient_name: string | null;
+  doctor_name: string | null;
+};
+
+export type AppointmentHistory = {
+  id: number;
+  appointment_id: number;
+  old_status: string | null;
+  new_status: string;
+  change_reason: string | null;
+  changed_by: string | null;
+  created_at: string;
 };
 
 export type Encounter = {

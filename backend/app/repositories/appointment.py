@@ -18,10 +18,27 @@ class AppointmentRepository:
         return appointment
 
     def get(self, appointment_id: int) -> Appointment | None:
-        return self.db.get(Appointment, appointment_id)
+        statement = (
+            select(Appointment)
+            .options(
+                selectinload(Appointment.patient),
+                selectinload(Appointment.doctor),
+                selectinload(Appointment.history_entries),
+            )
+            .where(Appointment.id == appointment_id)
+        )
+        return self.db.scalar(statement)
 
     def list(self) -> List[Appointment]:
-        return list(self.db.scalars(select(Appointment).order_by(Appointment.scheduled_start.desc())))
+        statement = (
+            select(Appointment)
+            .options(
+                selectinload(Appointment.patient),
+                selectinload(Appointment.doctor),
+            )
+            .order_by(Appointment.scheduled_start.desc())
+        )
+        return list(self.db.scalars(statement))
 
     def find_overlap(self, doctor_id: int, start, end) -> Appointment | None:
         statement = (
@@ -41,6 +58,14 @@ class AppointmentRepository:
 
     def add_history(self, history: AppointmentHistory) -> None:
         self.db.add(history)
+
+    def list_history(self, appointment_id: int) -> List[AppointmentHistory]:
+        statement = (
+            select(AppointmentHistory)
+            .where(AppointmentHistory.appointment_id == appointment_id)
+            .order_by(AppointmentHistory.created_at.desc(), AppointmentHistory.id.desc())
+        )
+        return list(self.db.scalars(statement))
 
     def list_for_doctor_date(self, doctor_id: int, target_date: date) -> List[Appointment]:
         statement = (
