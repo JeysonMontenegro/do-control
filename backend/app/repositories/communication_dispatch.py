@@ -27,12 +27,21 @@ class CommunicationDispatchRepository:
         status: str | None = None,
         channel: str | None = None,
         query: str | None = None,
+        patient_id: int | None = None,
+        doctor_id: int | None = None,
+        appointment_id: int | None = None,
     ) -> List[CommunicationDispatch]:
         statement = select(CommunicationDispatch)
         if status:
             statement = statement.where(CommunicationDispatch.status == status)
         if channel:
             statement = statement.where(CommunicationDispatch.channel == channel)
+        if patient_id is not None:
+            statement = statement.where(CommunicationDispatch.patient_id == patient_id)
+        if doctor_id is not None:
+            statement = statement.where(CommunicationDispatch.doctor_id == doctor_id)
+        if appointment_id is not None:
+            statement = statement.where(CommunicationDispatch.appointment_id == appointment_id)
         if query:
             pattern = f"%{query.strip()}%"
             statement = statement.where(

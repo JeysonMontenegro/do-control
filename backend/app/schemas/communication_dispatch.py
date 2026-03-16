@@ -50,6 +50,13 @@ class CommunicationDispatchRead(BaseModel):
     external_reference: str | None
     rendered_message: str | None
     error_message: str | None
+    patient_name: str | None = None
+    patient_medical_record_number: str | None = None
+    doctor_name: str | None = None
+    appointment_scheduled_start: datetime | None = None
+    appointment_scheduled_end: datetime | None = None
+    template_key: str | None = None
+    template_title: str | None = None
     created_at: datetime
     updated_at: datetime
 

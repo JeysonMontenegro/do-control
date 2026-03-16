@@ -154,6 +154,13 @@ export type CommunicationDispatch = {
   external_reference: string | null;
   rendered_message: string | null;
   error_message: string | null;
+  patient_name: string | null;
+  patient_medical_record_number: string | null;
+  doctor_name: string | null;
+  appointment_scheduled_start: string | null;
+  appointment_scheduled_end: string | null;
+  template_key: string | null;
+  template_title: string | null;
   created_at: string;
   updated_at: string;
 };

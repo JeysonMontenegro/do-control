@@ -17,7 +17,7 @@ from app.repositories.patient import PatientRepository
 from app.repositories.reminder_rule import ReminderRuleRepository
 from app.schemas.communication_dispatch import CommunicationDispatchCreate, CommunicationDispatchUpdate
 from app.schemas.communication_dispatch import CommunicationDispatchBatchRequeueRead, CommunicationDispatchSummaryRead
-from app.schemas.communication_dispatch import CommunicationDispatchAttemptRead
+from app.schemas.communication_dispatch import CommunicationDispatchAttemptRead, CommunicationDispatchRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
@@ -238,8 +238,20 @@ class CommunicationDispatchService:
         status: str | None = None,
         channel: str | None = None,
         query: str | None = None,
-    ) -> list[CommunicationDispatch]:
-        return self.repository.list(limit=limit, status=status, channel=channel, query=query)
+        patient_id: int | None = None,
+        doctor_id: int | None = None,
+        appointment_id: int | None = None,
+    ) -> list[CommunicationDispatchRead]:
+        dispatches = self.repository.list(
+            limit=limit,
+            status=status,
+            channel=channel,
+            query=query,
+            patient_id=patient_id,
+            doctor_id=doctor_id,
+            appointment_id=appointment_id,
+        )
+        return [self._serialize_dispatch(dispatch) for dispatch in dispatches]
 
     def get_summary(self) -> CommunicationDispatchSummaryRead:
         return CommunicationDispatchSummaryRead(**self.repository.summary())
@@ -283,6 +295,48 @@ class CommunicationDispatchService:
         self.db.commit()
         self.db.refresh(dispatch)
         return dispatch
+
+    def _serialize_dispatch(self, dispatch: CommunicationDispatch) -> CommunicationDispatchRead:
+        patient = self.patient_repository.get(dispatch.patient_id)
+        doctor = self.doctor_repository.get(dispatch.doctor_id) if dispatch.doctor_id is not None else None
+        appointment = self.appointment_repository.get(dispatch.appointment_id) if dispatch.appointment_id is not None else None
+        template = self.template_repository.get(dispatch.template_id) if dispatch.template_id is not None else None
+
+        patient_name = None
+        if patient is not None:
+            patient_name = f"{patient.first_name} {patient.last_name}".strip()
+
+        doctor_name = None
+        if doctor is not None:
+            doctor_name = f"{doctor.first_name} {doctor.last_name}".strip()
+
+        return CommunicationDispatchRead(
+            id=dispatch.id,
+            patient_id=dispatch.patient_id,
+            doctor_id=dispatch.doctor_id,
+            appointment_id=dispatch.appointment_id,
+            exam_order_id=dispatch.exam_order_id,
+            reminder_rule_id=dispatch.reminder_rule_id,
+            template_id=dispatch.template_id,
+            channel=dispatch.channel,
+            recipient_phone=dispatch.recipient_phone,
+            status=dispatch.status,
+            retry_count=dispatch.retry_count,
+            last_attempt_at=dispatch.last_attempt_at,
+            next_attempt_at=dispatch.next_attempt_at,
+            external_reference=dispatch.external_reference,
+            rendered_message=dispatch.rendered_message,
+            error_message=dispatch.error_message,
+            patient_name=patient_name,
+            patient_medical_record_number=patient.medical_record_number if patient is not None else None,
+            doctor_name=doctor_name,
+            appointment_scheduled_start=appointment.scheduled_start if appointment is not None else None,
+            appointment_scheduled_end=appointment.scheduled_end if appointment is not None else None,
+            template_key=template.template_key if template is not None else None,
+            template_title=template.title if template is not None else None,
+            created_at=dispatch.created_at,
+            updated_at=dispatch.updated_at,
+        )
 
     def update_dispatch(self, dispatch_id: int, payload: CommunicationDispatchUpdate) -> CommunicationDispatch:
         return self._update_dispatch(dispatch_id, payload, attempt_source="admin_manual")

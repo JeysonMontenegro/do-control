@@ -42,6 +42,13 @@ const nowPlusMinutes = (minutes: number) => {
   return date.toISOString().slice(0, 16);
 };
 
+const formatDateTime = (value: string | null) => {
+  if (!value) {
+    return "n/a";
+  }
+  return new Date(value).toLocaleString();
+};
+
 function hasAnyRole(currentRoles: string[], allowedRoles: string[]) {
   return allowedRoles.some((role) => currentRoles.includes(role));
 }
@@ -68,6 +75,7 @@ export function ClinicalConsole() {
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
+  const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
   const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
   const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
@@ -156,7 +164,7 @@ export function ClinicalConsole() {
         dispatchParams.set("query", dispatchFilters.query.trim());
       }
       const canViewReminderRules = hasAnyRole(currentRoles, ["admin", "receptionist"]);
-      const canViewCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+      const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
 
       const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches, loadedDispatchSummary] =
         await Promise.all([
@@ -165,11 +173,11 @@ export function ClinicalConsole() {
         apiGet<Appointment[]>("/api/appointments"),
         apiGet<Encounter[]>("/api/encounters"),
         canViewReminderRules ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
-        canViewCommunications ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
-        canViewCommunications
+        canViewGlobalCommunications ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
+        canViewGlobalCommunications
           ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
-        canViewCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
+        canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
         ]);
 
       setData({ doctors, patients, appointments, encounters });
@@ -240,6 +248,30 @@ export function ClinicalConsole() {
     loadSummary();
   }, [isAuthenticated, selectedPatientId]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    if (!selectedPatientId || !hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"])) {
+      setSelectedPatientDispatches([]);
+      return;
+    }
+
+    async function loadPatientDispatches() {
+      try {
+        const dispatches = await apiGet<CommunicationDispatch[]>(
+          `/api/communication-dispatches?patient_id=${selectedPatientId}&limit=10`,
+        );
+        setSelectedPatientDispatches(dispatches);
+      } catch (error) {
+        setSelectedPatientDispatches([]);
+        setMessage(error instanceof Error ? error.message : "Could not load patient communication timeline.");
+      }
+    }
+
+    loadPatientDispatches();
+  }, [isAuthenticated, selectedPatientId, currentRoles]);
+
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -276,6 +308,7 @@ export function ClinicalConsole() {
     setCurrentRoles([]);
     setData(initialLoadState);
     setSelectedSummary(null);
+    setSelectedPatientDispatches([]);
     setMessage("Session closed.");
   }
 
@@ -776,6 +809,87 @@ export function ClinicalConsole() {
         )}
       </section>
 
+      {selectedSummary ? (
+        <section className="workspace-grid">
+          <article className="card table-card span-three">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">WhatsApp visibility</p>
+                <h2>Patient communication timeline</h2>
+              </div>
+              <span>
+                {selectedSummary.patient.medical_record_number} · {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
+              </span>
+            </div>
+            <div className="table-list">
+              {selectedPatientDispatches.map((dispatch) => (
+                <div key={`patient-dispatch-${dispatch.id}`}>
+                  <div className="row">
+                    <strong>
+                      #{dispatch.id} · {dispatch.channel} · {dispatch.status}
+                    </strong>
+                    <span>
+                      {dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}
+                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
+                    </span>
+                    <span>
+                      {dispatch.appointment_scheduled_start
+                        ? `Appointment ${formatDateTime(dispatch.appointment_scheduled_start)}`
+                        : formatDateTime(dispatch.created_at)}
+                    </span>
+                    <span>{dispatch.recipient_phone}</span>
+                    <span>
+                      {dispatch.external_reference ?? "no external reference"}
+                      {` · retry ${dispatch.retry_count}`}
+                    </span>
+                    {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => toggleDispatchAttempts(dispatch.id)}
+                        >
+                          {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="row">
+                    <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
+                  </div>
+                  {dispatch.error_message ? (
+                    <div className="row">
+                      <span>{dispatch.error_message}</span>
+                    </div>
+                  ) : null}
+                  {expandedDispatchId === dispatch.id && hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
+                    <div className="table-list">
+                      {dispatchAttempts[dispatch.id]?.length ? (
+                        dispatchAttempts[dispatch.id].map((attempt) => (
+                          <div className="row" key={`patient-dispatch-attempt-${attempt.id}`}>
+                            <strong>
+                              {attempt.result_status} · {attempt.attempt_source}
+                            </strong>
+                            <span>{formatDateTime(attempt.attempted_at)}</span>
+                            <span>{attempt.external_reference ?? "no external reference"}</span>
+                            <span>{attempt.error_message ?? "no error"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="empty-state">No attempts recorded.</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+              {!selectedPatientDispatches.length ? (
+                <p className="empty-state">No WhatsApp communication timeline for this patient yet.</p>
+              ) : null}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
       {message ? <p className="message-box">{message}</p> : null}
 
       {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
@@ -1109,8 +1223,9 @@ export function ClinicalConsole() {
                       #{dispatch.id} · {dispatch.channel} · {dispatch.status}
                     </strong>
                     <span>
-                      patient {dispatch.patient_id}
-                      {dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
+                      {dispatch.patient_medical_record_number ?? `patient ${dispatch.patient_id}`}
+                      {dispatch.patient_name ? ` · ${dispatch.patient_name}` : ""}
+                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
                       {dispatch.appointment_id ? ` · appointment ${dispatch.appointment_id}` : ""}
                       {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
                     </span>
@@ -1118,7 +1233,7 @@ export function ClinicalConsole() {
                     <span>
                       {dispatch.external_reference ?? "no external reference"}
                       {` · retry ${dispatch.retry_count}`}
-                      {dispatch.next_attempt_at ? ` · next ${dispatch.next_attempt_at}` : ""}
+                      {dispatch.next_attempt_at ? ` · next ${formatDateTime(dispatch.next_attempt_at)}` : ""}
                     </span>
                     <div className="row-actions">
                       <button
@@ -1170,6 +1285,15 @@ export function ClinicalConsole() {
                       ) : null}
                     </div>
                   </div>
+                  <div className="row">
+                    <span>
+                      {dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}
+                      {dispatch.appointment_scheduled_start
+                        ? ` · appointment ${formatDateTime(dispatch.appointment_scheduled_start)}`
+                        : ""}
+                    </span>
+                    <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
+                  </div>
                   {expandedDispatchId === dispatch.id ? (
                     <div className="table-list">
                       {dispatchAttempts[dispatch.id]?.length ? (
@@ -1178,7 +1302,7 @@ export function ClinicalConsole() {
                             <strong>
                               {attempt.result_status} · {attempt.attempt_source}
                             </strong>
-                            <span>{attempt.attempted_at}</span>
+                            <span>{formatDateTime(attempt.attempted_at)}</span>
                             <span>{attempt.external_reference ?? "no external reference"}</span>
                             <span>{attempt.error_message ?? "no error"}</span>
                           </div>

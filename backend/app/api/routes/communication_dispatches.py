@@ -24,14 +24,26 @@ def list_communication_dispatches(
     status_filter: str | None = None,
     channel: str | None = None,
     query: str | None = None,
+    patient_id: int | None = None,
+    doctor_id: int | None = None,
+    appointment_id: int | None = None,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[CommunicationDispatchRead]:
+    current_roles = {user_role.role.name for user_role in current_user.roles}
+    if "doctor" in current_roles and patient_id is None and appointment_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Doctors must filter communication dispatches by patient or appointment.",
+        )
     return CommunicationDispatchService(db).list_dispatches(
         limit=limit,
         status=status_filter,
         channel=channel,
         query=query,
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+        appointment_id=appointment_id,
     )
 
 
