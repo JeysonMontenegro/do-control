@@ -165,6 +165,10 @@ class AppointmentService:
 
         old_status = appointment.status
         appointment.status = payload.status
+        if payload.status == "confirmed":
+            appointment.confirmation_status = "confirmed"
+        elif payload.status == "cancelled":
+            appointment.confirmation_status = "cancelled"
         self.repository.add_history(
             AppointmentHistory(
                 appointment_id=appointment.id,

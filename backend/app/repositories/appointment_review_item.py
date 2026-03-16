@@ -13,6 +13,9 @@ class AppointmentReviewItemRepository:
         self.db.flush()
         return item
 
+    def get(self, item_id: int) -> AppointmentReviewItem | None:
+        return self.db.get(AppointmentReviewItem, item_id)
+
     def list(self, *, review_status: str | None = None, limit: int = 100) -> list[AppointmentReviewItem]:
         statement = select(AppointmentReviewItem)
         if review_status:

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
@@ -32,12 +32,24 @@ type LoadState = {
   encounters: Encounter[];
 };
 
+type ConsoleTab = "agenda" | "pacientes" | "consultas" | "mensajes" | "pendientes" | "gestion";
+type CalendarView = "dia" | "semana" | "mes";
+
 const initialLoadState: LoadState = {
   doctors: [],
   patients: [],
   appointments: [],
   encounters: [],
 };
+
+const consoleTabs: Array<{ id: ConsoleTab; label: string }> = [
+  { id: "agenda", label: "Agenda" },
+  { id: "pacientes", label: "Pacientes" },
+  { id: "consultas", label: "Consultas" },
+  { id: "mensajes", label: "Mensajes" },
+  { id: "pendientes", label: "Pendientes" },
+  { id: "gestion", label: "Gestión" },
+];
 
 const nowPlusMinutes = (minutes: number) => {
   const date = new Date(Date.now() + minutes * 60 * 1000);
@@ -46,9 +58,149 @@ const nowPlusMinutes = (minutes: number) => {
 
 const formatDateTime = (value: string | null) => {
   if (!value) {
-    return "n/a";
+    return "Sin fecha";
   }
-  return new Date(value).toLocaleString();
+  return new Intl.DateTimeFormat("es-GT", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+};
+
+const formatDate = (value: string | Date) =>
+  new Intl.DateTimeFormat("es-GT", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(typeof value === "string" ? new Date(value) : value);
+
+const formatTime = (value: string | Date) =>
+  new Intl.DateTimeFormat("es-GT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(typeof value === "string" ? new Date(value) : value);
+
+const startOfDay = (date: Date) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const addDays = (date: Date, days: number) => {
+  const value = new Date(date);
+  value.setDate(value.getDate() + days);
+  return value;
+};
+
+const startOfWeek = (date: Date) => {
+  const base = startOfDay(date);
+  const day = base.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(base, diff);
+};
+
+const startOfMonthGrid = (date: Date) => {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  return startOfWeek(first);
+};
+
+const endOfMonthGrid = (date: Date) => addDays(startOfMonthGrid(new Date(date.getFullYear(), date.getMonth() + 1, 0)), 41);
+
+const isSameDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
+const appointmentStatusLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    scheduled: "Programada",
+    confirmed: "Confirmada",
+    cancelled: "Cancelada",
+    completed: "Completada",
+    pending: "Pendiente",
+    open: "Abierta",
+    closed: "Cerrada",
+  };
+  return labels[value] ?? value;
+};
+
+const appointmentTypeLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    first_consultation: "Primera consulta",
+    follow_up: "Seguimiento",
+    checkup: "Chequeo",
+    procedure: "Procedimiento",
+    virtual_consultation: "Consulta virtual",
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+};
+
+const encounterTypeLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    general_consultation: "Consulta general",
+    emergency_consultation: "Consulta de emergencia",
+    follow_up: "Seguimiento",
+    procedure: "Procedimiento",
+    post_op_follow_up: "Seguimiento postoperatorio",
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+};
+
+const dispatchStatusLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    sent: "Enviado",
+    delivered: "Entregado",
+    failed: "Fallido",
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+};
+
+const confirmationLabel = (value: string) => {
+  const labels: Record<string, string> = {
+    pending: "Pendiente de confirmar",
+    confirmed: "Confirmada",
+    declined: "Rechazada",
+    cancelled: "Cancelada",
+  };
+  return labels[value] ?? value;
+};
+
+const sourceLabel = (value: string) => {
+  if (value === "appoint-me") {
+    return "WhatsApp";
+  }
+  if (value === "receptionist") {
+    return "Recepción";
+  }
+  return value;
+};
+
+const slotLabels = Array.from({ length: 29 }, (_, index) => {
+  const totalMinutes = 6 * 60 + index * 30;
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+});
+
+const calendarRangeLabel = (view: CalendarView, anchorDate: Date) => {
+  if (view === "dia") {
+    return new Intl.DateTimeFormat("es-GT", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(anchorDate);
+  }
+  if (view === "semana") {
+    const weekStart = startOfWeek(anchorDate);
+    const weekEnd = addDays(weekStart, 6);
+    return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
+  }
+  return new Intl.DateTimeFormat("es-GT", {
+    month: "long",
+    year: "numeric",
+  }).format(anchorDate);
 };
 
 const lastDispatchStatus = (dispatches: CommunicationDispatch[]) => {
@@ -66,16 +218,21 @@ function hasAnyRole(currentRoles: string[], allowedRoles: string[]) {
 
 export function ClinicalConsole() {
   const [data, setData] = useState<LoadState>(initialLoadState);
-  const [message, setMessage] = useState<string>("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
+  const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
+  const [calendarView, setCalendarView] = useState<CalendarView>("semana");
+  const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
+  const [doctorFilter, setDoctorFilter] = useState("");
   const [loginForm, setLoginForm] = useState({
-    email: "admin@docontrol.local",
-    password: "ChangeMe123!",
+    email: "doctor@docontrol.local",
+    password: "Doctor123!",
   });
-  const [selectedPatientId, setSelectedPatientId] = useState<string>("");
+  const [selectedPatientId, setSelectedPatientId] = useState("");
   const [selectedSummary, setSelectedSummary] = useState<PatientSummary | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -90,8 +247,9 @@ export function ClinicalConsole() {
   const [appointmentHistory, setAppointmentHistory] = useState<Record<number, AppointmentHistory[]>>({});
   const [appointmentDispatches, setAppointmentDispatches] = useState<Record<number, CommunicationDispatch[]>>({});
   const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
+  const [expandedEncounterId, setExpandedEncounterId] = useState<number | null>(null);
   const [appointmentReviewItems, setAppointmentReviewItems] = useState<AppointmentReviewItem[]>([]);
-  const [appointmentFilter, setAppointmentFilter] = useState<"all" | "ws" | "pending_confirmation" | "needs_attention">("all");
+  const [appointmentFilter, setAppointmentFilter] = useState<"all" | "ws" | "confirmed" | "pending_confirmation" | "needs_attention">("all");
   const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
   const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
@@ -116,7 +274,6 @@ export function ClinicalConsole() {
     body: "",
     is_active: true,
   });
-
   const [patientForm, setPatientForm] = useState({
     medical_record_number: "",
     first_name: "",
@@ -126,7 +283,17 @@ export function ClinicalConsole() {
     tax_id: "",
     email: "",
   });
-
+  const [patientEditForm, setPatientEditForm] = useState({
+    first_name: "",
+    last_name: "",
+    primary_phone: "",
+    national_id: "",
+    tax_id: "",
+    email: "",
+    address: "",
+    notes: "",
+    is_active: true,
+  });
   const [appointmentForm, setAppointmentForm] = useState({
     patient_id: "",
     doctor_id: "",
@@ -137,7 +304,6 @@ export function ClinicalConsole() {
     source: "receptionist",
     created_by: "frontend-demo",
   });
-
   const [encounterForm, setEncounterForm] = useState({
     patient_id: "",
     doctor_id: "",
@@ -151,17 +317,21 @@ export function ClinicalConsole() {
     { diagnosis_text: "", diagnosis_code: null, is_primary: true, notes: null },
   ]);
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([
-    {
-      medication_name: "",
-      dosage: null,
-      frequency: null,
-      duration: null,
-      instructions: null,
-    },
+    { medication_name: "", dosage: null, frequency: null, duration: null, instructions: null },
   ]);
   const [examOrders, setExamOrders] = useState<ExamOrder[]>([
     { exam_name: "", exam_category: null, instructions: null },
   ]);
+
+  const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canManageEncounters = hasAnyRole(currentRoles, ["admin", "doctor"]);
+  const canViewPatientTimeline = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canViewMessages = hasAnyRole(currentRoles, ["admin", "receptionist", "doctor"]);
+  const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+  const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canViewGestion = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+  const isAdmin = hasAnyRole(currentRoles, ["admin"]);
 
   async function loadData() {
     setLoading(true);
@@ -169,7 +339,7 @@ export function ClinicalConsole() {
       const patientPath = patientSearch.trim()
         ? `/api/patients?query=${encodeURIComponent(patientSearch.trim())}`
         : "/api/patients";
-      const dispatchParams = new URLSearchParams({ limit: "20" });
+      const dispatchParams = new URLSearchParams({ limit: "40" });
       if (dispatchFilters.status_filter) {
         dispatchParams.set("status_filter", dispatchFilters.status_filter);
       }
@@ -179,24 +349,30 @@ export function ClinicalConsole() {
       if (dispatchFilters.query.trim()) {
         dispatchParams.set("query", dispatchFilters.query.trim());
       }
-      const canViewReminderRules = hasAnyRole(currentRoles, ["admin", "receptionist"]);
-      const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
-      const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
 
-      const [doctors, patients, appointments, encounters, loadedReminderRules, loadedTemplates, loadedDispatches, loadedDispatchSummary, loadedReviewItems] =
-        await Promise.all([
+      const [
+        doctors,
+        patients,
+        appointments,
+        encounters,
+        loadedReminderRules,
+        loadedTemplates,
+        loadedDispatches,
+        loadedDispatchSummary,
+        loadedReviewItems,
+      ] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPath),
         apiGet<Appointment[]>("/api/appointments"),
         apiGet<Encounter[]>("/api/encounters"),
-        canViewReminderRules ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
+        canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
         canViewGlobalCommunications ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
         canViewGlobalCommunications
           ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
           : Promise.resolve([]),
         canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
         canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
-        ]);
+      ]);
 
       setData({ doctors, patients, appointments, encounters });
       setReminderRules(loadedReminderRules);
@@ -213,8 +389,11 @@ export function ClinicalConsole() {
       if (!selectedPatientId && patients[0]) {
         setSelectedPatientId(String(patients[0].id));
       }
+      if (!doctorFilter && doctors[0] && currentRoles.includes("doctor")) {
+        setDoctorFilter(String(doctors[0].id));
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not load module data.");
+      setMessage(error instanceof Error ? error.message : "No se pudo cargar la información clínica.");
     } finally {
       setLoading(false);
     }
@@ -260,7 +439,7 @@ export function ClinicalConsole() {
         const summary = await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`);
         setSelectedSummary(summary);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not load patient summary.");
+        setMessage(error instanceof Error ? error.message : "No se pudo cargar el resumen del paciente.");
       }
     }
 
@@ -268,10 +447,39 @@ export function ClinicalConsole() {
   }, [isAuthenticated, selectedPatientId]);
 
   useEffect(() => {
+    if (!selectedSummary) {
+      setPatientEditForm({
+        first_name: "",
+        last_name: "",
+        primary_phone: "",
+        national_id: "",
+        tax_id: "",
+        email: "",
+        address: "",
+        notes: "",
+        is_active: true,
+      });
+      return;
+    }
+
+    setPatientEditForm({
+      first_name: selectedSummary.patient.first_name ?? "",
+      last_name: selectedSummary.patient.last_name ?? "",
+      primary_phone: selectedSummary.patient.primary_phone ?? "",
+      national_id: selectedSummary.patient.national_id ?? "",
+      tax_id: selectedSummary.patient.tax_id ?? "",
+      email: selectedSummary.patient.email ?? "",
+      address: selectedSummary.patient.address ?? "",
+      notes: selectedSummary.patient.notes ?? "",
+      is_active: selectedSummary.patient.is_active,
+    });
+  }, [selectedSummary]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
-    if (!selectedPatientId || !hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"])) {
+    if (!selectedPatientId || !canViewPatientTimeline) {
       setSelectedPatientDispatches([]);
       return;
     }
@@ -279,17 +487,17 @@ export function ClinicalConsole() {
     async function loadPatientDispatches() {
       try {
         const dispatches = await apiGet<CommunicationDispatch[]>(
-          `/api/communication-dispatches?patient_id=${selectedPatientId}&limit=10`,
+          `/api/communication-dispatches?patient_id=${selectedPatientId}&limit=12`,
         );
         setSelectedPatientDispatches(dispatches);
       } catch (error) {
         setSelectedPatientDispatches([]);
-        setMessage(error instanceof Error ? error.message : "Could not load patient communication timeline.");
+        setMessage(error instanceof Error ? error.message : "No se pudo cargar el historial de mensajes.");
       }
     }
 
     loadPatientDispatches();
-  }, [isAuthenticated, selectedPatientId, currentRoles]);
+  }, [isAuthenticated, selectedPatientId, canViewPatientTimeline]);
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -312,9 +520,9 @@ export function ClinicalConsole() {
       setIsAuthenticated(true);
       setCurrentUserEmail(payload.user_email);
       setCurrentRoles(payload.roles);
-      setMessage(`Logged in as ${payload.user_email}.`);
+      setMessage(`Sesión iniciada como ${payload.user_email}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Login failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo iniciar sesión.");
     }
   }
 
@@ -328,7 +536,7 @@ export function ClinicalConsole() {
     setData(initialLoadState);
     setSelectedSummary(null);
     setSelectedPatientDispatches([]);
-    setMessage("Session closed.");
+    setMessage("Sesión cerrada.");
   }
 
   async function submitPatient(event: FormEvent<HTMLFormElement>) {
@@ -348,10 +556,40 @@ export function ClinicalConsole() {
         tax_id: "",
         email: "",
       });
+      setActiveSectionAction(null);
       await loadData();
-      setMessage("Patient created.");
+      setMessage("Paciente creado.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Patient creation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo crear el paciente.");
+    }
+  }
+
+  async function submitPatientUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedPatientId) {
+      setMessage("Selecciona un paciente para editar.");
+      return;
+    }
+
+    setMessage("");
+    try {
+      await apiPatch<Patient>(`/api/patients/${selectedPatientId}`, {
+        first_name: patientEditForm.first_name,
+        last_name: patientEditForm.last_name,
+        primary_phone: patientEditForm.primary_phone,
+        national_id: patientEditForm.national_id || null,
+        tax_id: patientEditForm.tax_id || null,
+        email: patientEditForm.email || null,
+        address: patientEditForm.address || null,
+        notes: patientEditForm.notes || null,
+        is_active: patientEditForm.is_active,
+      });
+      await loadData();
+      setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
+      setActiveSectionAction(null);
+      setMessage("Paciente actualizado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el paciente.");
     }
   }
 
@@ -368,9 +606,9 @@ export function ClinicalConsole() {
       });
       await loadData();
       setSelectedPatientId(appointmentForm.patient_id);
-      setMessage("Appointment created.");
+      setMessage("Cita creada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Appointment creation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo crear la cita.");
     }
   }
 
@@ -414,26 +652,14 @@ export function ClinicalConsole() {
           })),
       });
       await loadData();
-      setEncounterForm((current) => ({
-        ...current,
-        chief_complaint: "",
-        appointment_id: "",
-      }));
+      setEncounterForm((current) => ({ ...current, chief_complaint: "", appointment_id: "" }));
       setDiagnoses([{ diagnosis_text: "", diagnosis_code: null, is_primary: true, notes: null }]);
-      setPrescriptionItems([
-        {
-          medication_name: "",
-          dosage: null,
-          frequency: null,
-          duration: null,
-          instructions: null,
-        },
-      ]);
+      setPrescriptionItems([{ medication_name: "", dosage: null, frequency: null, duration: null, instructions: null }]);
       setExamOrders([{ exam_name: "", exam_category: null, instructions: null }]);
       setSelectedPatientId(encounterForm.patient_id);
-      setMessage("Encounter created.");
+      setMessage("Consulta registrada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Encounter creation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo registrar la consulta.");
     }
   }
 
@@ -443,15 +669,15 @@ export function ClinicalConsole() {
       await apiPatch<Appointment>(`/api/appointments/${appointmentId}/status`, {
         status,
         changed_by: "frontend-demo",
-        change_reason: `status changed to ${status}`,
+        change_reason: `Cambio manual a ${status}`,
       });
       await loadData();
       if (selectedPatientId) {
         setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
       }
-      setMessage(`Appointment ${appointmentId} updated to ${status}.`);
+      setMessage(`Cita ${appointmentId} actualizada a ${appointmentStatusLabel(status)}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Appointment update failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la cita.");
     }
   }
 
@@ -479,7 +705,7 @@ export function ClinicalConsole() {
       }
       setExpandedAppointmentId(appointmentId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Appointment history could not be loaded.");
+      setMessage(error instanceof Error ? error.message : "No se pudo cargar el detalle de la cita.");
     }
   }
 
@@ -493,9 +719,9 @@ export function ClinicalConsole() {
       if (selectedPatientId) {
         setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
       }
-      setMessage(`Encounter ${encounterId} closed.`);
+      setMessage(`Consulta ${encounterId} cerrada.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Encounter close failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo cerrar la consulta.");
     }
   }
 
@@ -503,7 +729,7 @@ export function ClinicalConsole() {
     event.preventDefault();
     setMessage("");
     if (!selectedPatientId || !attachmentFile) {
-      setMessage("Select a patient and a file before uploading.");
+      setMessage("Selecciona un paciente y un archivo.");
       return;
     }
 
@@ -530,9 +756,9 @@ export function ClinicalConsole() {
       if (selectedPatientId) {
         setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
       }
-      setMessage("Attachment uploaded.");
+      setMessage("Documento adjuntado.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Attachment upload failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo adjuntar el archivo.");
     }
   }
 
@@ -546,7 +772,7 @@ export function ClinicalConsole() {
         "noopener,noreferrer",
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Attachment download failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo abrir el archivo.");
     } finally {
       setDownloadingAttachmentId(null);
     }
@@ -573,9 +799,9 @@ export function ClinicalConsole() {
         is_active: true,
       });
       await loadData();
-      setMessage("Reminder rule created.");
+      setMessage("Regla de recordatorio creada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Reminder rule creation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo crear la regla.");
     }
   }
 
@@ -586,9 +812,9 @@ export function ClinicalConsole() {
         is_active: !rule.is_active,
       });
       await loadData();
-      setMessage(`Reminder rule ${rule.id} ${rule.is_active ? "deactivated" : "activated"}.`);
+      setMessage(`Regla ${rule.is_active ? "desactivada" : "activada"}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Reminder rule update failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la regla.");
     }
   }
 
@@ -614,9 +840,9 @@ export function ClinicalConsole() {
       });
       setTemplatePreview(null);
       await loadData();
-      setMessage("Communication template created.");
+      setMessage("Plantilla creada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication template creation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo crear la plantilla.");
     }
   }
 
@@ -627,9 +853,9 @@ export function ClinicalConsole() {
         is_active: !template.is_active,
       });
       await loadData();
-      setMessage(`Communication template ${template.id} ${template.is_active ? "deactivated" : "activated"}.`);
+      setMessage(`Plantilla ${template.is_active ? "desactivada" : "activada"}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication template update failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la plantilla.");
     }
   }
 
@@ -643,16 +869,16 @@ export function ClinicalConsole() {
         doctor_id: templateForm.doctor_id ? Number(templateForm.doctor_id) : appointmentForm.doctor_id ? Number(appointmentForm.doctor_id) : null,
         channel: templateForm.channel,
         template_key: templateForm.template_key || "preview",
-        title: templateForm.title || "Preview",
+        title: templateForm.title || "Vista previa",
         body: templateForm.body,
         patient_id: selectedPatientId ? Number(selectedPatientId) : null,
         appointment_id: selectedSummary?.appointments[0]?.id ?? null,
         exam_order_id: firstExamOrderId,
       });
       setTemplatePreview(preview);
-      setMessage("Communication template preview generated.");
+      setMessage("Vista previa generada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication template preview failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa.");
     }
   }
 
@@ -661,9 +887,9 @@ export function ClinicalConsole() {
     try {
       const result = await apiPost<CommunicationDispatchGeneration>("/api/communication-dispatches/generate", {});
       await loadData();
-      setMessage(`Generated ${result.created_count} communication dispatches.`);
+      setMessage(`Se generaron ${result.created_count} mensajes.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication dispatch generation failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudieron generar los mensajes.");
     }
   }
 
@@ -672,9 +898,9 @@ export function ClinicalConsole() {
     try {
       await apiPost<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}/requeue`, {});
       await loadData();
-      setMessage(`Communication dispatch ${dispatchId} requeued.`);
+      setMessage(`Mensaje ${dispatchId} reenviado a cola.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication dispatch requeue failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el mensaje.");
     }
   }
 
@@ -683,16 +909,16 @@ export function ClinicalConsole() {
     try {
       const failedDispatchIds = communicationDispatches.filter((dispatch) => dispatch.status === "failed").map((dispatch) => dispatch.id);
       if (!failedDispatchIds.length) {
-        setMessage("No failed dispatches in the current view.");
+        setMessage("No hay mensajes fallidos en la vista actual.");
         return;
       }
       const result = await apiPost<CommunicationDispatchBatchRequeue>("/api/communication-dispatches/requeue-batch", {
         dispatch_ids: failedDispatchIds,
       });
       await loadData();
-      setMessage(`Requeued ${result.requeued_count} failed dispatches.`);
+      setMessage(`Se reenviaron ${result.requeued_count} mensajes fallidos.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication dispatch batch requeue failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el lote.");
     }
   }
 
@@ -710,7 +936,7 @@ export function ClinicalConsole() {
       }
       setExpandedDispatchId(dispatchId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication dispatch attempts could not be loaded.");
+      setMessage(error instanceof Error ? error.message : "No se pudieron cargar los intentos.");
     }
   }
 
@@ -719,1512 +945,1817 @@ export function ClinicalConsole() {
     try {
       const payload: Record<string, string> = { status };
       if (status === "failed") {
-        const reason = window.prompt("Failure reason", "Manual admin failure update");
+        const reason = window.prompt("Motivo del fallo", "Actualización manual");
         if (!reason) {
-          setMessage("Failure update cancelled.");
+          setMessage("Actualización cancelada.");
           return;
         }
         payload.error_message = reason;
       }
       await apiPatch<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}`, payload);
       await loadData();
-      setMessage(`Communication dispatch ${dispatchId} updated to ${status}.`);
+      setMessage(`Mensaje ${dispatchId} actualizado.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Communication dispatch update failed.");
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el mensaje.");
     }
   }
 
-  const reviewQueueByAppointmentId = new Map(
-    appointmentReviewItems
-      .filter((item) => item.existing_appointment_id !== null)
-      .map((item) => [item.existing_appointment_id as number, item]),
+  async function resolveReviewItem(
+    itemId: number,
+    action: "reject" | "link_existing" | "create_appointment",
+  ) {
+    setMessage("");
+    try {
+      const payload: Record<string, string | number | null> = {
+        action,
+        changed_by: currentUserEmail || "frontend-user",
+      };
+
+      if (action === "link_existing") {
+        const appointmentId = window.prompt("ID de la cita existente", "");
+        if (!appointmentId) {
+          return;
+        }
+        payload.appointment_id = Number(appointmentId);
+      }
+
+      if (action === "create_appointment") {
+        const patientId = window.prompt("ID del paciente para crear la cita", selectedPatientId || "");
+        if (!patientId) {
+          return;
+        }
+        payload.patient_id = Number(patientId);
+      }
+
+      if (action === "reject") {
+        payload.note = window.prompt("Motivo del rechazo", "Rechazado manualmente") || "Rechazado manualmente";
+      }
+
+      await apiPost(`/api/appointment-review-items/${itemId}/resolve`, payload);
+      await loadData();
+      setMessage("Pendiente actualizado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo resolver el pendiente.");
+    }
+  }
+
+  const reviewQueueByAppointmentId = useMemo(
+    () =>
+      new Map(
+        appointmentReviewItems
+          .filter((item) => item.existing_appointment_id !== null)
+          .map((item) => [item.existing_appointment_id as number, item]),
+      ),
+    [appointmentReviewItems],
   );
 
-  const filteredAppointments = data.appointments.filter((appointment) => {
-    const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
-    const latestDispatchStatus = lastDispatchStatus(relatedDispatches);
-    const needsAttention =
-      appointment.confirmation_status === "pending" ||
-      latestDispatchStatus === "failed" ||
-      reviewQueueByAppointmentId.has(appointment.id);
+  const filteredAppointments = useMemo(() => {
+    return data.appointments.filter((appointment) => {
+      if (doctorFilter && String(appointment.doctor_id) !== doctorFilter) {
+        return false;
+      }
 
-    if (appointmentFilter === "ws") {
-      return appointment.source === "appoint-me";
-    }
-    if (appointmentFilter === "pending_confirmation") {
-      return appointment.confirmation_status === "pending";
-    }
-    if (appointmentFilter === "needs_attention") {
-      return needsAttention;
-    }
-    return true;
-  });
+      const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+      const latestDispatchStatus = lastDispatchStatus(relatedDispatches);
+      const needsAttention =
+        appointment.confirmation_status === "pending" ||
+        latestDispatchStatus === "failed" ||
+        reviewQueueByAppointmentId.has(appointment.id);
 
-  return (
-    <main className="page-shell">
-      {!isAuthenticated ? (
-        <section className="hero">
-          <p className="eyebrow">Module 1</p>
-          <h1>Login required</h1>
-          <p className="lede">
-            Sign in to access patient, appointment, encounter, and attachment workflows.
-          </p>
-          <form className="login-form" onSubmit={submitLogin}>
-            <input
-              type="email"
-              value={loginForm.email}
-              onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
-              placeholder="Email"
-              required
-            />
-            <input
-              type="password"
-              value={loginForm.password}
-              onChange={(event) =>
-                setLoginForm((current) => ({ ...current, password: event.target.value }))
-              }
-              placeholder="Password"
-              required
-            />
-            <button type="submit">Sign in</button>
-          </form>
-          {message ? <p className="message-box">{message}</p> : null}
-        </section>
-      ) : (
-        <>
-      <section className="hero">
-        <p className="eyebrow">Module 1</p>
-        <h1>Clinical operations console</h1>
+      if (appointmentFilter === "ws") {
+        return appointment.source === "appoint-me";
+      }
+      if (appointmentFilter === "confirmed") {
+        return appointment.confirmation_status === "confirmed";
+      }
+      if (appointmentFilter === "pending_confirmation") {
+        return appointment.confirmation_status === "pending";
+      }
+      if (appointmentFilter === "needs_attention") {
+        return needsAttention;
+      }
+      return true;
+    });
+  }, [appointmentFilter, communicationDispatches, data.appointments, doctorFilter, reviewQueueByAppointmentId]);
+
+  const agendaDays = useMemo(() => {
+    if (calendarView === "dia") {
+      return [startOfDay(calendarDate)];
+    }
+    if (calendarView === "semana") {
+      const start = startOfWeek(calendarDate);
+      return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+    }
+    return [];
+  }, [calendarDate, calendarView]);
+
+  const monthDays = useMemo(() => {
+    if (calendarView !== "mes") {
+      return [];
+    }
+    const start = startOfMonthGrid(calendarDate);
+    return Array.from({ length: 42 }, (_, index) => addDays(start, index));
+  }, [calendarDate, calendarView]);
+
+  const appointmentsByDayKey = useMemo(() => {
+    const map = new Map<string, Appointment[]>();
+    for (const appointment of filteredAppointments) {
+      const dayKey = startOfDay(new Date(appointment.scheduled_start)).toISOString();
+      const current = map.get(dayKey) ?? [];
+      current.push(appointment);
+      map.set(dayKey, current);
+    }
+    for (const entries of map.values()) {
+      entries.sort((left, right) => new Date(left.scheduled_start).getTime() - new Date(right.scheduled_start).getTime());
+    }
+    return map;
+  }, [filteredAppointments]);
+
+  const focusedAppointment = useMemo(
+    () => data.appointments.find((appointment) => appointment.id === expandedAppointmentId) ?? null,
+    [data.appointments, expandedAppointmentId],
+  );
+  const selectedDoctor = useMemo(
+    () =>
+      data.doctors.find(
+        (doctor) => String(doctor.id) === doctorFilter || String(doctor.id) === appointmentForm.doctor_id || String(doctor.id) === encounterForm.doctor_id,
+      ) ?? data.doctors[0] ?? null,
+    [appointmentForm.doctor_id, data.doctors, doctorFilter, encounterForm.doctor_id],
+  );
+
+  const sortedPatientEncounters = useMemo(() => {
+    if (!selectedSummary) {
+      return [];
+    }
+    return [...selectedSummary.encounters].sort(
+      (left, right) => new Date(right.encounter_date).getTime() - new Date(left.encounter_date).getTime(),
+    );
+  }, [selectedSummary]);
+
+  const selectedPatient = selectedSummary?.patient ?? null;
+
+  const calendarMetrics = (appointment: Appointment) => {
+    const start = new Date(appointment.scheduled_start);
+    const end = new Date(appointment.scheduled_end);
+    const startMinutes = start.getHours() * 60 + start.getMinutes();
+    const endMinutes = end.getHours() * 60 + end.getMinutes();
+    const dayStart = 6 * 60;
+    const dayEnd = 20 * 60;
+    const clampedStart = Math.max(startMinutes, dayStart);
+    const clampedEnd = Math.min(endMinutes, dayEnd);
+    const rowStart = Math.max(2, Math.floor((clampedStart - dayStart) / 30) + 2);
+    const rowEnd = Math.max(rowStart + 1, Math.ceil((clampedEnd - dayStart) / 30) + 2);
+    return { rowStart, rowEnd };
+  };
+
+  const goToPreviousRange = () => {
+    setCalendarDate((current) => {
+      if (calendarView === "dia") {
+        return addDays(current, -1);
+      }
+      if (calendarView === "semana") {
+        return addDays(current, -7);
+      }
+      return new Date(current.getFullYear(), current.getMonth() - 1, 1);
+    });
+  };
+
+  const goToNextRange = () => {
+    setCalendarDate((current) => {
+      if (calendarView === "dia") {
+        return addDays(current, 1);
+      }
+      if (calendarView === "semana") {
+        return addDays(current, 7);
+      }
+      return new Date(current.getFullYear(), current.getMonth() + 1, 1);
+    });
+  };
+
+  const goToToday = () => setCalendarDate(startOfDay(new Date()));
+
+  const renderLogin = () => (
+    <section className="hero hero-login">
+      <div>
+        <p className="eyebrow">Do-Control</p>
+        <h1>Agenda clínica en un solo lugar</h1>
         <p className="lede">
-          This frontend is wired to the live FastAPI backend. You can register patients, schedule
-          appointments, and record encounters against the Dockerized PostgreSQL database.
+          Ingresa para ver tu agenda, pacientes, consultas y seguimiento de mensajes en una vista pensada para clínica.
         </p>
-        <div className="session-strip">
-          <span>{currentUserEmail}</span>
-          <span>{currentRoles.join(", ")}</span>
-        </div>
-        <div className="row-actions">
-          <button type="button" className="secondary-button" onClick={logout}>
-            Logout
-          </button>
-        </div>
-      </section>
-
-      <section className="status-strip">
-        <div>
-          <strong>{data.doctors.length}</strong>
-          <span> doctors</span>
-        </div>
-        <div>
-          <strong>{data.patients.length}</strong>
-          <span> patients</span>
-        </div>
-        <div>
-          <strong>{data.appointments.length}</strong>
-          <span> appointments</span>
-        </div>
-        <div>
-          <strong>{data.encounters.length}</strong>
-          <span> encounters</span>
-        </div>
-      </section>
-
-      <section className="card patient-focus">
-        <div className="patient-focus-header">
-          <div>
-            <p className="eyebrow">Patient search</p>
-            <h2>Find patient fast</h2>
-          </div>
-          <input
-            className="search-input"
-            placeholder="Search by MRN, name, phone, or national ID"
-            value={patientSearch}
-            onChange={(event) => setPatientSearch(event.target.value)}
-          />
-        </div>
-      </section>
-
-      <section className="card patient-focus">
-        <div className="patient-focus-header">
-          <div>
-            <p className="eyebrow">Patient focus</p>
-            <h2>Chart summary</h2>
-          </div>
-          <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
-            <option value="">Select patient</option>
-            {data.patients.map((patient) => (
-              <option key={patient.id} value={patient.id}>
-                {patient.medical_record_number} · {patient.first_name} {patient.last_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedSummary ? (
-          <div className="summary-grid">
-            <div>
-              <strong>
-                {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
-              </strong>
-              <p>{selectedSummary.patient.primary_phone}</p>
-            </div>
-            <div>
-              <strong>{selectedSummary.appointments.length}</strong>
-              <p>appointments</p>
-            </div>
-            <div>
-              <strong>{selectedSummary.encounters.length}</strong>
-              <p>encounters</p>
-            </div>
-          </div>
-        ) : (
-          <p className="empty-state">Select a patient to inspect appointment and encounter history.</p>
-        )}
-      </section>
-
-      {selectedSummary ? (
-        <section className="workspace-grid">
-          <article className="card table-card span-three">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">WhatsApp visibility</p>
-                <h2>Patient communication timeline</h2>
-              </div>
-              <span>
-                {selectedSummary.patient.medical_record_number} · {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
-              </span>
-            </div>
-            <div className="table-list">
-              {selectedPatientDispatches.map((dispatch) => (
-                <div key={`patient-dispatch-${dispatch.id}`}>
-                  <div className="row">
-                    <strong>
-                      #{dispatch.id} · {dispatch.channel} · {dispatch.status}
-                    </strong>
-                    <span>
-                      {dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}
-                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
-                    </span>
-                    <span>
-                      {dispatch.appointment_scheduled_start
-                        ? `Appointment ${formatDateTime(dispatch.appointment_scheduled_start)}`
-                        : formatDateTime(dispatch.created_at)}
-                    </span>
-                    <span>{dispatch.recipient_phone}</span>
-                    <span>
-                      {dispatch.external_reference ?? "no external reference"}
-                      {` · retry ${dispatch.retry_count}`}
-                    </span>
-                    {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => toggleDispatchAttempts(dispatch.id)}
-                        >
-                          {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="row">
-                    <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
-                  </div>
-                  {dispatch.error_message ? (
-                    <div className="row">
-                      <span>{dispatch.error_message}</span>
-                    </div>
-                  ) : null}
-                  {expandedDispatchId === dispatch.id && hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                    <div className="table-list">
-                      {dispatchAttempts[dispatch.id]?.length ? (
-                        dispatchAttempts[dispatch.id].map((attempt) => (
-                          <div className="row" key={`patient-dispatch-attempt-${attempt.id}`}>
-                            <strong>
-                              {attempt.result_status} · {attempt.attempt_source}
-                            </strong>
-                            <span>{formatDateTime(attempt.attempted_at)}</span>
-                            <span>{attempt.external_reference ?? "no external reference"}</span>
-                            <span>{attempt.error_message ?? "no error"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="empty-state">No attempts recorded.</p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-              {!selectedPatientDispatches.length ? (
-                <p className="empty-state">No WhatsApp communication timeline for this patient yet.</p>
-              ) : null}
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      {hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]) ? (
-        <section className="workspace-grid">
-          <article className="card table-card span-three">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">Manual review</p>
-                <h2>Appoint-me review queue</h2>
-              </div>
-              <span>{appointmentReviewItems.length} pending</span>
-            </div>
-            <div className="table-list">
-              {appointmentReviewItems.map((item) => (
-                <div className="row" key={`appointment-review-item-${item.id}`}>
-                  <strong>
-                    {item.patient_name} · {item.appointment_type}
-                  </strong>
-                  <span>
-                    {item.doctor_name ?? item.doctor_phone_number ?? "doctor unresolved"}
-                    {` · ${formatDateTime(item.scheduled_start)}`}
-                  </span>
-                  <span>{item.review_reason}</span>
-                  <span>{item.review_message}</span>
-                  <span>
-                    {item.existing_appointment_id ? `existing appointment #${item.existing_appointment_id}` : item.phone_number}
-                  </span>
-                </div>
-              ))}
-              {!appointmentReviewItems.length ? (
-                <p className="empty-state">No appoint-me proposals waiting for manual review.</p>
-              ) : null}
-            </div>
-          </article>
-        </section>
-      ) : null}
-
+      </div>
+      <form className="login-form" onSubmit={submitLogin}>
+        <input
+          type="email"
+          value={loginForm.email}
+          onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+          placeholder="Correo"
+          required
+        />
+        <input
+          type="password"
+          value={loginForm.password}
+          onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+          placeholder="Contraseña"
+          required
+        />
+        <button type="submit">Entrar</button>
+      </form>
       {message ? <p className="message-box">{message}</p> : null}
+    </section>
+  );
 
-      {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-        <section className="workspace-grid">
-          {hasAnyRole(currentRoles, ["admin"]) ? (
-            <form className="card form-card" onSubmit={submitReminderRule}>
-              <h2>Reminder rule</h2>
-              <label>
-                <span>Doctor scope</span>
-                <select
-                  value={reminderRuleForm.doctor_id}
-                  onChange={(event) =>
-                    setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))
-                  }
-                >
-                  <option value="">All doctors</option>
-                  {data.doctors.map((doctor) => (
-                    <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
-                      {doctor.first_name} {doctor.last_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Channel</span>
-                <select
-                  value={reminderRuleForm.channel}
-                  onChange={(event) =>
-                    setReminderRuleForm((current) => ({ ...current, channel: event.target.value }))
-                  }
-                >
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="sms">SMS</option>
-                  <option value="email">Email</option>
-                </select>
-              </label>
-              <label>
-                <span>Trigger</span>
-                <select
-                  value={reminderRuleForm.trigger_type}
-                  onChange={(event) =>
-                    setReminderRuleForm((current) => ({ ...current, trigger_type: event.target.value }))
-                  }
-                >
-                  <option value="before_appointment">Before appointment</option>
-                </select>
-              </label>
-              <label>
-                <span>Minutes before</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={reminderRuleForm.minutes_before}
-                  onChange={(event) =>
-                    setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-              <label>
-                <span>Template key</span>
-                <input
-                  value={reminderRuleForm.template_key}
-                  onChange={(event) =>
-                    setReminderRuleForm((current) => ({ ...current, template_key: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-              <button type="submit">Create reminder rule</button>
-            </form>
-          ) : (
-            <article className="card table-card">
-              <h2>Reminder rule</h2>
-              <p className="empty-state">Reception can view active reminder settings but cannot change them.</p>
-            </article>
-          )}
+  const renderAppointmentBadges = (appointment: Appointment) => {
+    const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+    const latestMessageStatus = lastDispatchStatus(relatedDispatches);
+    const reviewItem = reviewQueueByAppointmentId.get(appointment.id);
 
-          <article className="card table-card span-two">
-            <h2>Reminder rules</h2>
-            <div className="table-list">
-              {reminderRules.map((rule) => (
-                <div className="row" key={`reminder-rule-${rule.id}`}>
-                  <strong>
-                    {rule.template_key} · {rule.minutes_before} min
-                  </strong>
-                  <span>
-                    {rule.channel} · {rule.trigger_type} · {rule.doctor_id ? `doctor ${rule.doctor_id}` : "all doctors"}
-                  </span>
-                  <span>{rule.is_active ? "active" : "inactive"}</span>
-                  {hasAnyRole(currentRoles, ["admin"]) ? (
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => toggleReminderRule(rule)}
-                      >
-                        {rule.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-              {!reminderRules.length ? <p className="empty-state">No reminder rules configured.</p> : null}
+    return (
+      <div className="inline-badges">
+        <span className={`badge ${appointment.source === "appoint-me" ? "badge-accent" : "badge-neutral"}`}>
+          {sourceLabel(appointment.source)}
+        </span>
+        <span
+          className={`badge ${
+            appointment.confirmation_status === "cancelled"
+              ? "badge-danger"
+              : appointment.confirmation_status === "confirmed"
+                ? "badge-success"
+              : appointment.confirmation_status === "pending"
+                ? "badge-warn"
+                : "badge-neutral"
+          }`}
+        >
+          {confirmationLabel(appointment.confirmation_status)}
+        </span>
+        {latestMessageStatus ? (
+          <span className={`badge ${latestMessageStatus === "failed" ? "badge-danger" : "badge-neutral"}`}>
+            Mensaje: {dispatchStatusLabel(latestMessageStatus)}
+          </span>
+        ) : null}
+        {reviewItem ? <span className="badge badge-danger">Revisión manual</span> : null}
+      </div>
+    );
+  };
+
+  const renderAgendaCalendar = () => {
+    if (calendarView === "mes") {
+      return (
+        <div className="month-grid">
+          {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((label) => (
+            <div key={label} className="month-weekday">
+              {label}
             </div>
-          </article>
-        </section>
-      ) : null}
-
-      {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-        <section className="workspace-grid">
-          {hasAnyRole(currentRoles, ["admin"]) ? (
-            <form className="card form-card" onSubmit={submitTemplate}>
-              <h2>Communication template</h2>
-              <p className="empty-state">
-                Allowed variables: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"}, {"{appointment_time}"},
-                {" {exam_name}"}, {" {expected_date}"}
-              </p>
-              <label>
-                <span>Doctor scope</span>
-                <select
-                  value={templateForm.doctor_id}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({ ...current, doctor_id: event.target.value }))
-                  }
-                >
-                  <option value="">All doctors</option>
-                  {data.doctors.map((doctor) => (
-                    <option key={`template-doctor-${doctor.id}`} value={doctor.id}>
-                      {doctor.first_name} {doctor.last_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Channel</span>
-                <select
-                  value={templateForm.channel}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({ ...current, channel: event.target.value }))
-                  }
-                >
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="sms">SMS</option>
-                  <option value="email">Email</option>
-                </select>
-              </label>
-              <label>
-                <span>Template key</span>
-                <input
-                  value={templateForm.template_key}
-                  onChange={(event) =>
-                    setTemplateForm((current) => ({ ...current, template_key: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-              <label>
-                <span>Title</span>
-                <input
-                  value={templateForm.title}
-                  onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Body</span>
-                <textarea
-                  value={templateForm.body}
-                  onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
-                  placeholder="Hola {patient_name}..."
-                  required
-                />
-              </label>
-              {templatePreview ? (
-                <p className="empty-state">Preview: {templatePreview.rendered_message || "(empty result)"}</p>
-              ) : null}
-              <div className="row-actions">
-                <button type="button" className="secondary-button" onClick={previewTemplate}>
-                  Preview
-                </button>
-                <button type="submit">Create template</button>
-              </div>
-            </form>
-          ) : (
-            <article className="card table-card">
-              <h2>Communication template</h2>
-              <p className="empty-state">Reception can review templates but cannot modify them.</p>
-            </article>
-          )}
-
-          <article className="card table-card span-two">
-            <h2>Communication templates</h2>
-            <div className="table-list">
-              {communicationTemplates.map((template) => (
-                <div className="row" key={`communication-template-${template.id}`}>
-                  <strong>
-                    {template.template_key} · {template.channel}
-                  </strong>
-                  <span>{template.title}</span>
-                  <span>{template.doctor_id ? `doctor ${template.doctor_id}` : "all doctors"}</span>
-                  <span>{template.is_active ? "active" : "inactive"}</span>
-                  {hasAnyRole(currentRoles, ["admin"]) ? (
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => toggleTemplate(template)}
-                      >
-                        {template.is_active ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-              {!communicationTemplates.length ? <p className="empty-state">No templates configured.</p> : null}
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-        <section className="workspace-grid">
-          <article className="card table-card span-three">
-            <div className="subsection-header">
-              <h2>Communication dispatch log</h2>
-              {hasAnyRole(currentRoles, ["admin"]) ? (
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
-                    Generate now
-                  </button>
-                  <button type="button" className="secondary-button" onClick={requeueVisibleFailedDispatches}>
-                    Requeue failed visible
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            {communicationDispatchSummary ? (
-              <div className="table-list">
-                <div className="row">
-                  <strong>Total</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "" }))}
-                  >
-                    {communicationDispatchSummary.total}
-                  </button>
-                  <strong>Pending</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "pending" }))}
-                  >
-                    {communicationDispatchSummary.pending}
-                  </button>
-                  <strong>Due now</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "pending" }))}
-                  >
-                    {communicationDispatchSummary.due_now}
-                  </button>
-                </div>
-                <div className="row">
-                  <strong>Sent</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "sent" }))}
-                  >
-                    {communicationDispatchSummary.sent}
-                  </button>
-                  <strong>Delivered</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "delivered" }))}
-                  >
-                    {communicationDispatchSummary.delivered}
-                  </button>
-                  <strong>Failed</strong>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setDispatchFilters((current) => ({ ...current, status_filter: "failed" }))}
-                  >
-                    {communicationDispatchSummary.failed}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            <div className="row-actions">
-              <select
-                value={dispatchFilters.status_filter}
-                onChange={(event) =>
-                  setDispatchFilters((current) => ({ ...current, status_filter: event.target.value }))
-                }
+          ))}
+          {monthDays.map((day) => {
+            const appointments = appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? [];
+            const isCurrentMonth = day.getMonth() === calendarDate.getMonth();
+            const isToday = isSameDay(day, new Date());
+            return (
+              <article
+                key={day.toISOString()}
+                className={`month-cell ${isCurrentMonth ? "" : "month-cell-muted"} ${isToday ? "month-cell-today" : ""}`}
               >
-                <option value="">All statuses</option>
-                <option value="pending">Pending</option>
-                <option value="sent">Sent</option>
-                <option value="delivered">Delivered</option>
-                <option value="failed">Failed</option>
-              </select>
-              <select
-                value={dispatchFilters.channel}
-                onChange={(event) =>
-                  setDispatchFilters((current) => ({ ...current, channel: event.target.value }))
-                }
-              >
-                <option value="">All channels</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-              </select>
-              <input
-                value={dispatchFilters.query}
-                onChange={(event) =>
-                  setDispatchFilters((current) => ({ ...current, query: event.target.value }))
-                }
-                placeholder="Phone, ref, error"
-              />
-            </div>
-            <div className="table-list">
-              {communicationDispatches.map((dispatch) => (
-                <div key={`communication-dispatch-${dispatch.id}`}>
-                  <div className="row">
-                    <strong>
-                      #{dispatch.id} · {dispatch.channel} · {dispatch.status}
-                    </strong>
-                    <span>
-                      {dispatch.patient_medical_record_number ?? `patient ${dispatch.patient_id}`}
-                      {dispatch.patient_name ? ` · ${dispatch.patient_name}` : ""}
-                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : dispatch.doctor_id ? ` · doctor ${dispatch.doctor_id}` : ""}
-                      {dispatch.appointment_id ? ` · appointment ${dispatch.appointment_id}` : ""}
-                      {dispatch.exam_order_id ? ` · exam ${dispatch.exam_order_id}` : ""}
-                    </span>
-                    <span>{dispatch.recipient_phone}</span>
-                    <span>
-                      {dispatch.external_reference ?? "no external reference"}
-                      {` · retry ${dispatch.retry_count}`}
-                      {dispatch.next_attempt_at ? ` · next ${formatDateTime(dispatch.next_attempt_at)}` : ""}
-                    </span>
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => toggleDispatchAttempts(dispatch.id)}
-                      >
-                        {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
-                      </button>
-                      {hasAnyRole(currentRoles, ["admin"]) ? (
-                        <>
-                          {dispatch.status !== "sent" && dispatch.status !== "delivered" ? (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => updateDispatchStatus(dispatch.id, "sent")}
-                            >
-                              Mark sent
-                            </button>
-                          ) : null}
-                          {dispatch.status !== "delivered" ? (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => updateDispatchStatus(dispatch.id, "delivered")}
-                            >
-                              Mark delivered
-                            </button>
-                          ) : null}
-                          {dispatch.status !== "failed" ? (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => updateDispatchStatus(dispatch.id, "failed")}
-                            >
-                              Mark failed
-                            </button>
-                          ) : null}
-                          {dispatch.status === "failed" ? (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              onClick={() => requeueDispatch(dispatch.id)}
-                            >
-                              Requeue
-                            </button>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="row">
-                    <span>
-                      {dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}
-                      {dispatch.appointment_scheduled_start
-                        ? ` · appointment ${formatDateTime(dispatch.appointment_scheduled_start)}`
-                        : ""}
-                    </span>
-                    <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
-                  </div>
-                  {expandedDispatchId === dispatch.id ? (
-                    <div className="table-list">
-                      {dispatchAttempts[dispatch.id]?.length ? (
-                        dispatchAttempts[dispatch.id].map((attempt) => (
-                          <div className="row" key={`dispatch-attempt-${attempt.id}`}>
-                            <strong>
-                              {attempt.result_status} · {attempt.attempt_source}
-                            </strong>
-                            <span>{formatDateTime(attempt.attempted_at)}</span>
-                            <span>{attempt.external_reference ?? "no external reference"}</span>
-                            <span>{attempt.error_message ?? "no error"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="empty-state">No attempts recorded.</p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-              {!communicationDispatches.length ? <p className="empty-state">No communication dispatches logged.</p> : null}
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      <section className="workspace-grid">
-        {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-        <form className="card form-card" onSubmit={submitPatient}>
-          <h2>New patient</h2>
-          <label>
-            <span>Medical record</span>
-            <input
-              value={patientForm.medical_record_number}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, medical_record_number: event.target.value }))
-              }
-              placeholder="Leave blank to auto-generate"
-            />
-          </label>
-          <label>
-            <span>First name</span>
-            <input
-              value={patientForm.first_name}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, first_name: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Last name</span>
-            <input
-              value={patientForm.last_name}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, last_name: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Phone</span>
-            <input
-              value={patientForm.primary_phone}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, primary_phone: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>DPI</span>
-            <input
-              value={patientForm.national_id}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, national_id: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <span>NIT</span>
-            <input
-              value={patientForm.tax_id}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, tax_id: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              value={patientForm.email}
-              onChange={(event) =>
-                setPatientForm((current) => ({ ...current, email: event.target.value }))
-              }
-            />
-          </label>
-          <button type="submit">Create patient</button>
-        </form>
-        ) : (
-          <article className="card table-card">
-            <h2>New patient</h2>
-            <p className="empty-state">Your role cannot create or edit patient records.</p>
-          </article>
-        )}
-
-        {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-        <form className="card form-card" onSubmit={submitAppointment}>
-          <h2>New appointment</h2>
-          <label>
-            <span>Patient</span>
-            <select
-              value={appointmentForm.patient_id}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, patient_id: event.target.value }))
-              }
-              required
-            >
-              <option value="">Select patient</option>
-              {data.patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.medical_record_number} · {patient.first_name} {patient.last_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Doctor</span>
-            <select
-              value={appointmentForm.doctor_id}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, doctor_id: event.target.value }))
-              }
-              required
-            >
-              <option value="">Select doctor</option>
-              {data.doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.first_name} {doctor.last_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Start</span>
-            <input
-              type="datetime-local"
-              value={appointmentForm.scheduled_start}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, scheduled_start: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>End</span>
-            <input
-              type="datetime-local"
-              value={appointmentForm.scheduled_end}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, scheduled_end: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Type</span>
-            <input
-              value={appointmentForm.appointment_type}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, appointment_type: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Reason</span>
-            <textarea
-              value={appointmentForm.reason}
-              onChange={(event) =>
-                setAppointmentForm((current) => ({ ...current, reason: event.target.value }))
-              }
-            />
-          </label>
-          <button type="submit" disabled={!data.patients.length || !data.doctors.length}>
-            Create appointment
-          </button>
-        </form>
-        ) : (
-          <article className="card table-card">
-            <h2>New appointment</h2>
-            <p className="empty-state">Your role cannot create appointment records.</p>
-          </article>
-        )}
-
-        {hasAnyRole(currentRoles, ["admin", "doctor"]) ? (
-        <form className="card form-card" onSubmit={submitEncounter}>
-          <h2>New encounter</h2>
-          <label>
-            <span>Patient</span>
-            <select
-              value={encounterForm.patient_id}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, patient_id: event.target.value }))
-              }
-              required
-            >
-              <option value="">Select patient</option>
-              {data.patients.map((patient) => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.first_name} {patient.last_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Doctor</span>
-            <select
-              value={encounterForm.doctor_id}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))
-              }
-              required
-            >
-              <option value="">Select doctor</option>
-              {data.doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.first_name} {doctor.last_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Linked appointment</span>
-            <select
-              value={encounterForm.appointment_id}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, appointment_id: event.target.value }))
-              }
-            >
-              <option value="">No appointment</option>
-              {data.appointments.map((appointment) => (
-                <option key={appointment.id} value={appointment.id}>
-                  #{appointment.id} · patient {appointment.patient_id} · {appointment.status}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Encounter date</span>
-            <input
-              type="datetime-local"
-              value={encounterForm.encounter_date}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, encounter_date: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Encounter type</span>
-            <input
-              value={encounterForm.encounter_type}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, encounter_type: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <label>
-            <span>Chief complaint</span>
-            <textarea
-              value={encounterForm.chief_complaint}
-              onChange={(event) =>
-                setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))
-              }
-              required
-            />
-          </label>
-          <div className="subsection">
-            <div className="subsection-header">
-              <h3>Diagnoses</h3>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setDiagnoses((current) => [
-                    ...current,
-                    { diagnosis_text: "", diagnosis_code: null, is_primary: false, notes: null },
-                  ])
-                }
-              >
-                Add diagnosis
-              </button>
-            </div>
-            {diagnoses.map((diagnosis, index) => (
-              <div className="stacked-fields" key={`diagnosis-${index}`}>
-                <input
-                  placeholder="Diagnosis text"
-                  value={diagnosis.diagnosis_text}
-                  onChange={(event) =>
-                    setDiagnoses((current) =>
-                      current.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, diagnosis_text: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  placeholder="Code"
-                  value={diagnosis.diagnosis_code ?? ""}
-                  onChange={(event) =>
-                    setDiagnoses((current) =>
-                      current.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, diagnosis_code: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          <div className="subsection">
-            <div className="subsection-header">
-              <h3>Prescription</h3>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setPrescriptionItems((current) => [
-                    ...current,
-                    {
-                      medication_name: "",
-                      dosage: null,
-                      frequency: null,
-                      duration: null,
-                      instructions: null,
-                    },
-                  ])
-                }
-              >
-                Add medication
-              </button>
-            </div>
-            {prescriptionItems.map((item, index) => (
-              <div className="stacked-fields" key={`medication-${index}`}>
-                <input
-                  placeholder="Medication"
-                  value={item.medication_name}
-                  onChange={(event) =>
-                    setPrescriptionItems((current) =>
-                      current.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, medication_name: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  placeholder="Dosage"
-                  value={item.dosage ?? ""}
-                  onChange={(event) =>
-                    setPrescriptionItems((current) =>
-                      current.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, dosage: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          <div className="subsection">
-            <div className="subsection-header">
-              <h3>Exam orders</h3>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setExamOrders((current) => [
-                    ...current,
-                    { exam_name: "", exam_category: null, instructions: null },
-                  ])
-                }
-              >
-                Add exam
-              </button>
-            </div>
-            {examOrders.map((item, index) => (
-              <div className="stacked-fields" key={`exam-${index}`}>
-                <input
-                  placeholder="Exam name"
-                  value={item.exam_name}
-                  onChange={(event) =>
-                    setExamOrders((current) =>
-                      current.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, exam_name: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  placeholder="Category"
-                  value={item.exam_category ?? ""}
-                  onChange={(event) =>
-                    setExamOrders((current) =>
-                      current.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, exam_category: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          <button type="submit" disabled={!data.patients.length || !data.doctors.length}>
-            Create encounter
-          </button>
-        </form>
-        ) : (
-          <article className="card table-card">
-            <h2>New encounter</h2>
-            <p className="empty-state">Your role cannot create or close encounters.</p>
-          </article>
-        )}
-      </section>
-
-      <section className="workspace-grid">
-        <article className="card table-card">
-          <h2>Patients</h2>
-          {loading ? <p>Loading...</p> : null}
-          <div className="table-list">
-            {data.patients.map((patient) => (
-              <div className="row" key={patient.id}>
-                <strong>{patient.medical_record_number}</strong>
-                <span>
-                  {patient.first_name} {patient.last_name}
-                </span>
-                <span>{patient.primary_phone}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card table-card span-two">
-          <div className="subsection-header">
-            <div>
-              <h2>Appointments calendar feed</h2>
-              <p className="empty-state">One operational calendar, with origin and WhatsApp state visible inside each appointment.</p>
-            </div>
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={() => setAppointmentFilter("all")}>
-                All
-              </button>
-              <button type="button" className="secondary-button" onClick={() => setAppointmentFilter("ws")}>
-                WS-originated
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setAppointmentFilter("pending_confirmation")}
-              >
-                Pending confirmation
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setAppointmentFilter("needs_attention")}
-              >
-                Needs attention
-              </button>
-            </div>
-          </div>
-          <div className="table-list">
-            {filteredAppointments.map((appointment) => (
-              <div key={`appointment-feed-${appointment.id}`}>
-                <div className="row">
-                  <strong>#{appointment.id}</strong>
-                  <span>
-                    {appointment.patient_name ?? `patient ${appointment.patient_id}`}
-                    {appointment.doctor_name ? ` · ${appointment.doctor_name}` : ""}
-                  </span>
-                  <span>
-                    {appointment.appointment_type} · {formatDateTime(appointment.scheduled_start)}
-                  </span>
-                  <span>
-                    {appointment.status} · {appointment.confirmation_status}
-                  </span>
-                  <div className="inline-badges">
-                    <span className={`badge ${appointment.source === "appoint-me" ? "badge-accent" : ""}`}>
-                      {appointment.source === "appoint-me" ? "WS / appoint-me" : appointment.source}
-                    </span>
-                    <span className={`badge ${appointment.confirmation_status === "pending" ? "badge-warn" : "badge-neutral"}`}>
-                      {appointment.confirmation_status}
-                    </span>
-                    {communicationDispatches.some((dispatch) => dispatch.appointment_id === appointment.id) ? (
-                      <span
-                        className={`badge ${
-                          lastDispatchStatus(communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id)) === "failed"
-                            ? "badge-danger"
-                            : "badge-neutral"
-                        }`}
-                      >
-                        comms {lastDispatchStatus(communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id)) ?? "linked"}
-                      </span>
-                    ) : null}
-                    {reviewQueueByAppointmentId.has(appointment.id) ? (
-                      <span className="badge badge-danger">review pending</span>
-                    ) : null}
-                  </div>
-                  <div className="row-actions">
+                <header>
+                  <strong>{day.getDate()}</strong>
+                  <span>{formatDate(day)}</span>
+                </header>
+                <div className="month-events">
+                  {appointments.slice(0, 4).map((appointment) => (
                     <button
                       type="button"
-                      className="secondary-button"
+                      key={`month-appointment-${appointment.id}`}
+                      className="month-event"
                       onClick={() => toggleAppointmentHistory(appointment.id)}
                     >
-                      {expandedAppointmentId === appointment.id ? "Hide timeline" : "Timeline"}
+                      <span>{formatTime(appointment.scheduled_start)}</span>
+                      <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
                     </button>
-                    {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                      <>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => updateAppointmentStatus(appointment.id, "completed")}
-                        >
-                          Complete
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
+                  ))}
+                  {appointments.length > 4 ? <span className="empty-state">+{appointments.length - 4} más</span> : null}
                 </div>
-                {expandedAppointmentId === appointment.id ? (
-                  <div className="table-list">
-                    <div className="row">
-                      <strong>Appointment lifecycle</strong>
-                      <span>{appointment.source === "appoint-me" ? "Came from WhatsApp proposal flow" : "Created inside do-control"}</span>
-                      <span>{appointment.created_by ?? "system"}</span>
-                    </div>
-                    {appointmentHistory[appointment.id]?.length ? (
-                      appointmentHistory[appointment.id].map((entry) => (
-                        <div className="row" key={`appointment-history-${entry.id}`}>
-                          <strong>
-                            {entry.old_status ?? "new"} {"->"} {entry.new_status}
-                          </strong>
-                          <span>{formatDateTime(entry.created_at)}</span>
-                          <span>{entry.changed_by ?? "system"}</span>
-                          <span>{entry.change_reason ?? "no reason"}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-state">No appointment history recorded.</p>
-                    )}
-                    <div className="row">
-                      <strong>Communication events</strong>
-                      <span>{appointmentDispatches[appointment.id]?.length ?? 0} related dispatches</span>
-                    </div>
-                    {appointmentDispatches[appointment.id]?.length ? (
-                      appointmentDispatches[appointment.id].map((dispatch) => (
-                        <div key={`appointment-dispatch-${dispatch.id}`}>
-                          <div className="row">
-                            <strong>
-                              #{dispatch.id} · {dispatch.channel} · {dispatch.status}
-                            </strong>
-                            <span>{dispatch.template_title ?? dispatch.template_key ?? "Untitled communication"}</span>
-                            <span>{formatDateTime(dispatch.created_at)}</span>
-                            <span>{dispatch.external_reference ?? "no external reference"}</span>
-                            <div className="row-actions">
-                              {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                                <button
-                                  type="button"
-                                  className="secondary-button"
-                                  onClick={() => toggleDispatchAttempts(dispatch.id)}
-                                >
-                                  {expandedDispatchId === dispatch.id ? "Hide attempts" : "Attempts"}
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="row">
-                            <span>{dispatch.rendered_message ?? "No rendered message available."}</span>
-                          </div>
-                          {expandedDispatchId === dispatch.id && hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                            <div className="table-list">
-                              {dispatchAttempts[dispatch.id]?.length ? (
-                                dispatchAttempts[dispatch.id].map((attempt) => (
-                                  <div className="row" key={`appointment-dispatch-attempt-${attempt.id}`}>
-                                    <strong>
-                                      {attempt.result_status} · {attempt.attempt_source}
-                                    </strong>
-                                    <span>{formatDateTime(attempt.attempted_at)}</span>
-                                    <span>{attempt.external_reference ?? "no external reference"}</span>
-                                    <span>{attempt.error_message ?? "no error"}</span>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="empty-state">No attempts recorded.</p>
-                              )}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-state">No WhatsApp communication linked to this appointment.</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-            {!filteredAppointments.length ? <p className="empty-state">No appointments match the current filter.</p> : null}
-          </div>
-        </article>
+              </article>
+            );
+          })}
+        </div>
+      );
+    }
 
-        <article className="card table-card">
-          <h2>Encounters</h2>
-          <div className="table-list">
-            {data.encounters.map((encounter) => (
-              <div className="row" key={encounter.id}>
-                <strong>#{encounter.id}</strong>
-                <span>{encounter.encounter_type}</span>
-                <span>{encounter.status}</span>
-                {encounter.status !== "closed" && hasAnyRole(currentRoles, ["admin", "doctor"]) ? (
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => closeEncounter(encounter.id)}
-                    >
-                      Close encounter
-                    </button>
-                  </div>
-                ) : null}
+    return (
+      <div className={`agenda-shell ${calendarView === "dia" ? "agenda-shell-day" : "agenda-shell-week"}`}>
+        <div
+          className="agenda-header-grid"
+          style={{ gridTemplateColumns: `88px repeat(${agendaDays.length}, minmax(0, 1fr))` }}
+        >
+          <div className="agenda-corner" />
+          {agendaDays.map((day) => (
+            <div key={`header-${day.toISOString()}`} className={`agenda-day-header ${isSameDay(day, new Date()) ? "agenda-day-header-today" : ""}`}>
+              <strong>{new Intl.DateTimeFormat("es-GT", { weekday: "long" }).format(day)}</strong>
+              <span>{new Intl.DateTimeFormat("es-GT", { day: "numeric", month: "short" }).format(day)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="agenda-body-grid"
+          style={{ gridTemplateColumns: `88px repeat(${agendaDays.length}, minmax(0, 1fr))` }}
+        >
+          <div className="agenda-time-column">
+            {slotLabels.slice(0, -1).map((slotLabel, slotIndex) => (
+              <div key={`time-${slotLabel}`} className="agenda-time">
+                {slotIndex % 2 === 0 ? slotLabel : ""}
               </div>
             ))}
           </div>
-        </article>
-      </section>
 
-      {selectedSummary ? (
-        <section className="workspace-grid">
-          <article className="card table-card">
-            <h2>Patient appointments</h2>
-            <div className="table-list">
-              {selectedSummary.appointments.map((appointment) => (
-                <div key={`summary-appointment-${appointment.id}`}>
-                  <div className="row">
-                    <strong>#{appointment.id}</strong>
-                    <span>{appointment.appointment_type}</span>
-                    <span>{formatDateTime(appointment.scheduled_start)}</span>
-                    <span>
-                      {appointment.status} · {appointment.confirmation_status}
-                    </span>
-                    <span>
-                      {appointment.source}
-                      {appointment.created_by ? ` · ${appointment.created_by}` : ""}
-                    </span>
+          {agendaDays.map((day) => (
+            <div key={`column-${day.toISOString()}`} className="agenda-day-column">
+              {slotLabels.slice(0, -1).map((slotLabel) => (
+                <div key={`slot-${day.toISOString()}-${slotLabel}`} className="agenda-slot" />
+              ))}
+              {(appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? []).map((appointment) => {
+                const metrics = calendarMetrics(appointment);
+                return (
+                  <button
+                    type="button"
+                    key={`grid-appointment-${appointment.id}`}
+                    className={`agenda-event ${
+                      appointment.status === "cancelled"
+                        ? "agenda-event-cancelled"
+                        : appointment.confirmation_status === "confirmed"
+                          ? "agenda-event-confirmed"
+                        : appointment.source === "appoint-me"
+                          ? "agenda-event-ws"
+                          : ""
+                    }`}
+                    style={{ gridRow: `${metrics.rowStart} / ${metrics.rowEnd}` }}
+                    onClick={() => toggleAppointmentHistory(appointment.id)}
+                    title={`${appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · ${appointmentTypeLabel(appointment.appointment_type)} · ${appointmentStatusLabel(appointment.status)}`}
+                  >
+                    <span>{formatTime(appointment.scheduled_start)}</span>
+                    <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
+                    <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFocusedAppointment = () => {
+    if (!focusedAppointment) {
+      return (
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Detalle</p>
+              <h2>Selecciona una cita</h2>
+            </div>
+          </div>
+          <p className="empty-state">Haz clic sobre una cita del calendario para ver historial, mensajes y acciones.</p>
+        </article>
+      );
+    }
+
+    const relatedDispatches = appointmentDispatches[focusedAppointment.id] ?? [];
+
+    return (
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Detalle de cita</p>
+            <h2>{focusedAppointment.patient_name ?? `Paciente ${focusedAppointment.patient_id}`}</h2>
+          </div>
+          <span>{formatDateTime(focusedAppointment.scheduled_start)}</span>
+        </div>
+        <div className="detail-stack">
+          <div className="detail-panel">
+            <strong>{focusedAppointment.doctor_name ?? `Doctor ${focusedAppointment.doctor_id}`}</strong>
+            <span>{appointmentTypeLabel(focusedAppointment.appointment_type)}</span>
+            <span>{appointmentStatusLabel(focusedAppointment.status)}</span>
+            {renderAppointmentBadges(focusedAppointment)}
+            {canManageAppointments ? (
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
+                  Confirmar
+                </button>
+                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
+                  Cancelar
+                </button>
+                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
+                  Completar
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div className="detail-panel">
+            <strong>Historial</strong>
+            {appointmentHistory[focusedAppointment.id]?.length ? (
+              appointmentHistory[focusedAppointment.id].map((entry) => (
+                <div className="timeline-item" key={`history-${entry.id}`}>
+                  <strong>
+                    {appointmentStatusLabel(entry.old_status ?? "scheduled")} → {appointmentStatusLabel(entry.new_status)}
+                  </strong>
+                  <span>{formatDateTime(entry.created_at)}</span>
+                  <span>{entry.change_reason ?? "Sin observación"}</span>
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">Sin movimientos registrados.</p>
+            )}
+          </div>
+          <div className="detail-panel">
+            <strong>Mensajes relacionados</strong>
+            {relatedDispatches.length ? (
+              relatedDispatches.map((dispatch) => (
+                <div className="timeline-item" key={`dispatch-${dispatch.id}`}>
+                  <strong>{dispatch.template_title ?? "Mensaje"}</strong>
+                  <span>{dispatchStatusLabel(dispatch.status)} · {formatDateTime(dispatch.created_at)}</span>
+                  <span>{dispatch.rendered_message ?? "Sin contenido generado."}</span>
+                  {canViewGlobalCommunications ? (
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => toggleAppointmentHistory(appointment.id)}
-                      >
-                        {expandedAppointmentId === appointment.id ? "Hide history" : "History"}
+                      <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
+                        {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
                       </button>
-                      {hasAnyRole(currentRoles, ["admin", "receptionist"]) ? (
-                        <>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => updateAppointmentStatus(appointment.id, "confirmed")}
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => updateAppointmentStatus(appointment.id, "cancelled")}
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : null}
                     </div>
-                  </div>
-                  {expandedAppointmentId === appointment.id ? (
-                    <div className="table-list">
-                      {appointmentHistory[appointment.id]?.length ? (
-                        appointmentHistory[appointment.id].map((entry) => (
-                          <div className="row" key={`summary-appointment-history-${entry.id}`}>
-                            <strong>
-                              {entry.old_status ?? "new"} {"->"} {entry.new_status}
-                            </strong>
-                            <span>{formatDateTime(entry.created_at)}</span>
-                            <span>{entry.changed_by ?? "system"}</span>
-                            <span>{entry.change_reason ?? "no reason"}</span>
+                  ) : null}
+                  {expandedDispatchId === dispatch.id ? (
+                    <div className="attempt-list">
+                      {dispatchAttempts[dispatch.id]?.length ? (
+                        dispatchAttempts[dispatch.id].map((attempt) => (
+                          <div className="timeline-item" key={`attempt-${attempt.id}`}>
+                            <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
+                            <span>{formatDateTime(attempt.attempted_at)}</span>
+                            <span>{attempt.error_message ?? "Sin error"}</span>
                           </div>
                         ))
                       ) : (
-                        <p className="empty-state">No appointment history recorded.</p>
+                        <p className="empty-state">Sin intentos registrados.</p>
                       )}
                     </div>
                   ) : null}
                 </div>
-              ))}
+              ))
+            ) : (
+              <p className="empty-state">Esta cita todavía no tiene mensajes ligados.</p>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  };
+
+  const renderAgendaTab = () => (
+    <section className="tab-layout">
+      <section className="headline-strip span-three">
+        <div className="headline-card" title="Cantidad de citas mostradas según la vista del calendario y filtros activos.">
+          <strong>{filteredAppointments.length}</strong>
+          <span>Citas visibles</span>
+        </div>
+        <div className="headline-card" title="Citas que todavía están pendientes de confirmación manual o por integración.">
+          <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
+          <span>Por confirmar</span>
+        </div>
+        <div className="headline-card" title="Total de consultas clínicas registradas en el sistema.">
+          <strong>{data.encounters.length}</strong>
+          <span>Consultas</span>
+        </div>
+        <div className="headline-card" title="Archivos clínicos del paciente seleccionado actualmente.">
+          <strong>{selectedSummary?.attachments.length ?? 0}</strong>
+          <span>Archivos</span>
+        </div>
+      </section>
+      <article className="card section-card span-three">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Resumen</p>
+            <h2>Vista rápida</h2>
+          </div>
+        </div>
+        <div className="summary-grid">
+          <div className="metric-card" title="Cantidad de citas visibles dentro de la vista actual del calendario.">
+            <strong>{filteredAppointments.length}</strong>
+            <span>Citas en la vista actual</span>
+          </div>
+          <div className="metric-card" title="Citas que siguen pendientes de confirmar.">
+            <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
+            <span>Pendientes de confirmar</span>
+          </div>
+          <div className="metric-card" title="Casos enviados a revisión manual que aún requieren una decisión.">
+            <strong>{appointmentReviewItems.length}</strong>
+            <span>Casos por revisar</span>
+          </div>
+        </div>
+        <div className="calendar-legend">
+          <span className="legend-title">Colores</span>
+          <span className="legend-item">
+            <span className="legend-swatch legend-swatch-default" />
+            Cita normal
+          </span>
+          <span className="legend-item">
+            <span className="legend-swatch legend-swatch-confirmed" />
+            Cita confirmada
+          </span>
+          <span className="legend-item">
+            <span className="legend-swatch legend-swatch-ws" />
+            Cita desde WhatsApp
+          </span>
+          <span className="legend-item">
+            <span className="legend-swatch legend-swatch-cancelled" />
+            Cita cancelada
+          </span>
+        </div>
+      </article>
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Agenda</p>
+            <h2>Calendario clínico</h2>
+          </div>
+          <div className="toolbar-inline">
+            <button type="button" className="secondary-button" onClick={goToPreviousRange}>
+              Anterior
+            </button>
+            <button type="button" className="secondary-button" onClick={goToToday}>
+              Hoy
+            </button>
+            <button type="button" className="secondary-button" onClick={goToNextRange}>
+              Siguiente
+            </button>
+          </div>
+        </div>
+        <div className="toolbar-row">
+          <strong>{calendarRangeLabel(calendarView, calendarDate)}</strong>
+          <div className="chip-row">
+            {(["dia", "semana", "mes"] as CalendarView[]).map((view) => (
+              <button
+                key={view}
+                type="button"
+                className={`filter-chip ${calendarView === view ? "filter-chip-active" : ""}`}
+                onClick={() => setCalendarView(view)}
+              >
+                {view[0].toUpperCase() + view.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="toolbar-inline">
+            {isAdmin ? (
+              <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
+                <option value="">Todos los doctores</option>
+                {data.doctors.map((doctor) => (
+                  <option key={`doctor-filter-${doctor.id}`} value={doctor.id}>
+                    {doctor.first_name} {doctor.last_name}
+                  </option>
+                ))}
+              </select>
+            ) : selectedDoctor ? (
+              <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div>
+            ) : null}
+            <div className="chip-row">
+              <button
+                type="button"
+                className={`filter-chip filter-chip-all ${appointmentFilter === "all" ? "filter-chip-active" : ""}`}
+                onClick={() => setAppointmentFilter("all")}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                className={`filter-chip filter-chip-ws ${appointmentFilter === "ws" ? "filter-chip-active" : ""}`}
+                onClick={() => setAppointmentFilter("ws")}
+              >
+                WhatsApp
+              </button>
+              <button
+                type="button"
+                className={`filter-chip filter-chip-confirmed ${appointmentFilter === "confirmed" ? "filter-chip-active" : ""}`}
+                onClick={() => setAppointmentFilter("confirmed")}
+              >
+                Confirmadas
+              </button>
+              <button
+                type="button"
+                className={`filter-chip filter-chip-pending ${appointmentFilter === "pending_confirmation" ? "filter-chip-active" : ""}`}
+                onClick={() => setAppointmentFilter("pending_confirmation")}
+              >
+                Por confirmar
+              </button>
+              <button
+                type="button"
+                className={`filter-chip filter-chip-attention ${appointmentFilter === "needs_attention" ? "filter-chip-active" : ""}`}
+                onClick={() => setAppointmentFilter("needs_attention")}
+              >
+                Requieren atención
+              </button>
             </div>
-          </article>
-          <article className="card table-card span-two">
-            <h2>Patient encounters</h2>
-            <div className="table-list">
-              {selectedSummary.encounters.map((encounter) => (
-                <div className="row" key={`summary-encounter-${encounter.id}`}>
-                  <strong>
-                    #{encounter.id} · {encounter.encounter_type}
-                  </strong>
-                  <span>{encounter.chief_complaint}</span>
-                  <span>
-                    Diagnoses:{" "}
-                    {(encounter.diagnoses ?? []).map((diagnosis) => diagnosis.diagnosis_text).join(", ") || "none"}
-                  </span>
-                  <span>
-                    Exams: {(encounter.exam_orders ?? []).map((exam) => exam.exam_name).join(", ") || "none"}
-                  </span>
-                  {encounter.status !== "closed" && hasAnyRole(currentRoles, ["admin", "doctor"]) ? (
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => closeEncounter(encounter.id)}
-                      >
-                        Close encounter
-                      </button>
-                    </div>
-                  ) : null}
+          </div>
+        </div>
+        {renderAgendaCalendar()}
+      </article>
+      <div className="agenda-side-stack">
+        {renderFocusedAppointment()}
+        <article className="card section-card">
+          {canManageAppointments ? (
+            <form className="form-card compact-form" onSubmit={submitAppointment}>
+              <h3>Nueva cita</h3>
+              <label>
+                <span>Paciente</span>
+                <select
+                  value={appointmentForm.patient_id}
+                  onChange={(event) => setAppointmentForm((current) => ({ ...current, patient_id: event.target.value }))}
+                  required
+                >
+                  <option value="">Seleccionar</option>
+                  {data.patients.map((patient) => (
+                    <option key={`appointment-patient-${patient.id}`} value={patient.id}>
+                      {patient.first_name} {patient.last_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {isAdmin ? (
+                <label>
+                  <span>Doctor</span>
+                  <select
+                    value={appointmentForm.doctor_id}
+                    onChange={(event) => setAppointmentForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                    required
+                  >
+                    <option value="">Seleccionar</option>
+                    {data.doctors.map((doctor) => (
+                      <option key={`appointment-doctor-${doctor.id}`} value={doctor.id}>
+                        {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : selectedDoctor ? (
+                <label>
+                  <span>Doctor</span>
+                  <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
+                </label>
+              ) : null}
+              <label>
+                <span>Inicio</span>
+                <input
+                  type="datetime-local"
+                  value={appointmentForm.scheduled_start}
+                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_start: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Fin</span>
+                <input
+                  type="datetime-local"
+                  value={appointmentForm.scheduled_end}
+                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_end: event.target.value }))}
+                  required
+                />
+              </label>
+              <button type="submit">Guardar cita</button>
+            </form>
+          ) : (
+            <p className="empty-state">Desde aquí puedes revisar la agenda y abrir el detalle de cada cita.</p>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+
+  const renderPacientesTab = () => (
+    <section className="tab-layout patients-layout">
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Pacientes</p>
+            <h2>Listado</h2>
+          </div>
+          <div className="section-tools-panel">
+            {canManagePatients ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setActiveSectionAction("patient_create")}
+              >
+                Agregar paciente
+              </button>
+            ) : null}
+            <input
+              className="search-input"
+              placeholder="Buscar por nombre, teléfono, DPI o expediente"
+              value={patientSearch}
+              onChange={(event) => setPatientSearch(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Expediente</th>
+                <th>Paciente</th>
+                <th>Teléfono</th>
+                <th>Creado</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.patients.map((patient) => (
+                <tr
+                  key={`patient-${patient.id}`}
+                  className={selectedPatientId === String(patient.id) ? "table-row-active" : ""}
+                  onClick={() => setSelectedPatientId(String(patient.id))}
+                >
+                  <td>{patient.medical_record_number}</td>
+                  <td>
+                    {patient.first_name} {patient.last_name}
+                  </td>
+                  <td>{patient.primary_phone}</td>
+                  <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
+                  <td>{patient.is_active ? "Activo" : "Inactivo"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!data.patients.length ? <p className="empty-state">No hay pacientes en la vista actual.</p> : null}
+        </div>
+      </article>
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Ficha del paciente</p>
+            <h2>{selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "Selecciona un paciente"}</h2>
+          </div>
+          {canManagePatients ? (
+            <div className="section-action-panel">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => selectedSummary && setActiveSectionAction("patient_edit")}
+                disabled={!selectedSummary}
+              >
+                Editar datos paciente
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {selectedSummary ? (
+          <div className="detail-stack">
+            <div className="summary-grid">
+              <div className="metric-card">
+                <strong>{selectedSummary.patient.medical_record_number}</strong>
+                <span>Expediente</span>
+              </div>
+              <div className="metric-card">
+                <strong>{selectedSummary.appointments.length}</strong>
+                <span>Citas</span>
+              </div>
+              <div className="metric-card">
+                <strong>{selectedSummary.encounters.length}</strong>
+                <span>Consultas</span>
+              </div>
+            </div>
+            <div className="detail-panel compact-panel">
+              <strong>Datos principales</strong>
+              <div className="two-column-grid">
+                <span>Nombre: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
+                <span>Teléfono: {selectedSummary.patient.primary_phone}</span>
+                <span>DPI: {selectedSummary.patient.national_id ?? "Sin registro"}</span>
+                <span>Estado: {selectedSummary.patient.is_active ? "Activo" : "Inactivo"}</span>
+              </div>
+            </div>
+            <div className="two-column-grid">
+              <div className="detail-panel">
+                <strong>Próximas citas</strong>
+                {(selectedSummary.appointments ?? []).length ? (
+                  selectedSummary.appointments.map((appointment) => (
+                    <button
+                      type="button"
+                      className="simple-list-item"
+                      key={`summary-appointment-${appointment.id}`}
+                      onClick={() => {
+                        setActiveTab("agenda");
+                        toggleAppointmentHistory(appointment.id);
+                      }}
+                    >
+                      <strong>{formatDateTime(appointment.scheduled_start)}</strong>
+                      <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
+                      <span>
+                        {appointmentTypeLabel(appointment.appointment_type)} · {appointmentStatusLabel(appointment.status)}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty-state">Sin citas registradas.</p>
+                )}
+              </div>
+              <div className="detail-panel">
+                <strong>Consultas</strong>
+                {sortedPatientEncounters.length ? (
+                  sortedPatientEncounters.map((encounter) => {
+                    const encounterAttachments = selectedSummary.attachments.filter(
+                      (attachment) => attachment.encounter_id === encounter.id,
+                    );
+                    const isExpanded = expandedEncounterId === encounter.id;
+
+                    return (
+                      <div key={`summary-encounter-${encounter.id}`}>
+                        <button
+                          type="button"
+                          className="simple-list-item"
+                          onClick={() => setExpandedEncounterId((current) => (current === encounter.id ? null : encounter.id))}
+                        >
+                          <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
+                          <span>{formatDateTime(encounter.encounter_date)}</span>
+                          <span>{encounter.chief_complaint}</span>
+                          <span>{isExpanded ? "Ocultar detalle" : "Ver detalle clínico"}</span>
+                        </button>
+                        {isExpanded ? (
+                          <div className="encounter-history-card">
+                            <div className="encounter-history-grid">
+                              <div className="timeline-item">
+                                <strong>Motivo</strong>
+                                <span>{encounter.chief_complaint}</span>
+                              </div>
+                              <div className="timeline-item">
+                                <strong>Estado</strong>
+                                <span>{appointmentStatusLabel(encounter.status)}</span>
+                              </div>
+                            </div>
+                            <div className="encounter-history-grid">
+                              <div className="timeline-item">
+                                <strong>Diagnósticos</strong>
+                                {(encounter.diagnoses ?? []).length ? (
+                                  (encounter.diagnoses ?? []).map((diagnosis) => (
+                                    <span key={`diagnosis-read-${diagnosis.id ?? diagnosis.diagnosis_text}`}>
+                                      {diagnosis.diagnosis_text}
+                                      {diagnosis.diagnosis_code ? ` · ${diagnosis.diagnosis_code}` : ""}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span>Sin diagnósticos registrados.</span>
+                                )}
+                              </div>
+                              <div className="timeline-item">
+                                <strong>Órdenes de examen</strong>
+                                {(encounter.exam_orders ?? []).length ? (
+                                  (encounter.exam_orders ?? []).map((exam) => (
+                                    <span key={`exam-read-${exam.id ?? exam.exam_name}`}>
+                                      {exam.exam_name}
+                                      {exam.status ? ` · ${dispatchStatusLabel(exam.status)}` : ""}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span>Sin exámenes registrados.</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="encounter-history-grid">
+                              <div className="timeline-item">
+                                <strong>Receta</strong>
+                                {encounter.prescription?.items?.length ? (
+                                  encounter.prescription.items.map((item) => (
+                                    <span key={`prescription-read-${item.id ?? item.medication_name}`}>
+                                      {item.medication_name}
+                                      {item.dosage ? ` · ${item.dosage}` : ""}
+                                      {item.frequency ? ` · ${item.frequency}` : ""}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span>Sin receta registrada.</span>
+                                )}
+                              </div>
+                              <div className="timeline-item">
+                                <strong>Adjuntos</strong>
+                                {encounterAttachments.length ? (
+                                  encounterAttachments.map((attachment) => (
+                                    <button
+                                      type="button"
+                                      key={`encounter-attachment-${attachment.id}`}
+                                      className="secondary-button align-start"
+                                      onClick={() => openAttachment(attachment.id)}
+                                    >
+                                      {attachment.file_name}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span>Sin adjuntos en esta consulta.</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="empty-state">Sin consultas registradas.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="empty-state">Selecciona un paciente para ver su expediente.</p>
+        )}
+      </article>
+    </section>
+  );
+
+  const renderConsultasTab = () => (
+    <section className="tab-layout">
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Consultas</p>
+            <h2>Registro clínico</h2>
+          </div>
+        </div>
+        {canManageEncounters ? (
+          <form className="form-card" onSubmit={submitEncounter}>
+            <div className="two-column-grid">
+              <label>
+                <span>Paciente</span>
+                <select
+                  value={encounterForm.patient_id}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, patient_id: event.target.value }))}
+                  required
+                >
+                  <option value="">Seleccionar</option>
+                  {data.patients.map((patient) => (
+                    <option key={`encounter-patient-${patient.id}`} value={patient.id}>
+                      {patient.first_name} {patient.last_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {isAdmin ? (
+                <label>
+                  <span>Doctor</span>
+                  <select
+                    value={encounterForm.doctor_id}
+                    onChange={(event) => setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                    required
+                  >
+                    <option value="">Seleccionar</option>
+                    {data.doctors.map((doctor) => (
+                      <option key={`encounter-doctor-${doctor.id}`} value={doctor.id}>
+                        {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : selectedDoctor ? (
+                <label>
+                  <span>Doctor</span>
+                  <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
+                </label>
+              ) : null}
+              <label>
+                <span>Cita relacionada</span>
+                <select
+                  value={encounterForm.appointment_id}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, appointment_id: event.target.value }))}
+                >
+                  <option value="">Sin cita</option>
+                  {data.appointments.map((appointment) => (
+                    <option key={`encounter-appointment-${appointment.id}`} value={appointment.id}>
+                      {appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · {formatDateTime(appointment.scheduled_start)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Fecha</span>
+                <input
+                  type="datetime-local"
+                  value={encounterForm.encounter_date}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, encounter_date: event.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              <span>Motivo de consulta</span>
+              <textarea
+                value={encounterForm.chief_complaint}
+                onChange={(event) => setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))}
+                required
+              />
+            </label>
+            <div className="subsection">
+              <div className="subsection-header">
+                <h3>Diagnósticos</h3>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setDiagnoses((current) => [...current, { diagnosis_text: "", diagnosis_code: null, is_primary: false, notes: null }])}
+                >
+                  Agregar
+                </button>
+              </div>
+              {diagnoses.map((diagnosis, index) => (
+                <div className="stacked-fields" key={`diagnosis-${index}`}>
+                  <input
+                    placeholder="Diagnóstico"
+                    value={diagnosis.diagnosis_text}
+                    onChange={(event) =>
+                      setDiagnoses((current) =>
+                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_text: event.target.value } : item)),
+                      )
+                    }
+                  />
+                  <input
+                    placeholder="Código"
+                    value={diagnosis.diagnosis_code ?? ""}
+                    onChange={(event) =>
+                      setDiagnoses((current) =>
+                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_code: event.target.value } : item)),
+                      )
+                    }
+                  />
                 </div>
               ))}
             </div>
-          </article>
-        </section>
-      ) : null}
-
-      {selectedSummary ? (
-        <section className="workspace-grid">
-          {hasAnyRole(currentRoles, ["admin", "doctor"]) ? (
-          <form className="card form-card" onSubmit={submitAttachment}>
-            <h2>Upload attachment</h2>
+            <div className="subsection">
+              <div className="subsection-header">
+                <h3>Receta</h3>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    setPrescriptionItems((current) => [
+                      ...current,
+                      { medication_name: "", dosage: null, frequency: null, duration: null, instructions: null },
+                    ])
+                  }
+                >
+                  Agregar
+                </button>
+              </div>
+              {prescriptionItems.map((item, index) => (
+                <div className="stacked-fields" key={`medication-${index}`}>
+                  <input
+                    placeholder="Medicamento"
+                    value={item.medication_name}
+                    onChange={(event) =>
+                      setPrescriptionItems((current) =>
+                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, medication_name: event.target.value } : entry)),
+                      )
+                    }
+                  />
+                  <input
+                    placeholder="Dosis"
+                    value={item.dosage ?? ""}
+                    onChange={(event) =>
+                      setPrescriptionItems((current) =>
+                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, dosage: event.target.value } : entry)),
+                      )
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="subsection">
+              <div className="subsection-header">
+                <h3>Órdenes de examen</h3>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setExamOrders((current) => [...current, { exam_name: "", exam_category: null, instructions: null }])}
+                >
+                  Agregar
+                </button>
+              </div>
+              {examOrders.map((item, index) => (
+                <div className="stacked-fields" key={`exam-${index}`}>
+                  <input
+                    placeholder="Examen"
+                    value={item.exam_name}
+                    onChange={(event) =>
+                      setExamOrders((current) =>
+                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_name: event.target.value } : entry)),
+                      )
+                    }
+                  />
+                  <input
+                    placeholder="Categoría"
+                    value={item.exam_category ?? ""}
+                    onChange={(event) =>
+                      setExamOrders((current) =>
+                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_category: event.target.value } : entry)),
+                      )
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <button type="submit">Guardar consulta</button>
+          </form>
+        ) : (
+          <p className="empty-state">Tu perfil puede revisar consultas, pero no registrar nuevas.</p>
+        )}
+      </article>
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Historial</p>
+            <h2>Consultas recientes</h2>
+          </div>
+        </div>
+        <div className="table-list">
+          {data.encounters.map((encounter) => (
+            <div className="simple-list-item" key={`encounter-${encounter.id}`}>
+              <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
+              <span>{formatDateTime(encounter.encounter_date)}</span>
+              <span>{encounter.chief_complaint}</span>
+              {encounter.status !== "closed" && canManageEncounters ? (
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => closeEncounter(encounter.id)}>
+                    Cerrar
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {selectedSummary ? (
+          <form className="form-card compact-form" onSubmit={submitAttachment}>
+            <h3>Adjuntar documento</h3>
             <label>
-              <span>Type</span>
+              <span>Tipo</span>
               <select value={attachmentType} onChange={(event) => setAttachmentType(event.target.value)}>
-                <option value="lab_result">Lab result</option>
-                <option value="ultrasound">Ultrasound</option>
-                <option value="image">Image</option>
-                <option value="clinical_document">Clinical document</option>
+                <option value="lab_result">Resultado de laboratorio</option>
+                <option value="ultrasound">Ultrasonido</option>
+                <option value="image">Imagen</option>
+                <option value="clinical_document">Documento clínico</option>
               </select>
             </label>
             <label>
-              <span>Encounter</span>
-              <select
-                value={attachmentEncounterId}
-                onChange={(event) => setAttachmentEncounterId(event.target.value)}
-              >
-                <option value="">No encounter</option>
+              <span>Consulta</span>
+              <select value={attachmentEncounterId} onChange={(event) => setAttachmentEncounterId(event.target.value)}>
+                <option value="">Sin consulta</option>
                 {selectedSummary.encounters.map((encounter) => (
                   <option key={`attachment-encounter-${encounter.id}`} value={encounter.id}>
-                    #{encounter.id} · {encounter.encounter_type}
+                    {encounterTypeLabel(encounter.encounter_type)} · {formatDateTime(encounter.encounter_date)}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              <span>File</span>
-              <input
-                type="file"
-                onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
-                required
-              />
+              <span>Archivo</span>
+              <input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} required />
             </label>
-            <button type="submit">Upload attachment</button>
-          </form>
-          ) : (
-            <article className="card table-card">
-              <h2>Upload attachment</h2>
-              <p className="empty-state">Your role can view attachments but cannot upload them.</p>
-            </article>
-          )}
-
-          <article className="card table-card span-two">
-            <h2>Attachments</h2>
+            <button type="submit">Adjuntar</button>
             <div className="table-list">
               {selectedSummary.attachments.map((attachment) => (
-                <div className="row" key={`attachment-${attachment.id}`}>
+                <div className="simple-list-item" key={`attachment-${attachment.id}`}>
                   <strong>{attachment.file_name}</strong>
                   <span>{attachment.file_type}</span>
-                  <span>{attachment.storage_key}</span>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => openAttachment(attachment.id)}
-                      disabled={downloadingAttachmentId === attachment.id}
-                    >
-                      {downloadingAttachmentId === attachment.id ? "Preparing..." : "Open"}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => openAttachment(attachment.id)}
+                    disabled={downloadingAttachmentId === attachment.id}
+                  >
+                    {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
+                  </button>
                 </div>
               ))}
             </div>
-          </article>
-        </section>
+          </form>
+        ) : null}
+      </article>
+    </section>
+  );
+
+  const renderMensajesTab = () => (
+    <section className="tab-layout">
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Mensajes</p>
+            <h2>Historial por paciente</h2>
+          </div>
+        </div>
+        {selectedSummary ? (
+          <>
+            <p className="empty-state">
+              {selectedSummary.patient.first_name} {selectedSummary.patient.last_name} · {selectedSummary.patient.medical_record_number}
+            </p>
+            <div className="table-list">
+              {selectedPatientDispatches.length ? (
+                selectedPatientDispatches.map((dispatch) => (
+                  <div className="simple-list-item" key={`patient-dispatch-${dispatch.id}`}>
+                    <strong>{dispatch.template_title ?? "Mensaje"}</strong>
+                    <span>{formatDateTime(dispatch.created_at)}</span>
+                    <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
+                    <span>{dispatch.rendered_message ?? "Sin texto generado."}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="empty-state">Este paciente todavía no tiene mensajes registrados.</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su historial.</p>
+        )}
+      </article>
+      {canViewGlobalCommunications ? (
+        <article className="card section-card span-two">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Seguimiento operativo</p>
+              <h2>Mensajes recientes</h2>
+            </div>
+            {isAdmin ? (
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
+                  Generar ahora
+                </button>
+                <button type="button" className="secondary-button" onClick={requeueVisibleFailedDispatches}>
+                  Reenviar fallidos
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {communicationDispatchSummary ? (
+            <div className="summary-grid">
+              <div className="metric-card">
+                <strong>{communicationDispatchSummary.total}</strong>
+                <span>Total</span>
+              </div>
+              <div className="metric-card">
+                <strong>{communicationDispatchSummary.pending}</strong>
+                <span>Pendientes</span>
+              </div>
+              <div className="metric-card">
+                <strong>{communicationDispatchSummary.failed}</strong>
+                <span>Fallidos</span>
+              </div>
+            </div>
+          ) : null}
+          <div className="toolbar-row">
+            <div className="toolbar-inline">
+              <select
+                value={dispatchFilters.status_filter}
+                onChange={(event) => setDispatchFilters((current) => ({ ...current, status_filter: event.target.value }))}
+              >
+                <option value="">Todos los estados</option>
+                <option value="pending">Pendiente</option>
+                <option value="sent">Enviado</option>
+                <option value="delivered">Entregado</option>
+                <option value="failed">Fallido</option>
+              </select>
+              <select
+                value={dispatchFilters.channel}
+                onChange={(event) => setDispatchFilters((current) => ({ ...current, channel: event.target.value }))}
+              >
+                <option value="">Todos los canales</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="sms">SMS</option>
+                <option value="email">Correo</option>
+              </select>
+            </div>
+            <input
+              className="search-input compact-input"
+              value={dispatchFilters.query}
+              onChange={(event) => setDispatchFilters((current) => ({ ...current, query: event.target.value }))}
+              placeholder="Buscar por teléfono, referencia o error"
+            />
+          </div>
+          <div className="table-list">
+            {communicationDispatches.map((dispatch) => (
+              <div className="simple-list-item" key={`dispatch-${dispatch.id}`}>
+                <strong>
+                  {dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {dispatch.template_title ?? "Mensaje"}
+                </strong>
+                <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
+                <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
+                <span>{dispatch.error_message ?? dispatch.rendered_message ?? "Sin observación."}</span>
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
+                    {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
+                  </button>
+                  {isAdmin && dispatch.status !== "delivered" ? (
+                    <button type="button" className="secondary-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
+                      Marcar entregado
+                    </button>
+                  ) : null}
+                  {isAdmin && dispatch.status !== "failed" ? (
+                    <button type="button" className="secondary-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
+                      Marcar fallido
+                    </button>
+                  ) : null}
+                  {isAdmin && dispatch.status === "failed" ? (
+                    <button type="button" className="secondary-button" onClick={() => requeueDispatch(dispatch.id)}>
+                      Reenviar
+                    </button>
+                  ) : null}
+                </div>
+                {expandedDispatchId === dispatch.id ? (
+                  <div className="attempt-list">
+                    {dispatchAttempts[dispatch.id]?.length ? (
+                      dispatchAttempts[dispatch.id].map((attempt) => (
+                        <div className="timeline-item" key={`dispatch-attempt-${attempt.id}`}>
+                          <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
+                          <span>{formatDateTime(attempt.attempted_at)}</span>
+                          <span>{attempt.error_message ?? "Sin error"}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">Sin intentos registrados.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </article>
       ) : null}
-        </>
+    </section>
+  );
+
+  const renderPendientesTab = () => {
+    const attentionAppointments = filteredAppointments.filter((appointment) => {
+      const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+      return (
+        appointment.confirmation_status === "pending" ||
+        lastDispatchStatus(relatedDispatches) === "failed" ||
+        reviewQueueByAppointmentId.has(appointment.id)
+      );
+    });
+
+    return (
+      <section className="tab-layout">
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Pendientes</p>
+              <h2>Revisión manual</h2>
+            </div>
+          </div>
+          <div className="table-list">
+            {appointmentReviewItems.length ? (
+              appointmentReviewItems.map((item) => (
+                <div className="simple-list-item" key={`review-item-${item.id}`}>
+                  <strong>{item.patient_name}</strong>
+                  <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
+                  <span>{formatDateTime(item.scheduled_start)}</span>
+                  <span>{item.review_message}</span>
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
+                      Crear cita
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
+                      Vincular cita
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "reject")}>
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">No hay propuestas pendientes de revisión manual.</p>
+            )}
+          </div>
+        </article>
+        <article className="card section-card span-two">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Atención del día</p>
+              <h2>Citas que requieren seguimiento</h2>
+            </div>
+          </div>
+          <div className="table-list">
+            {attentionAppointments.length ? (
+              attentionAppointments.map((appointment) => (
+                <button
+                  type="button"
+                  className="simple-list-item"
+                  key={`attention-appointment-${appointment.id}`}
+                  onClick={() => {
+                    setActiveTab("agenda");
+                    toggleAppointmentHistory(appointment.id);
+                  }}
+                >
+                  <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
+                  <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
+                  <span>{formatDateTime(appointment.scheduled_start)}</span>
+                  {renderAppointmentBadges(appointment)}
+                </button>
+              ))
+            ) : (
+              <p className="empty-state">No hay citas marcadas con atención especial.</p>
+            )}
+          </div>
+        </article>
+      </section>
+    );
+  };
+
+  const renderGestionTab = () => (
+    <section className="tab-layout">
+      <article className="card section-card">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Gestión</p>
+            <h2>Recordatorios</h2>
+          </div>
+        </div>
+        {isAdmin ? (
+          <form className="form-card compact-form" onSubmit={submitReminderRule}>
+            <label>
+              <span>Doctor</span>
+              <select
+                value={reminderRuleForm.doctor_id}
+                onChange={(event) => setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))}
+              >
+                <option value="">Todos</option>
+                {data.doctors.map((doctor) => (
+                  <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
+                    {doctor.first_name} {doctor.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Minutos antes</span>
+              <input
+                type="number"
+                value={reminderRuleForm.minutes_before}
+                onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Clave de plantilla</span>
+              <input
+                value={reminderRuleForm.template_key}
+                onChange={(event) => setReminderRuleForm((current) => ({ ...current, template_key: event.target.value }))}
+              />
+            </label>
+            <button type="submit">Guardar regla</button>
+          </form>
+        ) : (
+          <p className="empty-state">Recepción puede revisar la configuración activa.</p>
+        )}
+        <div className="table-list">
+          {reminderRules.map((rule) => (
+            <div className="simple-list-item" key={`reminder-${rule.id}`}>
+              <strong>Recordatorio activo</strong>
+              <span>{rule.minutes_before} minutos antes</span>
+              <span>{rule.doctor_id ? `Doctor ${rule.doctor_id}` : isAdmin ? "Todos los doctores" : "Clínica actual"}</span>
+              {isAdmin ? (
+                <button type="button" className="secondary-button" onClick={() => toggleReminderRule(rule)}>
+                  {rule.is_active ? "Desactivar" : "Activar"}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </article>
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Gestión</p>
+            <h2>Plantillas de mensaje</h2>
+          </div>
+        </div>
+        {isAdmin ? (
+          <form className="form-card compact-form" onSubmit={submitTemplate}>
+            <div className="two-column-grid">
+              <label>
+                <span>Clave</span>
+                <input
+                  value={templateForm.template_key}
+                  onChange={(event) => setTemplateForm((current) => ({ ...current, template_key: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Título</span>
+                <input value={templateForm.title} onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))} required />
+              </label>
+            </div>
+            <label>
+              <span>Mensaje</span>
+              <textarea
+                value={templateForm.body}
+                onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
+                placeholder="Hola {patient_name}, le recordamos..."
+                required
+              />
+            </label>
+            {templatePreview ? <p className="empty-state">Vista previa: {templatePreview.rendered_message}</p> : null}
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={previewTemplate}>
+                Vista previa
+              </button>
+              <button type="submit">Guardar plantilla</button>
+            </div>
+          </form>
+        ) : null}
+        <div className="table-list">
+          {communicationTemplates.map((template) => (
+            <div className="simple-list-item" key={`template-${template.id}`}>
+              <strong>{template.title}</strong>
+              <span>{template.title}</span>
+              <span>{template.is_active ? "Activa" : "Inactiva"}</span>
+              {isAdmin ? (
+                <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
+                  {template.is_active ? "Desactivar" : "Activar"}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </article>
+    </section>
+  );
+
+  const renderActiveTab = () => {
+    if (activeTab === "agenda") {
+      return renderAgendaTab();
+    }
+    if (activeTab === "pacientes") {
+      return renderPacientesTab();
+    }
+    if (activeTab === "consultas") {
+      return renderConsultasTab();
+    }
+    if (activeTab === "mensajes") {
+      return renderMensajesTab();
+    }
+    if (activeTab === "pendientes") {
+      return renderPendientesTab();
+    }
+    return canViewGestion ? renderGestionTab() : renderAgendaTab();
+  };
+
+  const renderSectionActionModal = () => {
+    if (!activeSectionAction) {
+      return null;
+    }
+
+    if (activeSectionAction === "patient_create") {
+      return (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Registro manual</p>
+                <h2>Agregar paciente</h2>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
+                Cerrar
+              </button>
+            </div>
+            <form className="form-card" onSubmit={submitPatient}>
+              <div className="three-column-grid">
+                <label>
+                  <span>Expediente</span>
+                  <input
+                    value={patientForm.medical_record_number}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, medical_record_number: event.target.value }))}
+                    placeholder="Automático si lo dejas vacío"
+                  />
+                </label>
+                <label>
+                  <span>Nombres</span>
+                  <input
+                    value={patientForm.first_name}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, first_name: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Apellidos</span>
+                  <input
+                    value={patientForm.last_name}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, last_name: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Teléfono</span>
+                  <input
+                    value={patientForm.primary_phone}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, primary_phone: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>DPI</span>
+                  <input
+                    value={patientForm.national_id}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, national_id: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  <span>NIT</span>
+                  <input
+                    value={patientForm.tax_id}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, tax_id: event.target.value }))}
+                  />
+                </label>
+                <label className="span-two">
+                  <span>Correo</span>
+                  <input
+                    type="email"
+                    value={patientForm.email}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, email: event.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
+                  Cancelar
+                </button>
+                <button type="submit">Guardar paciente</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true">
+        <div className="modal-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Ficha del paciente</p>
+              <h2>Editar paciente</h2>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
+              Cerrar
+            </button>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitPatientUpdate}>
+            <div className="three-column-grid">
+              <label>
+                <span>Nombres</span>
+                <input
+                  value={patientEditForm.first_name}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, first_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Apellidos</span>
+                <input
+                  value={patientEditForm.last_name}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, last_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Teléfono</span>
+                <input
+                  value={patientEditForm.primary_phone}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, primary_phone: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>DPI</span>
+                <input
+                  value={patientEditForm.national_id}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, national_id: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>NIT</span>
+                <input
+                  value={patientEditForm.tax_id}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, tax_id: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Correo</span>
+                <input
+                  type="email"
+                  value={patientEditForm.email}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, email: event.target.value }))}
+                />
+              </label>
+              <label className="span-two">
+                <span>Dirección</span>
+                <input
+                  value={patientEditForm.address}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, address: event.target.value }))}
+                />
+              </label>
+              <label className="span-two">
+                <span>Notas</span>
+                <textarea
+                  value={patientEditForm.notes}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, notes: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Estado</span>
+                <select
+                  value={patientEditForm.is_active ? "active" : "inactive"}
+                  onChange={(event) => setPatientEditForm((current) => ({ ...current, is_active: event.target.value === "active" }))}
+                >
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+              </label>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
+                Cancelar
+              </button>
+              <button type="submit">Guardar cambios</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <main className="page-shell">
+      {!isAuthenticated ? (
+        renderLogin()
+      ) : (
+        <section className="app-shell-auth">
+          <aside className="app-sidebar">
+            <div className="sidebar-brand">
+              <p className="eyebrow">Do-Control</p>
+              <h1>Panel médico</h1>
+              <span>{currentRoles.join(", ")}</span>
+            </div>
+            <nav className="sidebar-nav">
+              {consoleTabs
+                .filter((tab) => tab.id !== "gestion" || canViewGestion)
+                .filter((tab) => tab.id !== "mensajes" || canViewMessages)
+                .filter((tab) => tab.id !== "pendientes" || canViewReviewQueue)
+                .map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`sidebar-link ${activeTab === tab.id ? "sidebar-link-active" : ""}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+            </nav>
+            <div className="sidebar-summary">
+              <div className="sidebar-stat">
+                <strong>{data.appointments.length}</strong>
+                <span>Citas</span>
+              </div>
+              <div className="sidebar-stat">
+                <strong>{data.patients.length}</strong>
+                <span>Pacientes</span>
+              </div>
+              <div className="sidebar-stat">
+                <strong>{appointmentReviewItems.length}</strong>
+                <span>Pendientes</span>
+              </div>
+            </div>
+            <button type="button" className="secondary-button sidebar-logout" onClick={logout}>
+              Cerrar sesión
+            </button>
+          </aside>
+
+          <div className="app-content">
+            <header className="topbar">
+              <div className="topbar-copy">
+                <p className="eyebrow">Vista actual</p>
+                <h2>{consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda"}</h2>
+                <span>{currentUserEmail}</span>
+              </div>
+              <div className="topbar-actions">
+                <input
+                  className="search-input topbar-search"
+                  placeholder="Buscar paciente o expediente"
+                  value={patientSearch}
+                  onChange={(event) => {
+                    setPatientSearch(event.target.value);
+                    if (activeTab !== "pacientes") {
+                      setActiveTab("pacientes");
+                    }
+                  }}
+                />
+              </div>
+            </header>
+
+            {message ? <p className="message-box">{message}</p> : null}
+            {loading ? <p className="message-box">Cargando información clínica...</p> : null}
+
+            {renderActiveTab()}
+          </div>
+          {renderSectionActionModal()}
+        </section>
       )}
     </main>
   );

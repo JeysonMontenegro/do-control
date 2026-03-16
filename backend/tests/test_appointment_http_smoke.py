@@ -50,6 +50,7 @@ class AppointmentHttpSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.admin_token = login("admin@docontrol.local", "ChangeMe123!")
+        cls.doctor_token = login("doctor@docontrol.local", "Doctor123!")
 
     def test_proposed_appointment_keeps_source_and_history(self) -> None:
         unique_suffix = str(int(time.time() * 1000) % 10000000)
@@ -101,6 +102,60 @@ class AppointmentHttpSmokeTests(unittest.TestCase):
         self.assertIsInstance(history_body, list)
         self.assertTrue(history_body)
         self.assertEqual(history_body[0]["new_status"], "scheduled")
+
+    def test_doctor_can_confirm_appointment_manually(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        unique_phone = f"559{int(time.time() * 1000) % 10000000:07d}"
+
+        patient_status, patient_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.doctor_token,
+            payload={
+                "medical_record_number": f"EXP-AP-{unique_suffix}",
+                "first_name": "Paciente",
+                "last_name": f"Agenda{unique_suffix}",
+                "primary_phone": unique_phone,
+                "national_id": None,
+                "tax_id": None,
+                "email": None,
+            },
+        )
+        self.assertEqual(patient_status, 201)
+
+        start_at = (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=8)).isoformat()
+        end_at = (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=8, minutes=30)).isoformat()
+
+        appointment_status, appointment_body = request_json(
+            "/appointments",
+            method="POST",
+            token=self.doctor_token,
+            payload={
+                "patient_id": patient_body["id"],
+                "doctor_id": 1,
+                "scheduled_start": start_at,
+                "scheduled_end": end_at,
+                "appointment_type": "follow_up",
+                "reason": "Confirmacion manual doctor",
+                "source": "receptionist",
+                "created_by": "doctor-smoke",
+            },
+        )
+        self.assertEqual(appointment_status, 201)
+
+        confirm_status, confirm_body = request_json(
+            f"/appointments/{appointment_body['id']}/status",
+            method="PATCH",
+            token=self.doctor_token,
+            payload={
+                "status": "confirmed",
+                "change_reason": "confirmado manualmente",
+                "changed_by": "doctor-smoke",
+            },
+        )
+        self.assertEqual(confirm_status, 200)
+        self.assertEqual(confirm_body["status"], "confirmed")
+        self.assertEqual(confirm_body["confirmation_status"], "confirmed")
 
 
 if __name__ == "__main__":

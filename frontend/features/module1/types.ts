@@ -9,10 +9,27 @@ export type Patient = {
   id: number;
   medical_record_number: string;
   first_name: string;
+  middle_name?: string | null;
   last_name: string;
+  second_last_name?: string | null;
+  married_name?: string | null;
+  sex?: string | null;
+  date_of_birth?: string | null;
   primary_phone: string;
+  secondary_phone?: string | null;
   national_id: string | null;
+  tax_id?: string | null;
+  email?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  allergies?: string | null;
+  chronic_conditions?: string | null;
+  blood_type?: string | null;
+  notes?: string | null;
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Appointment = {

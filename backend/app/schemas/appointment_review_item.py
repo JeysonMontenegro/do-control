@@ -3,6 +3,15 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class AppointmentReviewItemResolveRequest(BaseModel):
+    action: str
+    patient_id: int | None = None
+    doctor_id: int | None = None
+    appointment_id: int | None = None
+    note: str | None = None
+    changed_by: str | None = None
+
+
 class AppointmentReviewItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

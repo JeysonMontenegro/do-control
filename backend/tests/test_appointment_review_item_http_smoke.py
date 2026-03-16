@@ -49,6 +49,7 @@ class AppointmentReviewItemHttpSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.admin_token = login("admin@docontrol.local", "ChangeMe123!")
+        cls.doctor_token = login("doctor@docontrol.local", "Doctor123!")
 
     def test_manual_review_item_is_created_for_unresolved_doctor(self) -> None:
         unique_suffix = str(int(time.time() * 1000) % 10000000)
@@ -83,6 +84,69 @@ class AppointmentReviewItemHttpSmokeTests(unittest.TestCase):
         self.assertEqual(matching_item["review_reason"], "doctor_resolution")
         self.assertEqual(matching_item["source"], "appoint-me")
         self.assertEqual(matching_item["review_status"], "pending_review")
+
+    def test_review_item_can_be_resolved_by_creating_appointment(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        patient_name = f"PacienteResolucion {unique_suffix}"
+        phone_number = f"557{unique_suffix[:7]}"
+
+        patient_status, patient_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.doctor_token,
+            payload={
+                "medical_record_number": f"EXP-RV-{unique_suffix}",
+                "first_name": "PacienteResolucion",
+                "last_name": unique_suffix,
+                "primary_phone": phone_number,
+                "national_id": None,
+                "tax_id": None,
+                "email": None,
+            },
+        )
+        self.assertEqual(patient_status, 201)
+
+        proposal_status, proposal_body = request_json(
+            "/integrations/appointments/proposed",
+            method="POST",
+            integration_key=INTEGRATION_KEY,
+            payload={
+                "patient_name": patient_name,
+                "phone_number": phone_number,
+                "doctor_phone_number": f"999{unique_suffix[:7]}",
+                "doctor_name": "Doctor Inexistente",
+                "scheduled_start": "2026-03-22T15:00:00Z",
+                "scheduled_end": "2026-03-22T15:30:00Z",
+                "appointment_type": "follow_up",
+                "reason": "Manual resolution flow",
+                "source": "appoint-me",
+                "create_patient_if_missing": False,
+            },
+        )
+        self.assertEqual(proposal_status, 200)
+        self.assertEqual(proposal_body["status"], "needs_manual_review")
+
+        review_status, review_items = request_json(
+            "/appointment-review-items?review_status=pending_review&limit=20",
+            token=self.admin_token,
+        )
+        self.assertEqual(review_status, 200)
+        matching_item = next(item for item in review_items if item["patient_name"] == patient_name)
+
+        resolve_status, resolved_item = request_json(
+            f"/appointment-review-items/{matching_item['id']}/resolve",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "action": "create_appointment",
+                "patient_id": patient_body["id"],
+                "doctor_id": 1,
+                "changed_by": "admin-smoke",
+            },
+        )
+        self.assertEqual(resolve_status, 200)
+        self.assertEqual(resolved_item["review_status"], "resolved")
+        self.assertIsNotNone(resolved_item["existing_appointment_id"])
 
 
 if __name__ == "__main__":

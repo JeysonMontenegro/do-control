@@ -46,7 +46,7 @@ def get_patient_summary(
 def create_patient(
     payload: PatientCreate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> PatientRead:
     try:
         return PatientService(db).create_patient(payload)
@@ -59,7 +59,7 @@ def update_patient(
     patient_id: int,
     payload: PatientUpdate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> PatientRead:
     try:
         return PatientService(db).update_patient(patient_id, payload)

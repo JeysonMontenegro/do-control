@@ -21,7 +21,7 @@ def list_appointments(
 def create_appointment(
     payload: AppointmentCreate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> AppointmentRead:
     try:
         return AppointmentService(db).create_appointment(payload)
@@ -36,7 +36,7 @@ def update_appointment_status(
     appointment_id: int,
     payload: AppointmentStatusUpdate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> AppointmentRead:
     try:
         return AppointmentService(db).update_status(appointment_id, payload)
