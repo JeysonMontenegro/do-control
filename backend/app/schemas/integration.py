@@ -74,6 +74,7 @@ class IntegrationPatientCreateResponse(BaseModel):
 class ProposedAppointmentRequest(BaseModel):
     patient_name: str
     phone_number: str
+    requester_phone_number: str | None = None
     doctor_id: int | None = None
     doctor_phone_number: str | None = None
     doctor_name: str | None = None
@@ -86,8 +87,8 @@ class ProposedAppointmentRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_doctor_reference(self) -> "ProposedAppointmentRequest":
-        if self.doctor_id is None and not self.doctor_phone_number:
-            raise ValueError("Either doctor_id or doctor_phone_number is required.")
+        if self.doctor_id is None and not self.doctor_phone_number and not self.requester_phone_number:
+            raise ValueError("Either doctor_id, doctor_phone_number or requester_phone_number is required.")
         return self
 
 

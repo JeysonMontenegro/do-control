@@ -16,6 +16,18 @@ class UserRepository:
         )
         return self.db.scalar(statement)
 
+    def get_by_phone_number(self, phone_number: str) -> User | None:
+        statement = (
+            select(User)
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
+                selectinload(User.doctor_profile),
+            )
+            .where(User.phone_number == phone_number)
+        )
+        return self.db.scalar(statement)
+
     def get(self, user_id: int) -> User | None:
         statement = (
             select(User)

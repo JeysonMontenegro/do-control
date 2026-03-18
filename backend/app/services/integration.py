@@ -33,6 +33,7 @@ from app.schemas.integration import (
     ProposedAppointmentResponse,
 )
 from app.schemas.patient import PatientCreate
+from app.repositories.user import UserRepository
 from app.services.appointment import AppointmentService
 from app.services.appointment_review_item import AppointmentReviewItemService
 from app.services.audit import create_audit_log
@@ -53,6 +54,7 @@ class IntegrationService:
         self.communication_template_repository = CommunicationTemplateRepository(db)
         self.doctor_service = DoctorService(db)
         self.encounter_service = EncounterService(db)
+        self.user_repository = UserRepository(db)
 
     def verify_doctor(self, doctor_id: int) -> DoctorVerificationRead:
         doctor = self.doctor_service.get_doctor(doctor_id)
@@ -195,11 +197,39 @@ class IntegrationService:
         self.db.commit()
         return DoctorMatchResponse(status=status, candidate_matches=candidates)
 
+    def _requester_accessible_doctor_ids(self, requester_phone_number: str | None) -> set[int] | None:
+        if not requester_phone_number:
+            return None
+
+        requester = self.user_repository.get_by_phone_number(requester_phone_number)
+        if requester is None:
+            return None
+
+        role_names = {user_role.role.name for user_role in requester.roles}
+        if "admin" in role_names:
+            return None
+        if "doctor" in role_names:
+            return {doctor.id for doctor in self.doctor_service.repository.list_for_linked_user(requester.id)}
+        if "receptionist" in role_names:
+            return {doctor.id for doctor in self.doctor_service.repository.list_for_receptionist_user(requester.id)}
+        return set()
+
     def _resolve_doctor(self, payload: ProposedAppointmentRequest) -> Doctor:
+        accessible_doctor_ids = self._requester_accessible_doctor_ids(payload.requester_phone_number)
+
         if payload.doctor_id is not None:
+            if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
+                raise ValidationError("Requester is not allowed to schedule for that doctor.")
             return self.doctor_service.get_doctor(payload.doctor_id)
+
         if not payload.doctor_phone_number:
-            raise ValidationError("Either doctor_id or doctor_phone_number is required.")
+            if accessible_doctor_ids is None:
+                raise ValidationError("Either doctor_id or doctor_phone_number is required.")
+            if len(accessible_doctor_ids) == 1:
+                return self.doctor_service.get_doctor(next(iter(accessible_doctor_ids)))
+            if len(accessible_doctor_ids) > 1:
+                raise ValidationError("Requester can schedule for multiple doctors and must specify which doctor to use.")
+            raise ValidationError("Requester is not linked to any doctor.")
 
         match = self.match_doctor(
             DoctorMatchRequest(
@@ -208,8 +238,16 @@ class IntegrationService:
             )
         )
         if match.status == "matched":
-            return self.doctor_service.get_doctor(match.candidate_matches[0].doctor_id)
+            doctor_id = match.candidate_matches[0].doctor_id
+            if accessible_doctor_ids is not None and doctor_id not in accessible_doctor_ids:
+                raise ValidationError("Requester is not allowed to schedule for that doctor.")
+            return self.doctor_service.get_doctor(doctor_id)
         if match.status == "candidate_matches":
+            candidates = match.candidate_matches
+            if accessible_doctor_ids is not None:
+                candidates = [candidate for candidate in candidates if candidate.doctor_id in accessible_doctor_ids]
+                if len(candidates) == 1:
+                    return self.doctor_service.get_doctor(candidates[0].doctor_id)
             raise ValidationError("Multiple doctor candidates found for the provided phone number.")
         raise ValidationError("Doctor not found for the provided phone number.")
 
