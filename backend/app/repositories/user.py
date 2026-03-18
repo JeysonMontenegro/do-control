@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.user import User, UserRole
+from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
 
 
 class UserRepository:
@@ -19,7 +19,43 @@ class UserRepository:
     def get(self, user_id: int) -> User | None:
         statement = (
             select(User)
-            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
+                selectinload(User.doctor_profile),
+            )
             .where(User.id == user_id)
         )
         return self.db.scalar(statement)
+
+    def create(self, user: User) -> User:
+        self.db.add(user)
+        self.db.flush()
+        return user
+
+    def get_role_by_name(self, name: str) -> Role | None:
+        return self.db.scalar(select(Role).where(Role.name == name))
+
+    def add_role(self, user_role: UserRole) -> UserRole:
+        self.db.add(user_role)
+        self.db.flush()
+        return user_role
+
+    def add_receptionist_assignment(self, assignment: ReceptionistDoctorAssignment) -> ReceptionistDoctorAssignment:
+        self.db.add(assignment)
+        self.db.flush()
+        return assignment
+
+    def list_receptionists(self) -> list[User]:
+        statement = (
+            select(User)
+            .join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id)
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
+            )
+            .where(Role.name == "receptionist")
+            .order_by(User.last_name, User.first_name)
+        )
+        return list(self.db.scalars(statement).unique())

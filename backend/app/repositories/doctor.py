@@ -1,8 +1,11 @@
+from typing import List
+
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.doctor import Doctor
 from app.models.doctor_phone_number import DoctorPhoneNumber
+from app.models.user import ReceptionistDoctorAssignment, User
 
 
 class DoctorRepository:
@@ -17,15 +20,21 @@ class DoctorRepository:
     def get(self, doctor_id: int) -> Doctor | None:
         statement = (
             select(Doctor)
-            .options(selectinload(Doctor.phone_numbers))
+            .options(
+                selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.linked_user),
+                selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
+            )
             .where(Doctor.id == doctor_id)
         )
         return self.db.scalar(statement)
 
-    def list(self, query: str | None = None) -> list[Doctor]:
+    def list(self, query: str | None = None) -> List[Doctor]:
         statement: Select[tuple[Doctor]] = (
             select(Doctor)
             .options(selectinload(Doctor.phone_numbers))
+            .options(selectinload(Doctor.linked_user))
+            .options(selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user))
             .outerjoin(DoctorPhoneNumber, DoctorPhoneNumber.doctor_id == Doctor.id)
             .order_by(Doctor.last_name, Doctor.first_name)
         )
@@ -46,6 +55,33 @@ class DoctorRepository:
         self.db.add(phone_number)
         self.db.flush()
         return phone_number
+
+    def list_for_linked_user(self, user_id: int) -> List[Doctor]:
+        statement = (
+            select(Doctor)
+            .options(
+                selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.linked_user),
+                selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
+            )
+            .where(Doctor.linked_user_id == user_id)
+            .order_by(Doctor.last_name, Doctor.first_name)
+        )
+        return list(self.db.scalars(statement))
+
+    def list_for_receptionist_user(self, user_id: int) -> List[Doctor]:
+        statement = (
+            select(Doctor)
+            .join(ReceptionistDoctorAssignment, ReceptionistDoctorAssignment.doctor_id == Doctor.id)
+            .options(
+                selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.linked_user),
+                selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
+            )
+            .where(ReceptionistDoctorAssignment.user_id == user_id)
+            .order_by(Doctor.last_name, Doctor.first_name)
+        )
+        return list(self.db.scalars(statement).unique())
 
     def deactivate_primary_phone_numbers(self, doctor_id: int) -> None:
         phone_numbers = list(

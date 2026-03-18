@@ -1,8 +1,24 @@
+export type AssignedReceptionist = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  gender: string | null;
+  phone_number: string | null;
+  is_active: boolean;
+};
+
 export type Doctor = {
   id: number;
   first_name: string;
   last_name: string;
+  gender: string | null;
   specialty: string | null;
+  license_number?: string | null;
+  linked_user_id?: number | null;
+  linked_user_email?: string | null;
+  phone_numbers?: { id: number; phone_number: string; is_primary: boolean; is_active: boolean; channel_type: string | null }[];
+  assigned_receptionists?: AssignedReceptionist[];
 };
 
 export type Patient = {
@@ -243,4 +259,24 @@ export type CommunicationDispatchAttempt = {
   error_message: string | null;
   rendered_message: string | null;
   created_at: string;
+};
+
+export type ReceptionistAssignedDoctor = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  specialty: string | null;
+};
+
+export type Receptionist = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  gender: string | null;
+  phone_number: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  assigned_doctors: ReceptionistAssignedDoctor[];
 };

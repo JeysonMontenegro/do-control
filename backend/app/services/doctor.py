@@ -2,19 +2,39 @@ from sqlalchemy.orm import Session
 
 from app.models.doctor import Doctor
 from app.models.doctor_phone_number import DoctorPhoneNumber
+from app.models.user import User, UserRole
 from app.repositories.doctor import DoctorRepository
-from app.schemas.doctor import DoctorCreate
+from app.repositories.user import UserRepository
+from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead
 from app.services.audit import create_audit_log
-from app.services.errors import NotFoundError
+from app.services.errors import NotFoundError, ValidationError
+from app.services.security import hash_password
 
 
 class DoctorService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = DoctorRepository(db)
+        self.user_repository = UserRepository(db)
 
-    def list_doctors(self, query: str | None = None) -> list[Doctor]:
-        return self.repository.list(query=query)
+    @staticmethod
+    def _role_names(user) -> set[str]:
+        return {user_role.role.name for user_role in user.roles}
+
+    def list_doctors(self, query: str | None = None, current_user=None) -> list[Doctor]:
+        if current_user is None:
+            return self.repository.list(query=query)
+
+        role_names = self._role_names(current_user)
+        if "admin" in role_names:
+            return self.repository.list(query=query)
+        if "doctor" in role_names:
+            doctors = self.repository.list_for_linked_user(current_user.id)
+            return self._apply_query_filter(doctors, query)
+        if "receptionist" in role_names:
+            doctors = self.repository.list_for_receptionist_user(current_user.id)
+            return self._apply_query_filter(doctors, query)
+        return []
 
     def get_doctor(self, doctor_id: int) -> Doctor:
         doctor = self.repository.get(doctor_id)
@@ -22,10 +42,65 @@ class DoctorService:
             raise NotFoundError("Doctor not found.")
         return doctor
 
+    def serialize_doctor(self, doctor: Doctor) -> DoctorRead:
+        return DoctorRead(
+            id=doctor.id,
+            first_name=doctor.first_name,
+            last_name=doctor.last_name,
+            gender=doctor.gender,
+            license_number=doctor.license_number,
+            specialty=doctor.specialty,
+            linked_user_id=doctor.linked_user_id,
+            linked_user_email=doctor.linked_user.email if doctor.linked_user is not None else None,
+            is_active=doctor.is_active,
+            created_at=doctor.created_at,
+            updated_at=doctor.updated_at,
+            phone_numbers=doctor.phone_numbers,
+            assigned_receptionists=[
+                AssignedReceptionistRead(
+                    id=assignment.user.id,
+                    first_name=assignment.user.first_name,
+                    last_name=assignment.user.last_name,
+                    email=assignment.user.email,
+                    gender=assignment.user.gender,
+                    phone_number=assignment.user.phone_number,
+                    is_active=assignment.user.is_active,
+                )
+                for assignment in doctor.receptionist_assignments
+                if assignment.user is not None
+            ],
+        )
+
+    def _apply_query_filter(self, doctors: list[Doctor], query: str | None) -> list[Doctor]:
+        if not query:
+            return doctors
+        lowered = query.lower()
+        return [
+            doctor
+            for doctor in doctors
+            if lowered in doctor.first_name.lower()
+            or lowered in doctor.last_name.lower()
+            or lowered in (doctor.specialty or "").lower()
+            or lowered in (doctor.license_number or "").lower()
+            or any(lowered in phone.phone_number.lower() for phone in doctor.phone_numbers)
+        ]
+
+    def accessible_doctor_ids(self, current_user) -> set[int] | None:
+        role_names = self._role_names(current_user)
+        if "admin" in role_names:
+            return None
+        if "doctor" in role_names:
+            return {doctor.id for doctor in self.repository.list_for_linked_user(current_user.id)}
+        if "receptionist" in role_names:
+            return {doctor.id for doctor in self.repository.list_for_receptionist_user(current_user.id)}
+        return set()
+
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
         primary_phone = data.pop("primary_phone", None)
         phone_channel_type = data.pop("phone_channel_type", "whatsapp")
+        user_email = data.pop("user_email", None)
+        user_password = data.pop("user_password", None)
         doctor = self.repository.create(Doctor(**data))
         if primary_phone:
             self.repository.add_phone_number(
@@ -37,6 +112,27 @@ class DoctorService:
                     channel_type=phone_channel_type,
                 )
             )
+        if user_email:
+            if not user_password:
+                raise ValidationError("Doctor login password is required when doctor login email is provided.")
+            if self.user_repository.get_by_email(user_email) is not None:
+                raise ValidationError("A user with that email already exists.")
+            doctor_role = self.user_repository.get_role_by_name("doctor")
+            if doctor_role is None:
+                raise ValidationError("Doctor role not found.")
+            user = self.user_repository.create(
+                User(
+                    email=user_email,
+                    password_hash=hash_password(user_password),
+                    first_name=doctor.first_name,
+                    last_name=doctor.last_name,
+                    gender=doctor.gender,
+                    phone_number=primary_phone,
+                    is_active=True,
+                )
+            )
+            self.user_repository.add_role(UserRole(user_id=user.id, role_id=doctor_role.id))
+            doctor.linked_user_id = user.id
         create_audit_log(
             self.db,
             action="create",

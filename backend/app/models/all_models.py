@@ -11,7 +11,7 @@ from app.models.file_attachment import FileAttachment
 from app.models.patient import Patient
 from app.models.patient_phone_number import PatientPhoneNumber
 from app.models.reminder_rule import ReminderRule
-from app.models.user import Role, User, UserRole
+from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
 
 __all__ = [
     "Appointment",
@@ -32,6 +32,7 @@ __all__ = [
     "Prescription",
     "PrescriptionItem",
     "ReminderRule",
+    "ReceptionistDoctorAssignment",
     "Role",
     "User",
     "UserRole",

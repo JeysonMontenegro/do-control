@@ -2,6 +2,35 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
+import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
+import {
+  CONFIRMATION_TEMPLATE_KEY,
+  DEFAULT_CONFIRMATION_BODY,
+  DEFAULT_CONFIRMATION_TITLE,
+  type CalendarView,
+  type ConsoleTab,
+  consoleTabs,
+  slotLabels,
+} from "@/features/module1/console-config";
+import {
+  addDays,
+  appointmentStatusLabel,
+  appointmentTypeLabel,
+  calendarRangeLabel,
+  communicationKindLabel,
+  confirmationLabel,
+  dispatchStatusLabel,
+  encounterTypeLabel,
+  formatDateTime,
+  hasAnyRole,
+  lastDispatchStatus,
+  nowPlusMinutes,
+  reviewReasonLabel,
+  startOfDay,
+  startOfMonthGrid,
+  startOfWeek,
+} from "@/features/module1/console-utils";
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
@@ -22,6 +51,7 @@ import type {
   Patient,
   PatientSummary,
   PrescriptionItem,
+  Receptionist,
   ReminderRule,
 } from "@/features/module1/types";
 
@@ -32,218 +62,12 @@ type LoadState = {
   encounters: Encounter[];
 };
 
-type ConsoleTab = "agenda" | "pacientes" | "consultas" | "mensajes" | "pendientes" | "gestion";
-type CalendarView = "dia" | "semana" | "mes";
-
 const initialLoadState: LoadState = {
   doctors: [],
   patients: [],
   appointments: [],
   encounters: [],
 };
-
-const consoleTabs: Array<{ id: ConsoleTab; label: string }> = [
-  { id: "agenda", label: "Agenda" },
-  { id: "pacientes", label: "Pacientes" },
-  { id: "consultas", label: "Consultas" },
-  { id: "mensajes", label: "Mensajes" },
-  { id: "pendientes", label: "Pendientes" },
-  { id: "gestion", label: "Configuración" },
-];
-
-const nowPlusMinutes = (minutes: number) => {
-  const date = new Date(Date.now() + minutes * 60 * 1000);
-  return date.toISOString().slice(0, 16);
-};
-
-const formatDateTime = (value: string | null) => {
-  if (!value) {
-    return "Sin fecha";
-  }
-  return new Intl.DateTimeFormat("es-GT", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-};
-
-const formatDate = (value: string | Date) =>
-  new Intl.DateTimeFormat("es-GT", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(typeof value === "string" ? new Date(value) : value);
-
-const formatTime = (value: string | Date) =>
-  new Intl.DateTimeFormat("es-GT", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(typeof value === "string" ? new Date(value) : value);
-
-const startOfDay = (date: Date) => {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-};
-
-const addDays = (date: Date, days: number) => {
-  const value = new Date(date);
-  value.setDate(value.getDate() + days);
-  return value;
-};
-
-const startOfWeek = (date: Date) => {
-  const base = startOfDay(date);
-  const day = base.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return addDays(base, diff);
-};
-
-const startOfMonthGrid = (date: Date) => {
-  const first = new Date(date.getFullYear(), date.getMonth(), 1);
-  return startOfWeek(first);
-};
-
-const endOfMonthGrid = (date: Date) => addDays(startOfMonthGrid(new Date(date.getFullYear(), date.getMonth() + 1, 0)), 41);
-
-const isSameDay = (left: Date, right: Date) =>
-  left.getFullYear() === right.getFullYear() &&
-  left.getMonth() === right.getMonth() &&
-  left.getDate() === right.getDate();
-
-const appointmentStatusLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    scheduled: "Programada",
-    confirmed: "Confirmada",
-    cancelled: "Cancelada",
-    completed: "Completada",
-    pending: "Pendiente",
-    open: "Abierta",
-    closed: "Cerrada",
-  };
-  return labels[value] ?? value;
-};
-
-const appointmentTypeLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    first_consultation: "Primera consulta",
-    follow_up: "Seguimiento",
-    checkup: "Chequeo",
-    procedure: "Procedimiento",
-    virtual_consultation: "Consulta virtual",
-  };
-  return labels[value] ?? value.replaceAll("_", " ");
-};
-
-const encounterTypeLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    general_consultation: "Consulta general",
-    emergency_consultation: "Consulta de emergencia",
-    follow_up: "Seguimiento",
-    procedure: "Procedimiento",
-    post_op_follow_up: "Seguimiento postoperatorio",
-  };
-  return labels[value] ?? value.replaceAll("_", " ");
-};
-
-const dispatchStatusLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    pending: "Pendiente",
-    sent: "Enviado",
-    delivered: "Entregado",
-    failed: "Fallido",
-  };
-  return labels[value] ?? value.replaceAll("_", " ");
-};
-
-const communicationKindLabel = (dispatch: CommunicationDispatch) => {
-  const content = `${dispatch.template_title ?? ""} ${dispatch.template_key ?? ""} ${dispatch.rendered_message ?? ""}`.toLowerCase();
-  if (content.includes("cancel")) {
-    return "Cancelación";
-  }
-  if (content.includes("confirm")) {
-    return "Confirmación";
-  }
-  if (content.includes("record") || content.includes("reminder") || content.includes("cita")) {
-    return "Recordatorio";
-  }
-  return "Comunicación";
-};
-
-const confirmationLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    pending: "Pendiente de confirmar",
-    confirmed: "Confirmada",
-    declined: "Rechazada",
-    cancelled: "Cancelada",
-  };
-  return labels[value] ?? value;
-};
-
-const reviewReasonLabel = (value: string) => {
-  const labels: Record<string, string> = {
-    doctor_resolution: "Resolver doctor",
-    patient_resolution: "Resolver paciente",
-    validation_rejected: "Validación rechazada",
-    reschedule_request: "Solicitud de reagendar",
-  };
-  return labels[value] ?? value.replaceAll("_", " ");
-};
-
-const sourceLabel = (value: string) => {
-  if (value === "appoint-me") {
-    return "WhatsApp";
-  }
-  if (value === "receptionist") {
-    return "Recepción";
-  }
-  return value;
-};
-
-const slotLabels = Array.from({ length: 29 }, (_, index) => {
-  const totalMinutes = 6 * 60 + index * 30;
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
-});
-
-const calendarRangeLabel = (view: CalendarView, anchorDate: Date) => {
-  if (view === "dia") {
-    return new Intl.DateTimeFormat("es-GT", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(anchorDate);
-  }
-  if (view === "semana") {
-    const weekStart = startOfWeek(anchorDate);
-    const weekEnd = addDays(weekStart, 6);
-    return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
-  }
-  return new Intl.DateTimeFormat("es-GT", {
-    month: "long",
-    year: "numeric",
-  }).format(anchorDate);
-};
-
-const lastDispatchStatus = (dispatches: CommunicationDispatch[]) => {
-  if (!dispatches.length) {
-    return null;
-  }
-  return [...dispatches]
-    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0]
-    .status;
-};
-
-const CONFIRMATION_TEMPLATE_KEY = "appointment_confirmation_doctor";
-const DEFAULT_CONFIRMATION_TITLE = "Confirmación de cita";
-const DEFAULT_CONFIRMATION_BODY =
-  "Hola {patient_name}, te saludamos de la clínica del doctor {doctor_name}. Solicitamos tu confirmación para tu cita el día de mañana a las {appointment_time}. Por favor responde con SI si asistirás, NO si no asistirás, o RECALENDAR si deseas agendar nuevamente otro día y horario sujeto a disponibilidad.";
-
-function hasAnyRole(currentRoles: string[], allowedRoles: string[]) {
-  return allowedRoles.some((role) => currentRoles.includes(role));
-}
 
 export function ClinicalConsole() {
   const [data, setData] = useState<LoadState>(initialLoadState);
@@ -270,6 +94,7 @@ export function ClinicalConsole() {
   const [attachmentEncounterId, setAttachmentEncounterId] = useState("");
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null);
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
+  const [receptionists, setReceptionists] = useState<Receptionist[]>([]);
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
@@ -352,6 +177,25 @@ export function ClinicalConsole() {
   const [examOrders, setExamOrders] = useState<ExamOrder[]>([
     { exam_name: "", exam_category: null, instructions: null },
   ]);
+  const [doctorAdminForm, setDoctorAdminForm] = useState({
+    first_name: "",
+    last_name: "",
+    gender: "male",
+    specialty: "",
+    license_number: "",
+    primary_phone: "",
+    user_email: "",
+    user_password: "",
+  });
+  const [receptionistForm, setReceptionistForm] = useState({
+    first_name: "",
+    last_name: "",
+    gender: "female",
+    phone_number: "",
+    email: "",
+    password: "",
+    doctor_ids: [] as number[],
+  });
 
   const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
@@ -390,6 +234,7 @@ export function ClinicalConsole() {
         loadedDispatches,
         loadedDispatchSummary,
         loadedReviewItems,
+        loadedReceptionists,
       ] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPath),
@@ -402,6 +247,7 @@ export function ClinicalConsole() {
           : Promise.resolve([]),
         canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
         canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
+        isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
       ]);
 
       setData({ doctors, patients, appointments, encounters });
@@ -410,6 +256,7 @@ export function ClinicalConsole() {
       setCommunicationDispatches(loadedDispatches);
       setCommunicationDispatchSummary(loadedDispatchSummary);
       setAppointmentReviewItems(loadedReviewItems);
+      setReceptionists(loadedReceptionists);
       if (!appointmentForm.doctor_id && doctors[0]) {
         setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
@@ -838,6 +685,66 @@ export function ClinicalConsole() {
       setMessage("Regla de recordatorio creada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear la regla.");
+    }
+  }
+
+  async function submitDoctorAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      await apiPost<Doctor>("/api/doctors", {
+        first_name: doctorAdminForm.first_name,
+        last_name: doctorAdminForm.last_name,
+        gender: doctorAdminForm.gender,
+        specialty: doctorAdminForm.specialty || null,
+        license_number: doctorAdminForm.license_number || null,
+        primary_phone: doctorAdminForm.primary_phone || null,
+        user_email: doctorAdminForm.user_email || null,
+        user_password: doctorAdminForm.user_password || null,
+      });
+      setDoctorAdminForm({
+        first_name: "",
+        last_name: "",
+        gender: "male",
+        specialty: "",
+        license_number: "",
+        primary_phone: "",
+        user_email: "",
+        user_password: "",
+      });
+      await loadData();
+      setMessage("Doctor registrado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo registrar el doctor.");
+    }
+  }
+
+  async function submitReceptionist(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      await apiPost<Receptionist>("/api/receptionists", {
+        first_name: receptionistForm.first_name,
+        last_name: receptionistForm.last_name,
+        gender: receptionistForm.gender,
+        phone_number: receptionistForm.phone_number || null,
+        email: receptionistForm.email,
+        password: receptionistForm.password,
+        doctor_ids: receptionistForm.doctor_ids,
+      });
+      setReceptionistForm({
+        first_name: "",
+        last_name: "",
+        gender: "female",
+        phone_number: "",
+        email: "",
+        password: "",
+        doctor_ids: [],
+      });
+      await loadData();
+      setMessage("Recepcionista registrada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo registrar la recepcionista.");
     }
   }
 
@@ -1330,151 +1237,7 @@ export function ClinicalConsole() {
     const latestMessageStatus = lastDispatchStatus(relatedDispatches);
     const reviewItem = reviewQueueByAppointmentId.get(appointment.id);
 
-    return (
-      <div className="inline-badges">
-        <span className={`badge ${appointment.source === "appoint-me" ? "badge-accent" : "badge-neutral"}`}>
-          {sourceLabel(appointment.source)}
-        </span>
-        <span
-          className={`badge ${
-            appointment.confirmation_status === "cancelled"
-              ? "badge-danger"
-              : appointment.confirmation_status === "confirmed"
-                ? "badge-success"
-              : appointment.confirmation_status === "pending"
-                ? "badge-warn"
-                : "badge-neutral"
-          }`}
-        >
-          {confirmationLabel(appointment.confirmation_status)}
-        </span>
-        {latestMessageStatus ? (
-          <span className={`badge ${latestMessageStatus === "failed" ? "badge-danger" : "badge-neutral"}`}>
-            Mensaje: {dispatchStatusLabel(latestMessageStatus)}
-          </span>
-        ) : null}
-        {reviewItem ? (
-          <span className={`badge ${reviewItem.review_reason === "reschedule_request" ? "badge-accent" : "badge-danger"}`}>
-            {reviewItem.review_reason === "reschedule_request" ? "Reagendar solicitado" : "Revisión manual"}
-          </span>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderAgendaCalendar = () => {
-    if (calendarView === "mes") {
-      return (
-        <div className="month-grid">
-          {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((label) => (
-            <div key={label} className="month-weekday">
-              {label}
-            </div>
-          ))}
-          {monthDays.map((day) => {
-            const appointments = appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? [];
-            const isCurrentMonth = day.getMonth() === calendarDate.getMonth();
-            const isToday = isSameDay(day, new Date());
-            return (
-              <article
-                key={day.toISOString()}
-                className={`month-cell ${isCurrentMonth ? "" : "month-cell-muted"} ${isToday ? "month-cell-today" : ""}`}
-              >
-                <header>
-                  <strong>{day.getDate()}</strong>
-                  <span>{formatDate(day)}</span>
-                </header>
-                <div className="month-events">
-                  {appointments.slice(0, 4).map((appointment) => (
-                    <button
-                      type="button"
-                      key={`month-appointment-${appointment.id}`}
-                      className={`month-event ${
-                        appointment.status === "cancelled"
-                          ? "month-event-cancelled"
-                          : appointment.confirmation_status === "confirmed"
-                            ? "month-event-confirmed"
-                          : appointment.source === "appoint-me"
-                            ? "month-event-ws"
-                            : ""
-                      }`}
-                      onClick={() => toggleAppointmentHistory(appointment.id)}
-                    >
-                      <span>{formatTime(appointment.scheduled_start)}</span>
-                      <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                    </button>
-                  ))}
-                  {appointments.length > 4 ? <span className="empty-state">+{appointments.length - 4} más</span> : null}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      );
-    }
-
-    return (
-      <div className={`agenda-shell ${calendarView === "dia" ? "agenda-shell-day" : "agenda-shell-week"}`}>
-        <div
-          className="agenda-header-grid"
-          style={{ gridTemplateColumns: `88px repeat(${agendaDays.length}, minmax(0, 1fr))` }}
-        >
-          <div className="agenda-corner" />
-          {agendaDays.map((day) => (
-            <div key={`header-${day.toISOString()}`} className={`agenda-day-header ${isSameDay(day, new Date()) ? "agenda-day-header-today" : ""}`}>
-              <strong>{new Intl.DateTimeFormat("es-GT", { weekday: "long" }).format(day)}</strong>
-              <span>{new Intl.DateTimeFormat("es-GT", { day: "numeric", month: "short" }).format(day)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div
-          className="agenda-body-grid"
-          style={{ gridTemplateColumns: `88px repeat(${agendaDays.length}, minmax(0, 1fr))` }}
-        >
-          <div className="agenda-time-column">
-            {slotLabels.slice(0, -1).map((slotLabel, slotIndex) => (
-              <div key={`time-${slotLabel}`} className="agenda-time">
-                {slotIndex % 2 === 0 ? slotLabel : ""}
-              </div>
-            ))}
-          </div>
-
-          {agendaDays.map((day) => (
-            <div key={`column-${day.toISOString()}`} className="agenda-day-column">
-              {slotLabels.slice(0, -1).map((slotLabel) => (
-                <div key={`slot-${day.toISOString()}-${slotLabel}`} className="agenda-slot" />
-              ))}
-              {(appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? []).map((appointment) => {
-                const metrics = calendarMetrics(appointment);
-                return (
-                  <button
-                    type="button"
-                    key={`grid-appointment-${appointment.id}`}
-                    className={`agenda-event ${
-                      appointment.status === "cancelled"
-                        ? "agenda-event-cancelled"
-                        : appointment.confirmation_status === "confirmed"
-                          ? "agenda-event-confirmed"
-                        : appointment.source === "appoint-me"
-                          ? "agenda-event-ws"
-                          : ""
-                    }`}
-                    style={{ gridRow: `${metrics.rowStart} / ${metrics.rowEnd}` }}
-                    onClick={() => toggleAppointmentHistory(appointment.id)}
-                    title={`${appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · ${appointmentTypeLabel(appointment.appointment_type)} · ${appointmentStatusLabel(appointment.status)}`}
-                  >
-                    <span>{formatTime(appointment.scheduled_start)}</span>
-                    <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                    <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <AppointmentBadges appointment={appointment} latestMessageStatus={latestMessageStatus} reviewItem={reviewItem} />;
   };
 
   const renderFocusedAppointment = () => {
@@ -1733,7 +1496,16 @@ export function ClinicalConsole() {
             </div>
           </div>
         </div>
-        {renderAgendaCalendar()}
+        <AgendaCalendar
+          calendarView={calendarView}
+          calendarDate={calendarDate}
+          monthDays={monthDays}
+          agendaDays={agendaDays}
+          slotLabels={slotLabels}
+          appointmentsByDayKey={appointmentsByDayKey}
+          onSelectAppointment={toggleAppointmentHistory}
+          calendarMetrics={calendarMetrics}
+        />
       </article>
       <div className="agenda-side-stack">
         {renderFocusedAppointment()}
@@ -2808,6 +2580,222 @@ export function ClinicalConsole() {
           {!communicationTemplates.length ? <p className="empty-state">Todavía no hay mensajes configurados.</p> : null}
         </div>
       </article>
+
+      {isAdmin ? (
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>Registrar doctor</h2>
+            </div>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
+            <div className="two-column-grid">
+              <label>
+                <span>Nombres</span>
+                <input
+                  value={doctorAdminForm.first_name}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Apellidos</span>
+                <input
+                  value={doctorAdminForm.last_name}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Género</span>
+                <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
+                  <option value="male">Masculino</option>
+                  <option value="female">Femenino</option>
+                  <option value="other">Otro</option>
+                </select>
+              </label>
+              <label>
+                <span>Teléfono principal</span>
+                <input
+                  value={doctorAdminForm.primary_phone}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Especialidad</span>
+                <input
+                  value={doctorAdminForm.specialty}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Colegiado</span>
+                <input
+                  value={doctorAdminForm.license_number}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Correo de acceso</span>
+                <input
+                  type="email"
+                  value={doctorAdminForm.user_email}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Contraseña inicial</span>
+                <input
+                  type="password"
+                  value={doctorAdminForm.user_password}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))}
+                />
+              </label>
+            </div>
+            <button type="submit">Registrar doctor</button>
+          </form>
+        </article>
+      ) : null}
+
+      {isAdmin ? (
+        <article className="card section-card span-two">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>Registrar recepcionista</h2>
+            </div>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitReceptionist}>
+            <div className="two-column-grid">
+              <label>
+                <span>Nombres</span>
+                <input
+                  value={receptionistForm.first_name}
+                  onChange={(event) => setReceptionistForm((current) => ({ ...current, first_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Apellidos</span>
+                <input
+                  value={receptionistForm.last_name}
+                  onChange={(event) => setReceptionistForm((current) => ({ ...current, last_name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Género</span>
+                <select value={receptionistForm.gender} onChange={(event) => setReceptionistForm((current) => ({ ...current, gender: event.target.value }))}>
+                  <option value="female">Femenino</option>
+                  <option value="male">Masculino</option>
+                  <option value="other">Otro</option>
+                </select>
+              </label>
+              <label>
+                <span>Teléfono</span>
+                <input
+                  value={receptionistForm.phone_number}
+                  onChange={(event) => setReceptionistForm((current) => ({ ...current, phone_number: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Correo</span>
+                <input
+                  type="email"
+                  value={receptionistForm.email}
+                  onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Contraseña inicial</span>
+                <input
+                  type="password"
+                  value={receptionistForm.password}
+                  onChange={(event) => setReceptionistForm((current) => ({ ...current, password: event.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <div className="subsection">
+              <strong>Doctores asignados</strong>
+              <div className="table-list">
+                {data.doctors.map((doctor) => (
+                  <label key={`receptionist-doctor-${doctor.id}`} className="simple-list-item">
+                    <span>
+                      <input
+                        type="checkbox"
+                        checked={receptionistForm.doctor_ids.includes(doctor.id)}
+                        onChange={(event) =>
+                          setReceptionistForm((current) => ({
+                            ...current,
+                            doctor_ids: event.target.checked
+                              ? [...current.doctor_ids, doctor.id]
+                              : current.doctor_ids.filter((doctorId) => doctorId !== doctor.id),
+                          }))
+                        }
+                      />
+                    </span>
+                    <strong>
+                      {doctor.first_name} {doctor.last_name}
+                    </strong>
+                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button type="submit">Registrar recepcionista</button>
+          </form>
+        </article>
+      ) : null}
+
+      {isAdmin ? (
+        <article className="card section-card span-three">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>Doctores y recepcionistas</h2>
+            </div>
+          </div>
+          <div className="table-list">
+            {data.doctors.map((doctor) => (
+              <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
+                <strong>
+                  {doctor.first_name} {doctor.last_name}
+                </strong>
+                <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                <span>{doctor.gender === "female" ? "Femenino" : doctor.gender === "male" ? "Masculino" : "Sin género"}</span>
+                <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
+                <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                <span>
+                  {doctor.assigned_receptionists?.length
+                    ? `Recepción: ${doctor.assigned_receptionists.map((item) => `${item.first_name} ${item.last_name}`).join(", ")}`
+                    : "Sin recepcionista asignada"}
+                </span>
+              </div>
+            ))}
+            {receptionists.length ? (
+              receptionists.map((receptionist) => (
+                <div className="simple-list-item" key={`receptionist-team-${receptionist.id}`}>
+                  <strong>
+                    Recepción: {receptionist.first_name} {receptionist.last_name}
+                  </strong>
+                  <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
+                  <span>{receptionist.email}</span>
+                  <span>
+                    {receptionist.assigned_doctors.length
+                      ? `Doctores: ${receptionist.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")}`
+                      : "Sin doctores asignados"}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">Todavía no hay recepcionistas registradas.</p>
+            )}
+          </div>
+        </article>
+      ) : null}
     </section>
   );
 

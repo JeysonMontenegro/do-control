@@ -13,9 +13,10 @@ router = APIRouter()
 def list_doctors(
     query: str | None = None,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[DoctorRead]:
-    return DoctorService(db).list_doctors(query=query)
+    service = DoctorService(db)
+    return [service.serialize_doctor(doctor) for doctor in service.list_doctors(query=query, current_user=current_user)]
 
 
 @router.get("/{doctor_id}", response_model=DoctorRead)
@@ -25,7 +26,8 @@ def get_doctor(
     _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> DoctorRead:
     try:
-        return DoctorService(db).get_doctor(doctor_id)
+        service = DoctorService(db)
+        return service.serialize_doctor(service.get_doctor(doctor_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -36,4 +38,5 @@ def create_doctor(
     db: Session = Depends(get_db_session),
     _current_user=Depends(require_roles("admin")),
 ) -> DoctorRead:
-    return DoctorService(db).create_doctor(payload)
+    service = DoctorService(db)
+    return service.serialize_doctor(service.create_doctor(payload))

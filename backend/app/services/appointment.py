@@ -45,9 +45,11 @@ class AppointmentService:
             updated_at=appointment.updated_at,
         )
 
-    def create_appointment(self, payload: AppointmentCreate) -> AppointmentRead:
+    def create_appointment(self, payload: AppointmentCreate, *, accessible_doctor_ids: set[int] | None = None) -> AppointmentRead:
         if payload.scheduled_end <= payload.scheduled_start:
             raise ValidationError("Appointment end time must be after start time.")
+        if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot create appointments for that doctor.")
 
         if self.patient_repository.get(payload.patient_id) is None:
             raise NotFoundError("Patient not found.")
@@ -81,8 +83,11 @@ class AppointmentService:
         self.db.refresh(created)
         return self._serialize_appointment(created)
 
-    def list_appointments(self) -> list[AppointmentRead]:
-        return [self._serialize_appointment(appointment) for appointment in self.repository.list()]
+    def list_appointments(self, *, accessible_doctor_ids: set[int] | None = None) -> list[AppointmentRead]:
+        appointments = self.repository.list()
+        if accessible_doctor_ids is not None:
+            appointments = [appointment for appointment in appointments if appointment.doctor_id in accessible_doctor_ids]
+        return [self._serialize_appointment(appointment) for appointment in appointments]
 
     def confirm_appointment(self, appointment_id: int, *, changed_by: str | None = None) -> AppointmentRead:
         appointment = self.repository.get(appointment_id)
@@ -172,10 +177,18 @@ class AppointmentService:
             raise NotFoundError("Appointment not found.")
         return appointment
 
-    def update_status(self, appointment_id: int, payload: AppointmentStatusUpdate) -> AppointmentRead:
+    def update_status(
+        self,
+        appointment_id: int,
+        payload: AppointmentStatusUpdate,
+        *,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> AppointmentRead:
         appointment = self.repository.get(appointment_id)
         if appointment is None:
             raise NotFoundError("Appointment not found.")
+        if accessible_doctor_ids is not None and appointment.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot update appointments for that doctor.")
 
         old_status = appointment.status
         appointment.status = payload.status
@@ -205,9 +218,12 @@ class AppointmentService:
         self.db.refresh(appointment)
         return self._serialize_appointment(appointment)
 
-    def list_history(self, appointment_id: int) -> list[AppointmentHistoryRead]:
-        if self.repository.get(appointment_id) is None:
+    def list_history(self, appointment_id: int, *, accessible_doctor_ids: set[int] | None = None) -> list[AppointmentHistoryRead]:
+        appointment = self.repository.get(appointment_id)
+        if appointment is None:
             raise NotFoundError("Appointment not found.")
+        if accessible_doctor_ids is not None and appointment.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot view history for that doctor.")
         return [
             AppointmentHistoryRead.model_validate(entry)
             for entry in self.repository.list_history(appointment_id)

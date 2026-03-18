@@ -11,6 +11,7 @@ from app.api.routes import (
     encounters,
     integrations,
     patients,
+    receptionists,
     reminder_rules,
 )
 
@@ -25,4 +26,5 @@ api_router.include_router(integrations.router, prefix="/integrations", tags=["in
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])
 api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
 api_router.include_router(encounters.router, prefix="/encounters", tags=["encounters"])
+api_router.include_router(receptionists.router, prefix="/receptionists", tags=["receptionists"])
 api_router.include_router(reminder_rules.router, prefix="/reminder-rules", tags=["reminder-rules"])
