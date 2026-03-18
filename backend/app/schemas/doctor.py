@@ -29,6 +29,16 @@ class DoctorCreate(BaseModel):
     user_password: str | None = None
 
 
+class DoctorUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    gender: str | None = None
+    license_number: str | None = None
+    specialty: str | None = None
+    primary_phone: str | None = None
+    user_password: str | None = None
+
+
 class DoctorRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

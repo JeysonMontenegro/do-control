@@ -67,6 +67,21 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
         )
         self.assertEqual(doctor_status, 201)
 
+        extra_doctor_status, extra_doctor_body = request_json(
+            "/doctors",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "first_name": "Otro",
+                "last_name": f"Doctor{unique_suffix}",
+                "gender": "male",
+                "specialty": "Pediatría",
+                "license_number": f"COL-EXTRA-{unique_suffix}",
+                "primary_phone": f"406{int(unique_suffix) % 10000000:07d}",
+            },
+        )
+        self.assertEqual(extra_doctor_status, 201)
+
         receptionist_status, receptionist_body = request_json(
             "/receptionists",
             method="POST",
@@ -84,6 +99,30 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
         self.assertEqual(receptionist_status, 201)
         self.assertEqual(len(receptionist_body["assigned_doctors"]), 1)
 
+        doctor_update_status, doctor_update_body = request_json(
+            f"/doctors/{doctor_body['id']}",
+            method="PATCH",
+            token=self.admin_token,
+            payload={
+                "specialty": "Medicina interna",
+                "primary_phone": f"404{int(unique_suffix) % 10000000:07d}",
+            },
+        )
+        self.assertEqual(doctor_update_status, 200)
+        self.assertEqual(doctor_update_body["specialty"], "Medicina interna")
+
+        receptionist_update_status, receptionist_update_body = request_json(
+            f"/receptionists/{receptionist_body['id']}",
+            method="PATCH",
+            token=self.admin_token,
+            payload={
+                "phone_number": f"405{int(unique_suffix) % 10000000:07d}",
+                "doctor_ids": [doctor_body["id"], 1],
+            },
+        )
+        self.assertEqual(receptionist_update_status, 200)
+        self.assertEqual(len(receptionist_update_body["assigned_doctors"]), 2)
+
         doctor_token = login(doctor_body["linked_user_email"], "DoctorNew123!")
         receptionist_token = login(receptionist_body["email"], "ReceptionNew123!")
 
@@ -94,8 +133,7 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
 
         receptionist_doctors_status, receptionist_doctors_body = request_json("/doctors", token=receptionist_token)
         self.assertEqual(receptionist_doctors_status, 200)
-        self.assertEqual(len(receptionist_doctors_body), 1)
-        self.assertEqual(receptionist_doctors_body[0]["id"], doctor_body["id"])
+        self.assertEqual(len(receptionist_doctors_body), 2)
 
         patient_status, patient_body = request_json(
             "/patients",
@@ -138,7 +176,7 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
             token=receptionist_token,
             payload={
                 "patient_id": patient_body["id"],
-                "doctor_id": 1,
+                "doctor_id": extra_doctor_body["id"],
                 "scheduled_start": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=11)).isoformat(),
                 "scheduled_end": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=11, minutes=30)).isoformat(),
                 "appointment_type": "follow_up",

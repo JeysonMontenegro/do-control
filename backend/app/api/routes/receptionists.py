@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
-from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead
+from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead, ReceptionistUpdate
 from app.services.errors import NotFoundError, ValidationError
 from app.services.receptionist import ReceptionistService
 
@@ -25,6 +25,21 @@ def create_receptionist(
 ) -> ReceptionistRead:
     try:
         return ReceptionistService(db).create_receptionist(payload)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.patch("/{receptionist_id}", response_model=ReceptionistRead)
+def update_receptionist(
+    receptionist_id: int,
+    payload: ReceptionistUpdate,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin")),
+) -> ReceptionistRead:
+    try:
+        return ReceptionistService(db).update_receptionist(receptionist_id, payload)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:

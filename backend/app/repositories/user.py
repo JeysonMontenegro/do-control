@@ -46,6 +46,14 @@ class UserRepository:
         self.db.flush()
         return assignment
 
+    def clear_receptionist_assignments(self, user_id: int) -> None:
+        user = self.get(user_id)
+        if user is None:
+            return
+        for assignment in list(user.receptionist_assignments):
+            self.db.delete(assignment)
+        self.db.flush()
+
     def list_receptionists(self) -> list[User]:
         statement = (
             select(User)

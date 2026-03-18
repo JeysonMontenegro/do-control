@@ -187,6 +187,7 @@ export function ClinicalConsole() {
     user_email: "",
     user_password: "",
   });
+  const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
   const [receptionistForm, setReceptionistForm] = useState({
     first_name: "",
     last_name: "",
@@ -196,6 +197,7 @@ export function ClinicalConsole() {
     password: "",
     doctor_ids: [] as number[],
   });
+  const [editingReceptionistId, setEditingReceptionistId] = useState<number | null>(null);
 
   const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
@@ -692,30 +694,27 @@ export function ClinicalConsole() {
     event.preventDefault();
     setMessage("");
     try {
-      await apiPost<Doctor>("/api/doctors", {
+      const payload = {
         first_name: doctorAdminForm.first_name,
         last_name: doctorAdminForm.last_name,
         gender: doctorAdminForm.gender,
         specialty: doctorAdminForm.specialty || null,
         license_number: doctorAdminForm.license_number || null,
         primary_phone: doctorAdminForm.primary_phone || null,
-        user_email: doctorAdminForm.user_email || null,
-        user_password: doctorAdminForm.user_password || null,
-      });
-      setDoctorAdminForm({
-        first_name: "",
-        last_name: "",
-        gender: "male",
-        specialty: "",
-        license_number: "",
-        primary_phone: "",
-        user_email: "",
-        user_password: "",
-      });
+        ...(editingDoctorId
+          ? { user_password: doctorAdminForm.user_password || undefined }
+          : { user_email: doctorAdminForm.user_email || null, user_password: doctorAdminForm.user_password || null }),
+      };
+      if (editingDoctorId) {
+        await apiPatch<Doctor>(`/api/doctors/${editingDoctorId}`, payload);
+      } else {
+        await apiPost<Doctor>("/api/doctors", payload);
+      }
+      resetDoctorAdminForm();
       await loadData();
-      setMessage("Doctor registrado.");
+      setMessage(editingDoctorId ? "Doctor actualizado." : "Doctor registrado.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo registrar el doctor.");
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar el doctor.");
     }
   }
 
@@ -723,29 +722,80 @@ export function ClinicalConsole() {
     event.preventDefault();
     setMessage("");
     try {
-      await apiPost<Receptionist>("/api/receptionists", {
+      const payload = {
         first_name: receptionistForm.first_name,
         last_name: receptionistForm.last_name,
         gender: receptionistForm.gender,
         phone_number: receptionistForm.phone_number || null,
         email: receptionistForm.email,
-        password: receptionistForm.password,
+        ...(editingReceptionistId ? { password: receptionistForm.password || undefined } : { password: receptionistForm.password }),
         doctor_ids: receptionistForm.doctor_ids,
-      });
-      setReceptionistForm({
-        first_name: "",
-        last_name: "",
-        gender: "female",
-        phone_number: "",
-        email: "",
-        password: "",
-        doctor_ids: [],
-      });
+      };
+      if (editingReceptionistId) {
+        await apiPatch<Receptionist>(`/api/receptionists/${editingReceptionistId}`, payload);
+      } else {
+        await apiPost<Receptionist>("/api/receptionists", payload);
+      }
+      resetReceptionistForm();
       await loadData();
-      setMessage("Recepcionista registrada.");
+      setMessage(editingReceptionistId ? "Recepcionista actualizada." : "Recepcionista registrada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo registrar la recepcionista.");
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar la recepcionista.");
     }
+  }
+
+  function startDoctorEdit(doctor: Doctor) {
+    setEditingDoctorId(doctor.id);
+    setDoctorAdminForm({
+      first_name: doctor.first_name,
+      last_name: doctor.last_name,
+      gender: doctor.gender ?? "other",
+      specialty: doctor.specialty ?? "",
+      license_number: doctor.license_number ?? "",
+      primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "",
+      user_email: doctor.linked_user_email ?? "",
+      user_password: "",
+    });
+  }
+
+  function resetDoctorAdminForm() {
+    setEditingDoctorId(null);
+    setDoctorAdminForm({
+      first_name: "",
+      last_name: "",
+      gender: "male",
+      specialty: "",
+      license_number: "",
+      primary_phone: "",
+      user_email: "",
+      user_password: "",
+    });
+  }
+
+  function startReceptionistEdit(receptionist: Receptionist) {
+    setEditingReceptionistId(receptionist.id);
+    setReceptionistForm({
+      first_name: receptionist.first_name,
+      last_name: receptionist.last_name,
+      gender: receptionist.gender ?? "other",
+      phone_number: receptionist.phone_number ?? "",
+      email: receptionist.email,
+      password: "",
+      doctor_ids: receptionist.assigned_doctors.map((doctor) => doctor.id),
+    });
+  }
+
+  function resetReceptionistForm() {
+    setEditingReceptionistId(null);
+    setReceptionistForm({
+      first_name: "",
+      last_name: "",
+      gender: "female",
+      phone_number: "",
+      email: "",
+      password: "",
+      doctor_ids: [],
+    });
   }
 
   async function toggleReminderRule(rule: ReminderRule) {
@@ -1076,6 +1126,8 @@ export function ClinicalConsole() {
       ) ?? data.doctors[0] ?? null,
     [appointmentForm.doctor_id, data.doctors, doctorFilter, encounterForm.doctor_id],
   );
+  const availableDoctors = data.doctors;
+  const hasSingleDoctorContext = availableDoctors.length === 1;
 
   const scopedDoctorId = useMemo(() => {
     if (currentRoles.includes("doctor")) {
@@ -1146,6 +1198,24 @@ export function ClinicalConsole() {
       setTemplateForm((current) => ({ ...current, doctor_id: String(selectedDoctor.id) }));
     }
   }, [currentRoles, reminderRuleForm.doctor_id, selectedDoctor, templateForm.doctor_id]);
+
+  useEffect(() => {
+    if (!availableDoctors.length) {
+      return;
+    }
+    if (hasSingleDoctorContext) {
+      const onlyDoctorId = String(availableDoctors[0].id);
+      if (doctorFilter !== onlyDoctorId) {
+        setDoctorFilter(onlyDoctorId);
+      }
+      if (appointmentForm.doctor_id !== onlyDoctorId) {
+        setAppointmentForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
+      }
+      if (encounterForm.doctor_id !== onlyDoctorId) {
+        setEncounterForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
+      }
+    }
+  }, [appointmentForm.doctor_id, availableDoctors, doctorFilter, encounterForm.doctor_id, hasSingleDoctorContext]);
 
   useEffect(() => {
     if (!confirmationTemplate || templateForm.body.trim()) {
@@ -1448,8 +1518,17 @@ export function ClinicalConsole() {
             {isAdmin ? (
               <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
                 <option value="">Todos los doctores</option>
-                {data.doctors.map((doctor) => (
+                {availableDoctors.map((doctor) => (
                   <option key={`doctor-filter-${doctor.id}`} value={doctor.id}>
+                    {doctor.first_name} {doctor.last_name}
+                  </option>
+                ))}
+              </select>
+            ) : availableDoctors.length > 1 ? (
+              <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
+                <option value="">Selecciona doctor</option>
+                {availableDoctors.map((doctor) => (
+                  <option key={`doctor-scope-${doctor.id}`} value={doctor.id}>
                     {doctor.first_name} {doctor.last_name}
                   </option>
                 ))}
@@ -1528,7 +1607,7 @@ export function ClinicalConsole() {
                   ))}
                 </select>
               </label>
-              {isAdmin ? (
+              {isAdmin || availableDoctors.length > 1 ? (
                 <label>
                   <span>Doctor</span>
                   <select
@@ -1536,8 +1615,8 @@ export function ClinicalConsole() {
                     onChange={(event) => setAppointmentForm((current) => ({ ...current, doctor_id: event.target.value }))}
                     required
                   >
-                    <option value="">Seleccionar</option>
-                    {data.doctors.map((doctor) => (
+                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
+                    {availableDoctors.map((doctor) => (
                       <option key={`appointment-doctor-${doctor.id}`} value={doctor.id}>
                         {doctor.first_name} {doctor.last_name}
                       </option>
@@ -1844,7 +1923,7 @@ export function ClinicalConsole() {
                   ))}
                 </select>
               </label>
-              {isAdmin ? (
+              {isAdmin || availableDoctors.length > 1 ? (
                 <label>
                   <span>Doctor</span>
                   <select
@@ -1852,8 +1931,8 @@ export function ClinicalConsole() {
                     onChange={(event) => setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))}
                     required
                   >
-                    <option value="">Seleccionar</option>
-                    {data.doctors.map((doctor) => (
+                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
+                    {availableDoctors.map((doctor) => (
                       <option key={`encounter-doctor-${doctor.id}`} value={doctor.id}>
                         {doctor.first_name} {doctor.last_name}
                       </option>
@@ -2586,7 +2665,7 @@ export function ClinicalConsole() {
           <div className="subsection-header">
             <div>
               <p className="eyebrow">Equipo clínico</p>
-              <h2>Registrar doctor</h2>
+              <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
             </div>
           </div>
           <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
@@ -2642,10 +2721,11 @@ export function ClinicalConsole() {
                   type="email"
                   value={doctorAdminForm.user_email}
                   onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))}
+                  disabled={editingDoctorId !== null}
                 />
               </label>
               <label>
-                <span>Contraseña inicial</span>
+                <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
                 <input
                   type="password"
                   value={doctorAdminForm.user_password}
@@ -2653,7 +2733,14 @@ export function ClinicalConsole() {
                 />
               </label>
             </div>
-            <button type="submit">Registrar doctor</button>
+            <div className="row-actions">
+              {editingDoctorId ? (
+                <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
+                  Cancelar edición
+                </button>
+              ) : null}
+              <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
+            </div>
           </form>
         </article>
       ) : null}
@@ -2663,7 +2750,7 @@ export function ClinicalConsole() {
           <div className="subsection-header">
             <div>
               <p className="eyebrow">Equipo clínico</p>
-              <h2>Registrar recepcionista</h2>
+              <h2>{editingReceptionistId ? "Editar recepcionista" : "Registrar recepcionista"}</h2>
             </div>
           </div>
           <form className="form-card compact-form" onSubmit={submitReceptionist}>
@@ -2706,15 +2793,16 @@ export function ClinicalConsole() {
                   value={receptionistForm.email}
                   onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))}
                   required
+                  disabled={editingReceptionistId !== null}
                 />
               </label>
               <label>
-                <span>Contraseña inicial</span>
+                <span>{editingReceptionistId ? "Nueva contraseña" : "Contraseña inicial"}</span>
                 <input
                   type="password"
                   value={receptionistForm.password}
                   onChange={(event) => setReceptionistForm((current) => ({ ...current, password: event.target.value }))}
-                  required
+                  required={editingReceptionistId === null}
                 />
               </label>
             </div>
@@ -2745,7 +2833,14 @@ export function ClinicalConsole() {
                 ))}
               </div>
             </div>
-            <button type="submit">Registrar recepcionista</button>
+            <div className="row-actions">
+              {editingReceptionistId ? (
+                <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
+                  Cancelar edición
+                </button>
+              ) : null}
+              <button type="submit">{editingReceptionistId ? "Actualizar recepcionista" : "Registrar recepcionista"}</button>
+            </div>
           </form>
         </article>
       ) : null}
@@ -2773,6 +2868,11 @@ export function ClinicalConsole() {
                     ? `Recepción: ${doctor.assigned_receptionists.map((item) => `${item.first_name} ${item.last_name}`).join(", ")}`
                     : "Sin recepcionista asignada"}
                 </span>
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>
+                    Editar
+                  </button>
+                </div>
               </div>
             ))}
             {receptionists.length ? (
@@ -2788,6 +2888,11 @@ export function ClinicalConsole() {
                       ? `Doctores: ${receptionist.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")}`
                       : "Sin doctores asignados"}
                   </span>
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>
+                      Editar
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (

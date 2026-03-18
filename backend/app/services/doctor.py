@@ -5,7 +5,7 @@ from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.models.user import User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
-from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead
+from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead, DoctorUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password
@@ -136,6 +136,50 @@ class DoctorService:
         create_audit_log(
             self.db,
             action="create",
+            entity_type="doctor",
+            entity_id=str(doctor.id),
+            after_data={"name": f"{doctor.first_name} {doctor.last_name}"},
+        )
+        self.db.commit()
+        self.db.refresh(doctor)
+        return doctor
+
+    def update_doctor(self, doctor_id: int, payload: DoctorUpdate) -> Doctor:
+        doctor = self.repository.get(doctor_id)
+        if doctor is None:
+            raise NotFoundError("Doctor not found.")
+
+        updates = payload.model_dump(exclude_unset=True)
+        primary_phone = updates.pop("primary_phone", None) if "primary_phone" in updates else None
+        user_password = updates.pop("user_password", None) if "user_password" in updates else None
+
+        for field, value in updates.items():
+            setattr(doctor, field, value)
+
+        if primary_phone is not None:
+            self.repository.deactivate_primary_phone_numbers(doctor.id)
+            self.repository.add_phone_number(
+                DoctorPhoneNumber(
+                    doctor_id=doctor.id,
+                    phone_number=primary_phone,
+                    is_primary=True,
+                    is_active=True,
+                    channel_type="whatsapp",
+                )
+            )
+
+        if doctor.linked_user is not None:
+            doctor.linked_user.first_name = doctor.first_name
+            doctor.linked_user.last_name = doctor.last_name
+            doctor.linked_user.gender = doctor.gender
+            if primary_phone is not None:
+                doctor.linked_user.phone_number = primary_phone
+            if user_password:
+                doctor.linked_user.password_hash = hash_password(user_password)
+
+        create_audit_log(
+            self.db,
+            action="update",
             entity_type="doctor",
             entity_id=str(doctor.id),
             after_data={"name": f"{doctor.first_name} {doctor.last_name}"},

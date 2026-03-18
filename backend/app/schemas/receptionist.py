@@ -22,6 +22,15 @@ class ReceptionistCreate(BaseModel):
     doctor_ids: list[int] = []
 
 
+class ReceptionistUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    gender: str | None = None
+    phone_number: str | None = None
+    password: str | None = None
+    doctor_ids: list[int] | None = None
+
+
 class ReceptionistRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

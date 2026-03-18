@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.user import ReceptionistDoctorAssignment, User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
-from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead, ReceptionistDoctorRead
+from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead, ReceptionistDoctorRead, ReceptionistUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password
@@ -85,4 +85,45 @@ class ReceptionistService:
         refreshed = self.user_repository.get(user.id)
         if refreshed is None:
             raise NotFoundError("Receptionist not found after creation.")
+        return self._serialize_receptionist(refreshed)
+
+    def update_receptionist(self, receptionist_id: int, payload: ReceptionistUpdate) -> ReceptionistRead:
+        user = self.user_repository.get(receptionist_id)
+        if user is None:
+            raise NotFoundError("Receptionist not found.")
+
+        updates = payload.model_dump(exclude_unset=True)
+        doctor_ids = updates.pop("doctor_ids", None)
+        password = updates.pop("password", None)
+
+        for field, value in updates.items():
+            setattr(user, field, value)
+
+        if password:
+            user.password_hash = hash_password(password)
+
+        if doctor_ids is not None:
+            doctors = []
+            for doctor_id in doctor_ids:
+                doctor = self.doctor_repository.get(doctor_id)
+                if doctor is None:
+                    raise NotFoundError(f"Doctor {doctor_id} not found.")
+                doctors.append(doctor)
+            self.user_repository.clear_receptionist_assignments(user.id)
+            for doctor in doctors:
+                self.user_repository.add_receptionist_assignment(
+                    ReceptionistDoctorAssignment(user_id=user.id, doctor_id=doctor.id)
+                )
+
+        create_audit_log(
+            self.db,
+            action="update",
+            entity_type="receptionist",
+            entity_id=str(user.id),
+            after_data={"doctor_ids": doctor_ids},
+        )
+        self.db.commit()
+        refreshed = self.user_repository.get(user.id)
+        if refreshed is None:
+            raise NotFoundError("Receptionist not found after update.")
         return self._serialize_receptionist(refreshed)
