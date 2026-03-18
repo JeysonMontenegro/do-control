@@ -9,6 +9,7 @@ from app.schemas.appointment import AppointmentCreate
 from app.schemas.communication_dispatch import CommunicationDispatchUpdate
 from app.schemas.encounter import DiagnosisCreate, EncounterCreate, ExamOrderCreate
 from app.schemas.integration import (
+    AvailableDoctorOption,
     AppointmentActionResponse,
     AppointmentCancelRequest,
     AppointmentCancelResponse,
@@ -214,22 +215,44 @@ class IntegrationService:
             return {doctor.id for doctor in self.doctor_service.repository.list_for_receptionist_user(requester.id)}
         return set()
 
+    def _requester_accessible_doctors(self, requester_phone_number: str | None) -> list[Doctor] | None:
+        accessible_doctor_ids = self._requester_accessible_doctor_ids(requester_phone_number)
+        if accessible_doctor_ids is None:
+            return None
+        if not accessible_doctor_ids:
+            return []
+        doctors = [
+            self.doctor_service.get_doctor(doctor_id)
+            for doctor_id in sorted(accessible_doctor_ids)
+        ]
+        return doctors
+
+    @staticmethod
+    def _serialize_available_doctors(doctors: list[Doctor]) -> list[AvailableDoctorOption]:
+        return [
+            AvailableDoctorOption(
+                id=doctor.id,
+                full_name=f"{doctor.first_name} {doctor.last_name}".strip(),
+            )
+            for doctor in doctors
+        ]
+
     def _resolve_doctor(self, payload: ProposedAppointmentRequest) -> Doctor:
         accessible_doctor_ids = self._requester_accessible_doctor_ids(payload.requester_phone_number)
 
         if payload.doctor_id is not None:
             if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
-                raise ValidationError("Requester is not allowed to schedule for that doctor.")
+                raise ValidationError("El solicitante no puede agendar para ese doctor.")
             return self.doctor_service.get_doctor(payload.doctor_id)
 
         if not payload.doctor_phone_number:
             if accessible_doctor_ids is None:
-                raise ValidationError("Either doctor_id or doctor_phone_number is required.")
+                raise ValidationError("Debe indicar doctor_id o doctor_phone_number.")
             if len(accessible_doctor_ids) == 1:
                 return self.doctor_service.get_doctor(next(iter(accessible_doctor_ids)))
             if len(accessible_doctor_ids) > 1:
-                raise ValidationError("Requester can schedule for multiple doctors and must specify which doctor to use.")
-            raise ValidationError("Requester is not linked to any doctor.")
+                raise ValidationError("El solicitante puede agendar para varios doctores y debe especificar cuál usar.")
+            raise ValidationError("El solicitante no está vinculado a ningún doctor.")
 
         match = self.match_doctor(
             DoctorMatchRequest(
@@ -240,7 +263,7 @@ class IntegrationService:
         if match.status == "matched":
             doctor_id = match.candidate_matches[0].doctor_id
             if accessible_doctor_ids is not None and doctor_id not in accessible_doctor_ids:
-                raise ValidationError("Requester is not allowed to schedule for that doctor.")
+                raise ValidationError("El solicitante no puede agendar para ese doctor.")
             return self.doctor_service.get_doctor(doctor_id)
         if match.status == "candidate_matches":
             candidates = match.candidate_matches
@@ -248,8 +271,8 @@ class IntegrationService:
                 candidates = [candidate for candidate in candidates if candidate.doctor_id in accessible_doctor_ids]
                 if len(candidates) == 1:
                     return self.doctor_service.get_doctor(candidates[0].doctor_id)
-            raise ValidationError("Multiple doctor candidates found for the provided phone number.")
-        raise ValidationError("Doctor not found for the provided phone number.")
+            raise ValidationError("Se encontraron varios doctores para el número proporcionado.")
+        raise ValidationError("No se encontró un doctor para el número proporcionado.")
 
     def create_proposed_appointment(self, payload: ProposedAppointmentRequest) -> ProposedAppointmentResponse:
         def create_review_item(*, review_reason: str, review_message: str, doctor_id: int | None = None, existing_appointment_id: int | None = None) -> None:
@@ -267,6 +290,21 @@ class IntegrationService:
                 review_reason=review_reason,
                 review_message=review_message,
                 existing_appointment_id=existing_appointment_id,
+            )
+
+        accessible_doctors = self._requester_accessible_doctors(payload.requester_phone_number)
+        if (
+            payload.doctor_id is None
+            and not payload.doctor_phone_number
+            and accessible_doctors is not None
+            and len(accessible_doctors) > 1
+        ):
+            review_message = "El solicitante puede agendar para varios doctores y debe especificar cuál usar."
+            create_review_item(review_reason="doctor_resolution", review_message=review_message)
+            return ProposedAppointmentResponse(
+                status="needs_manual_review",
+                message=review_message,
+                available_doctors=self._serialize_available_doctors(accessible_doctors),
             )
 
         try:

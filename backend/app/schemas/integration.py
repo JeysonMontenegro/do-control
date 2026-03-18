@@ -92,6 +92,11 @@ class ProposedAppointmentRequest(BaseModel):
         return self
 
 
+class AvailableDoctorOption(BaseModel):
+    id: int
+    full_name: str
+
+
 class ProposedAppointmentResponse(BaseModel):
     status: str
     patient_id: int | None = None
@@ -99,6 +104,7 @@ class ProposedAppointmentResponse(BaseModel):
     doctor_id: int | None = None
     message: str
     existing_appointment_id: int | None = None
+    available_doctors: list[AvailableDoctorOption] = []
 
 
 class AppointmentActionResponse(BaseModel):

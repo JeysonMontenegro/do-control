@@ -163,7 +163,15 @@ class IntegrationRequesterScopeHttpSmokeTests(unittest.TestCase):
         )
         self.assertEqual(proposal_status, 200)
         self.assertEqual(proposal_body["status"], "needs_manual_review")
-        self.assertIn("multiple doctors", proposal_body["message"].lower())
+        self.assertIn("varios doctores", proposal_body["message"].lower())
+        self.assertEqual(
+            {doctor["id"] for doctor in proposal_body["available_doctors"]},
+            set(doctor_ids),
+        )
+        self.assertEqual(len(proposal_body["available_doctors"]), 2)
+        self.assertTrue(
+            all(doctor["full_name"].startswith("ScopeMulti") for doctor in proposal_body["available_doctors"])
+        )
 
 
 if __name__ == "__main__":
