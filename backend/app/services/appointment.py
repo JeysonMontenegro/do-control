@@ -54,8 +54,11 @@ class AppointmentService:
         if self.patient_repository.get(payload.patient_id) is None:
             raise NotFoundError("Patient not found.")
 
-        if self.doctor_repository.get(payload.doctor_id) is None:
+        doctor = self.doctor_repository.get(payload.doctor_id)
+        if doctor is None:
             raise NotFoundError("Doctor not found.")
+        if not doctor.is_active:
+            raise ValidationError("Cannot create appointments for an inactive doctor.")
 
         if self.repository.has_overlap(payload.doctor_id, payload.scheduled_start, payload.scheduled_end):
             raise ConflictError("Doctor already has an appointment in that time range.")

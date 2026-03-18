@@ -1141,14 +1141,19 @@ export function ClinicalConsole() {
     () => data.appointments.find((appointment) => appointment.id === expandedAppointmentId) ?? null,
     [data.appointments, expandedAppointmentId],
   );
+  const activeDoctors = useMemo(() => data.doctors.filter((doctor) => doctor.is_active), [data.doctors]);
+  const inactiveDoctors = useMemo(() => data.doctors.filter((doctor) => !doctor.is_active), [data.doctors]);
+  const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
+  const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
+
   const selectedDoctor = useMemo(
     () =>
-      data.doctors.find(
+      activeDoctors.find(
         (doctor) => String(doctor.id) === doctorFilter || String(doctor.id) === appointmentForm.doctor_id || String(doctor.id) === encounterForm.doctor_id,
-      ) ?? data.doctors[0] ?? null,
-    [appointmentForm.doctor_id, data.doctors, doctorFilter, encounterForm.doctor_id],
+      ) ?? activeDoctors[0] ?? null,
+    [activeDoctors, appointmentForm.doctor_id, doctorFilter, encounterForm.doctor_id],
   );
-  const availableDoctors = data.doctors;
+  const availableDoctors = activeDoctors;
   const hasSingleDoctorContext = availableDoctors.length === 1;
 
   const scopedDoctorId = useMemo(() => {
@@ -2879,7 +2884,11 @@ export function ClinicalConsole() {
             </div>
           </div>
           <div className="table-list">
-            {data.doctors.map((doctor) => (
+            <div className="simple-list-item">
+              <strong>Doctores activos</strong>
+              <span>{activeDoctors.length} registrados para agenda y operación diaria.</span>
+            </div>
+            {activeDoctors.map((doctor) => (
               <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
                 <strong>
                   {doctor.first_name} {doctor.last_name}
@@ -2904,8 +2913,13 @@ export function ClinicalConsole() {
                 </div>
               </div>
             ))}
-            {receptionists.length ? (
-              receptionists.map((receptionist) => (
+            {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
+            <div className="simple-list-item">
+              <strong>Recepcionistas activas</strong>
+              <span>{activeReceptionists.length} disponibles para gestionar agenda y pacientes.</span>
+            </div>
+            {activeReceptionists.length ? (
+              activeReceptionists.map((receptionist) => (
                 <div className="simple-list-item" key={`receptionist-team-${receptionist.id}`}>
                   <strong>
                     Recepción: {receptionist.first_name} {receptionist.last_name}
@@ -2931,8 +2945,51 @@ export function ClinicalConsole() {
                 </div>
               ))
             ) : (
-              <p className="empty-state">Todavía no hay recepcionistas registradas.</p>
+              <p className="empty-state">No hay recepcionistas activas registradas.</p>
             )}
+            {inactiveDoctors.length || inactiveReceptionists.length ? (
+              <>
+                <div className="simple-list-item">
+                  <strong>Personal inactivo</strong>
+                  <span>Se conserva para histórico, pero ya no aparece en los selectores de trabajo diario.</span>
+                </div>
+                {inactiveDoctors.map((doctor) => (
+                  <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
+                    <strong>
+                      {doctor.first_name} {doctor.last_name}
+                    </strong>
+                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                    <span>Doctor inactivo</span>
+                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                    <div className="row-actions">
+                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>
+                        Editar
+                      </button>
+                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
+                        Activar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {inactiveReceptionists.map((receptionist) => (
+                  <div className="simple-list-item" key={`receptionist-team-inactive-${receptionist.id}`}>
+                    <strong>
+                      Recepción: {receptionist.first_name} {receptionist.last_name}
+                    </strong>
+                    <span>{receptionist.email}</span>
+                    <span>Recepcionista inactiva</span>
+                    <div className="row-actions">
+                      <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>
+                        Editar
+                      </button>
+                      <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(receptionist)}>
+                        Activar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : null}
           </div>
         </article>
       ) : null}

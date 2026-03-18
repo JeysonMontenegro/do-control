@@ -188,6 +188,67 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
         self.assertEqual(blocked_status, 400)
         self.assertIn("cannot create appointments", blocked_body["detail"].lower())
 
+    def test_inactive_doctor_cannot_receive_new_appointments(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+
+        doctor_status, doctor_body = request_json(
+            "/doctors",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "first_name": "Inactivo",
+                "last_name": f"Doctor{unique_suffix}",
+                "gender": "male",
+                "specialty": "Cardiología",
+                "license_number": f"INACTIVE-{unique_suffix}",
+                "primary_phone": f"601{int(unique_suffix) % 10000000:07d}",
+            },
+        )
+        self.assertEqual(doctor_status, 201)
+
+        deactivate_status, deactivate_body = request_json(
+            f"/doctors/{doctor_body['id']}",
+            method="PATCH",
+            token=self.admin_token,
+            payload={"is_active": False},
+        )
+        self.assertEqual(deactivate_status, 200)
+        self.assertFalse(deactivate_body["is_active"])
+
+        patient_status, patient_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "medical_record_number": f"EXP-INACTIVE-{unique_suffix}",
+                "first_name": "Paciente",
+                "last_name": f"Inactivo{unique_suffix}",
+                "primary_phone": f"602{int(unique_suffix) % 10000000:07d}",
+                "national_id": None,
+                "tax_id": None,
+                "email": None,
+            },
+        )
+        self.assertEqual(patient_status, 201)
+
+        blocked_status, blocked_body = request_json(
+            "/appointments",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "patient_id": patient_body["id"],
+                "doctor_id": doctor_body["id"],
+                "scheduled_start": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=13)).isoformat(),
+                "scheduled_end": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=13, minutes=30)).isoformat(),
+                "appointment_type": "follow_up",
+                "reason": "Debe bloquear doctor inactivo",
+                "source": "receptionist",
+                "created_by": "staff-smoke",
+            },
+        )
+        self.assertEqual(blocked_status, 400)
+        self.assertIn("inactive doctor", blocked_body["detail"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()
