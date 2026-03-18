@@ -29,6 +29,7 @@ class ReceptionistUpdate(BaseModel):
     phone_number: str | None = None
     password: str | None = None
     doctor_ids: list[int] | None = None
+    is_active: bool | None = None
 
 
 class ReceptionistRead(BaseModel):

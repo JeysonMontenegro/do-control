@@ -172,6 +172,7 @@ class DoctorService:
             doctor.linked_user.first_name = doctor.first_name
             doctor.linked_user.last_name = doctor.last_name
             doctor.linked_user.gender = doctor.gender
+            doctor.linked_user.is_active = doctor.is_active
             if primary_phone is not None:
                 doctor.linked_user.phone_number = primary_phone
             if user_password:

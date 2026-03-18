@@ -37,6 +37,7 @@ class DoctorUpdate(BaseModel):
     specialty: str | None = None
     primary_phone: str | None = None
     user_password: str | None = None
+    is_active: bool | None = None
 
 
 class DoctorRead(BaseModel):

@@ -744,6 +744,28 @@ export function ClinicalConsole() {
     }
   }
 
+  async function toggleDoctorActive(doctor: Doctor) {
+    setMessage("");
+    try {
+      await apiPatch<Doctor>(`/api/doctors/${doctor.id}`, { is_active: !doctor.is_active });
+      await loadData();
+      setMessage(`Doctor ${doctor.is_active ? "desactivado" : "activado"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el doctor.");
+    }
+  }
+
+  async function toggleReceptionistActive(receptionist: Receptionist) {
+    setMessage("");
+    try {
+      await apiPatch<Receptionist>(`/api/receptionists/${receptionist.id}`, { is_active: !receptionist.is_active });
+      await loadData();
+      setMessage(`Recepcionista ${receptionist.is_active ? "desactivada" : "activada"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la recepcionista.");
+    }
+  }
+
   function startDoctorEdit(doctor: Doctor) {
     setEditingDoctorId(doctor.id);
     setDoctorAdminForm({
@@ -1535,6 +1557,9 @@ export function ClinicalConsole() {
               </select>
             ) : selectedDoctor ? (
               <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div>
+            ) : null}
+            {!isAdmin && availableDoctors.length > 1 ? (
+              <div className="context-pill">Recepción con {availableDoctors.length} doctores asignados</div>
             ) : null}
             <div className="chip-row">
               <button
@@ -2863,6 +2888,7 @@ export function ClinicalConsole() {
                 <span>{doctor.gender === "female" ? "Femenino" : doctor.gender === "male" ? "Masculino" : "Sin género"}</span>
                 <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
                 <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                <span>{doctor.is_active ? "Activo" : "Inactivo"}</span>
                 <span>
                   {doctor.assigned_receptionists?.length
                     ? `Recepción: ${doctor.assigned_receptionists.map((item) => `${item.first_name} ${item.last_name}`).join(", ")}`
@@ -2871,6 +2897,9 @@ export function ClinicalConsole() {
                 <div className="row-actions">
                   <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>
                     Editar
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
+                    {doctor.is_active ? "Desactivar" : "Activar"}
                   </button>
                 </div>
               </div>
@@ -2883,14 +2912,20 @@ export function ClinicalConsole() {
                   </strong>
                   <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
                   <span>{receptionist.email}</span>
+                  <span>{receptionist.is_active ? "Activa" : "Inactiva"}</span>
                   <span>
                     {receptionist.assigned_doctors.length
-                      ? `Doctores: ${receptionist.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")}`
+                      ? receptionist.assigned_doctors.length === 1
+                        ? `Asiste solo a ${receptionist.assigned_doctors[0].first_name} ${receptionist.assigned_doctors[0].last_name}`
+                        : `Asiste a ${receptionist.assigned_doctors.length} doctores: ${receptionist.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")}`
                       : "Sin doctores asignados"}
                   </span>
                   <div className="row-actions">
                     <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>
                       Editar
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(receptionist)}>
+                      {receptionist.is_active ? "Desactivar" : "Activar"}
                     </button>
                   </div>
                 </div>
