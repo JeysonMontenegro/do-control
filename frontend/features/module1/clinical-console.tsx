@@ -62,6 +62,8 @@ type LoadState = {
   encounters: Encounter[];
 };
 
+type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
+
 const initialLoadState: LoadState = {
   doctors: [],
   patients: [],
@@ -198,6 +200,28 @@ export function ClinicalConsole() {
     doctor_ids: [] as number[],
   });
   const [editingReceptionistId, setEditingReceptionistId] = useState<number | null>(null);
+  const [activeReviewItemId, setActiveReviewItemId] = useState<number | null>(null);
+  const [activeDispatchStatusId, setActiveDispatchStatusId] = useState<number | null>(null);
+  const [reviewResolutionForm, setReviewResolutionForm] = useState<{
+    action: ReviewResolutionAction;
+    patient_id: string;
+    doctor_id: string;
+    appointment_id: string;
+    note: string;
+  }>({
+    action: "create_appointment",
+    patient_id: "",
+    doctor_id: "",
+    appointment_id: "",
+    note: "",
+  });
+  const [dispatchStatusForm, setDispatchStatusForm] = useState<{
+    status: "sent" | "delivered" | "failed";
+    error_message: string;
+  }>({
+    status: "delivered",
+    error_message: "Actualización manual",
+  });
 
   const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
@@ -1007,20 +1031,41 @@ export function ClinicalConsole() {
   }
 
   async function updateDispatchStatus(dispatchId: number, status: "sent" | "delivered" | "failed") {
+    setDispatchStatusForm({
+      status,
+      error_message: "Actualización manual",
+    });
+    setActiveDispatchStatusId(dispatchId);
+  }
+
+  function closeDispatchStatusModal() {
+    setActiveDispatchStatusId(null);
+    setDispatchStatusForm({
+      status: "delivered",
+      error_message: "Actualización manual",
+    });
+  }
+
+  async function submitDispatchStatusUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeDispatch) {
+      return;
+    }
+
     setMessage("");
     try {
-      const payload: Record<string, string> = { status };
-      if (status === "failed") {
-        const reason = window.prompt("Motivo del fallo", "Actualización manual");
-        if (!reason) {
-          setMessage("Actualización cancelada.");
+      const payload: Record<string, string> = { status: dispatchStatusForm.status };
+      if (dispatchStatusForm.status === "failed") {
+        if (!dispatchStatusForm.error_message.trim()) {
+          setMessage("Debes indicar el motivo del fallo.");
           return;
         }
-        payload.error_message = reason;
+        payload.error_message = dispatchStatusForm.error_message.trim();
       }
-      await apiPatch<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}`, payload);
+      await apiPatch<CommunicationDispatch>(`/api/communication-dispatches/${activeDispatch.id}`, payload);
+      closeDispatchStatusModal();
       await loadData();
-      setMessage(`Mensaje ${dispatchId} actualizado.`);
+      setMessage(`Mensaje ${activeDispatch.id} actualizado.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo actualizar el mensaje.");
     }
@@ -1028,36 +1073,109 @@ export function ClinicalConsole() {
 
   async function resolveReviewItem(
     itemId: number,
-    action: "reject" | "link_existing" | "create_appointment",
+    action: ReviewResolutionAction,
   ) {
+    const item = appointmentReviewItems.find((entry) => entry.id === itemId);
+    if (!item) {
+      setMessage("No se encontró el pendiente seleccionado.");
+      return;
+    }
+
+    const normalizedRequestedName = item.patient_name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const matchingPatients = data.patients.filter((patient) => {
+      const patientName = `${patient.first_name} ${patient.last_name}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return (
+        patient.primary_phone === item.phone_number ||
+        patientName.includes(normalizedRequestedName) ||
+        normalizedRequestedName.includes(patientName)
+      );
+    });
+    const suggestedPatientId =
+      matchingPatients[0]?.id ??
+      (selectedPatientId ? Number(selectedPatientId) : null);
+    const suggestedAppointmentId =
+      item.existing_appointment_id ??
+      data.appointments.find(
+        (appointment) =>
+          (item.doctor_id === null || appointment.doctor_id === item.doctor_id) &&
+          (appointment.patient_name ?? "").toLowerCase().includes(item.patient_name.toLowerCase()),
+      )?.id ??
+      null;
+
+    setReviewResolutionForm({
+      action,
+      patient_id: action === "create_appointment" && suggestedPatientId ? String(suggestedPatientId) : "",
+      doctor_id: item.doctor_id ? String(item.doctor_id) : "",
+      appointment_id: action === "link_existing" && suggestedAppointmentId ? String(suggestedAppointmentId) : "",
+      note:
+        action === "reject"
+          ? "Rechazado manualmente"
+          : item.review_reason === "reschedule_request"
+            ? "Solicitud de reagendar atendida manualmente."
+            : "",
+    });
+    setActiveReviewItemId(itemId);
+  }
+
+  function closeReviewResolutionModal() {
+    setActiveReviewItemId(null);
+    setReviewResolutionForm({
+      action: "create_appointment",
+      patient_id: "",
+      doctor_id: "",
+      appointment_id: "",
+      note: "",
+    });
+  }
+
+  async function submitReviewResolution(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeReviewItem) {
+      return;
+    }
+
     setMessage("");
     try {
-      const payload: Record<string, string | number | null> = {
-        action,
+      const payload: Record<string, string | number> = {
+        action: reviewResolutionForm.action,
         changed_by: currentUserEmail || "frontend-user",
       };
 
-      if (action === "link_existing") {
-        const appointmentId = window.prompt("ID de la cita existente", "");
-        if (!appointmentId) {
+      if (reviewResolutionForm.action === "create_appointment") {
+        if (!reviewResolutionForm.patient_id) {
+          setMessage("Selecciona un paciente para crear la cita.");
           return;
         }
-        payload.appointment_id = Number(appointmentId);
+        payload.patient_id = Number(reviewResolutionForm.patient_id);
+        if (!activeReviewItem.doctor_id) {
+          if (!reviewResolutionForm.doctor_id) {
+            setMessage("Selecciona el doctor para esta resolución.");
+            return;
+          }
+          payload.doctor_id = Number(reviewResolutionForm.doctor_id);
+        }
       }
 
-      if (action === "create_appointment") {
-        const patientId = window.prompt("ID del paciente para crear la cita", selectedPatientId || "");
-        if (!patientId) {
+      if (reviewResolutionForm.action === "link_existing") {
+        if (!reviewResolutionForm.appointment_id) {
+          setMessage("Selecciona una cita existente para vincular.");
           return;
         }
-        payload.patient_id = Number(patientId);
+        payload.appointment_id = Number(reviewResolutionForm.appointment_id);
       }
 
-      if (action === "reject") {
-        payload.note = window.prompt("Motivo del rechazo", "Rechazado manualmente") || "Rechazado manualmente";
+      if (reviewResolutionForm.note.trim()) {
+        payload.note = reviewResolutionForm.note.trim();
       }
 
-      await apiPost(`/api/appointment-review-items/${itemId}/resolve`, payload);
+      await apiPost(`/api/appointment-review-items/${activeReviewItem.id}/resolve`, payload);
+      closeReviewResolutionModal();
       await loadData();
       setMessage("Pendiente actualizado.");
     } catch (error) {
@@ -1145,6 +1263,55 @@ export function ClinicalConsole() {
   const inactiveDoctors = useMemo(() => data.doctors.filter((doctor) => !doctor.is_active), [data.doctors]);
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
   const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
+  const activeReviewItem = useMemo(
+    () => appointmentReviewItems.find((item) => item.id === activeReviewItemId) ?? null,
+    [activeReviewItemId, appointmentReviewItems],
+  );
+  const activeDispatch = useMemo(
+    () => communicationDispatches.find((dispatch) => dispatch.id === activeDispatchStatusId) ?? null,
+    [activeDispatchStatusId, communicationDispatches],
+  );
+  const reviewPatientOptions = useMemo(() => {
+    if (!activeReviewItem) {
+      return [];
+    }
+    const normalizedRequestedName = activeReviewItem.patient_name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return data.patients.filter((patient) => {
+      const patientName = `${patient.first_name} ${patient.last_name}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return (
+        patient.primary_phone === activeReviewItem.phone_number ||
+        patientName.includes(normalizedRequestedName) ||
+        normalizedRequestedName.includes(patientName)
+      );
+    });
+  }, [activeReviewItem, data.patients]);
+  const reviewAppointmentOptions = useMemo(() => {
+    if (!activeReviewItem) {
+      return [];
+    }
+    return data.appointments.filter((appointment) => {
+      if (activeReviewItem.doctor_id !== null && appointment.doctor_id !== activeReviewItem.doctor_id) {
+        return false;
+      }
+      if (
+        activeReviewItem.existing_appointment_id !== null &&
+        appointment.id === activeReviewItem.existing_appointment_id
+      ) {
+        return true;
+      }
+      const patientName = (appointment.patient_name ?? "").toLowerCase();
+      return (
+        patientName.includes(activeReviewItem.patient_name.toLowerCase()) ||
+        formatDateTime(appointment.scheduled_start) === formatDateTime(activeReviewItem.scheduled_start)
+      );
+    });
+  }, [activeReviewItem, data.appointments]);
 
   const selectedDoctor = useMemo(
     () =>
@@ -3199,6 +3366,220 @@ export function ClinicalConsole() {
     );
   };
 
+  const renderReviewResolutionModal = () => {
+    if (!activeReviewItem) {
+      return null;
+    }
+
+    const actionLabel =
+      reviewResolutionForm.action === "create_appointment"
+        ? "Crear cita"
+        : reviewResolutionForm.action === "link_existing"
+          ? "Vincular cita"
+          : "Rechazar pendiente";
+
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true">
+        <div className="modal-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Pendientes</p>
+              <h2>{actionLabel}</h2>
+            </div>
+            <button type="button" className="secondary-button" onClick={closeReviewResolutionModal}>
+              Cerrar
+            </button>
+          </div>
+          <div className="detail-panel compact-panel">
+            <strong>{activeReviewItem.patient_name}</strong>
+            <span>{activeReviewItem.doctor_name ?? activeReviewItem.doctor_phone_number ?? "Doctor pendiente"}</span>
+            <span>{formatDateTime(activeReviewItem.scheduled_start)}</span>
+            <span>{reviewReasonLabel(activeReviewItem.review_reason)}</span>
+            <span>{activeReviewItem.review_message}</span>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitReviewResolution}>
+            <label>
+              <span>Acción</span>
+              <select
+                value={reviewResolutionForm.action}
+                onChange={(event) =>
+                  setReviewResolutionForm((current) => ({
+                    ...current,
+                    action: event.target.value as ReviewResolutionAction,
+                  }))
+                }
+              >
+                <option value="create_appointment">Crear cita</option>
+                <option value="link_existing">Vincular cita existente</option>
+                <option value="reject">Rechazar</option>
+              </select>
+            </label>
+
+            {reviewResolutionForm.action === "create_appointment" ? (
+              <>
+                <label>
+                  <span>Paciente</span>
+                  <select
+                    value={reviewResolutionForm.patient_id}
+                    onChange={(event) =>
+                      setReviewResolutionForm((current) => ({ ...current, patient_id: event.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">Seleccionar paciente</option>
+                    {reviewPatientOptions.map((patient) => (
+                      <option key={`review-patient-${patient.id}`} value={patient.id}>
+                        {patient.first_name} {patient.last_name} · {patient.medical_record_number}
+                      </option>
+                    ))}
+                    {!reviewPatientOptions.length
+                      ? data.patients.map((patient) => (
+                          <option key={`review-patient-fallback-${patient.id}`} value={patient.id}>
+                            {patient.first_name} {patient.last_name} · {patient.medical_record_number}
+                          </option>
+                        ))
+                      : null}
+                  </select>
+                </label>
+                {activeReviewItem.doctor_id === null ? (
+                  <label>
+                    <span>Doctor</span>
+                    <select
+                      value={reviewResolutionForm.doctor_id}
+                      onChange={(event) =>
+                        setReviewResolutionForm((current) => ({ ...current, doctor_id: event.target.value }))
+                      }
+                      required
+                    >
+                      <option value="">Seleccionar doctor</option>
+                      {availableDoctors.map((doctor) => (
+                        <option key={`review-doctor-${doctor.id}`} value={doctor.id}>
+                          {doctor.first_name} {doctor.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label>
+                    <span>Doctor resuelto</span>
+                    <input value={activeReviewItem.doctor_name ?? `Doctor ${activeReviewItem.doctor_id}`} readOnly />
+                  </label>
+                )}
+              </>
+            ) : null}
+
+            {reviewResolutionForm.action === "link_existing" ? (
+              <label>
+                <span>Cita existente</span>
+                <select
+                  value={reviewResolutionForm.appointment_id}
+                  onChange={(event) =>
+                    setReviewResolutionForm((current) => ({ ...current, appointment_id: event.target.value }))
+                  }
+                  required
+                >
+                  <option value="">Seleccionar cita</option>
+                  {reviewAppointmentOptions.map((appointment) => (
+                    <option key={`review-appointment-${appointment.id}`} value={appointment.id}>
+                      {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
+                    </option>
+                  ))}
+                  {!reviewAppointmentOptions.length
+                    ? data.appointments.map((appointment) => (
+                        <option key={`review-appointment-fallback-${appointment.id}`} value={appointment.id}>
+                          {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
+                        </option>
+                      ))
+                    : null}
+                </select>
+              </label>
+            ) : null}
+
+            <label>
+              <span>Nota operativa</span>
+              <textarea
+                value={reviewResolutionForm.note}
+                onChange={(event) => setReviewResolutionForm((current) => ({ ...current, note: event.target.value }))}
+                placeholder="Deja aquí el motivo o la resolución."
+              />
+            </label>
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={closeReviewResolutionModal}>
+                Cancelar
+              </button>
+              <button type="submit">Guardar resolución</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDispatchStatusModal = () => {
+    if (!activeDispatch) {
+      return null;
+    }
+
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true">
+        <div className="modal-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Mensajes</p>
+              <h2>Actualizar estado del mensaje</h2>
+            </div>
+            <button type="button" className="secondary-button" onClick={closeDispatchStatusModal}>
+              Cerrar
+            </button>
+          </div>
+          <div className="detail-panel compact-panel">
+            <strong>{activeDispatch.patient_name ?? `Paciente ${activeDispatch.patient_id}`}</strong>
+            <span>{activeDispatch.doctor_name ?? "Sin doctor"}</span>
+            <span>{dispatchStatusLabel(activeDispatch.status)} actual</span>
+            <span>{activeDispatch.recipient_phone}</span>
+            <div className="message-preview">{activeDispatch.rendered_message ?? "Sin texto generado."}</div>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitDispatchStatusUpdate}>
+            <label>
+              <span>Nuevo estado</span>
+              <select
+                value={dispatchStatusForm.status}
+                onChange={(event) =>
+                  setDispatchStatusForm((current) => ({
+                    ...current,
+                    status: event.target.value as "sent" | "delivered" | "failed",
+                  }))
+                }
+              >
+                <option value="sent">Enviado</option>
+                <option value="delivered">Entregado</option>
+                <option value="failed">Fallido</option>
+              </select>
+            </label>
+            {dispatchStatusForm.status === "failed" ? (
+              <label>
+                <span>Motivo del fallo</span>
+                <textarea
+                  value={dispatchStatusForm.error_message}
+                  onChange={(event) =>
+                    setDispatchStatusForm((current) => ({ ...current, error_message: event.target.value }))
+                  }
+                  placeholder="Describe por qué falló el envío."
+                />
+              </label>
+            ) : null}
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={closeDispatchStatusModal}>
+                Cancelar
+              </button>
+              <button type="submit">Guardar estado</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -3269,6 +3650,8 @@ export function ClinicalConsole() {
             {renderActiveTab()}
           </div>
           {renderSectionActionModal()}
+          {renderReviewResolutionModal()}
+          {renderDispatchStatusModal()}
         </section>
       )}
     </main>
