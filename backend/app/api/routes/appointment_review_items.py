@@ -14,9 +14,9 @@ def list_appointment_review_items(
     review_status: str | None = "pending_review",
     limit: int = 100,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[AppointmentReviewItemRead]:
-    return AppointmentReviewItemService(db).list_items(review_status=review_status, limit=limit)
+    return AppointmentReviewItemService(db).list_items(current_user=current_user, review_status=review_status, limit=limit)
 
 
 @router.post("/{item_id}/resolve", response_model=AppointmentReviewItemRead)
@@ -24,10 +24,10 @@ def resolve_appointment_review_item(
     item_id: int,
     payload: AppointmentReviewItemResolveRequest,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> AppointmentReviewItemRead:
     try:
-        return AppointmentReviewItemService(db).resolve_item(item_id, payload)
+        return AppointmentReviewItemService(db).resolve_item(item_id, payload, current_user=current_user)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:
