@@ -173,6 +173,13 @@ export type LoginResponse = {
   roles: string[];
 };
 
+export type ClinicSetting = {
+  id: number;
+  allow_multi_doctor_visibility: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ReminderRule = {
   id: number;
   doctor_id: number | null;

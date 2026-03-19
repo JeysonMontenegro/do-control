@@ -43,6 +43,7 @@ import type {
   CommunicationDispatchSummary,
   CommunicationTemplate,
   CommunicationTemplatePreview,
+  ClinicSetting,
   Diagnosis,
   Doctor,
   Encounter,
@@ -97,6 +98,7 @@ export function ClinicalConsole() {
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null);
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
   const [receptionists, setReceptionists] = useState<Receptionist[]>([]);
+  const [clinicSetting, setClinicSetting] = useState<ClinicSetting | null>(null);
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
@@ -261,6 +263,7 @@ export function ClinicalConsole() {
         loadedDispatchSummary,
         loadedReviewItems,
         loadedReceptionists,
+        loadedClinicSetting,
       ] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPath),
@@ -274,6 +277,7 @@ export function ClinicalConsole() {
         canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
         canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
         isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
+        apiGet<ClinicSetting>("/api/clinic-settings"),
       ]);
 
       setData({ doctors, patients, appointments, encounters });
@@ -283,6 +287,7 @@ export function ClinicalConsole() {
       setCommunicationDispatchSummary(loadedDispatchSummary);
       setAppointmentReviewItems(loadedReviewItems);
       setReceptionists(loadedReceptionists);
+      setClinicSetting(loadedClinicSetting);
       if (!appointmentForm.doctor_id && doctors[0]) {
         setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
@@ -790,6 +795,20 @@ export function ClinicalConsole() {
     }
   }
 
+  async function toggleMultiDoctorVisibility(enabled: boolean) {
+    setMessage("");
+    try {
+      const updatedSetting = await apiPatch<ClinicSetting>("/api/clinic-settings", {
+        allow_multi_doctor_visibility: enabled,
+      });
+      setClinicSetting(updatedSetting);
+      await loadData();
+      setMessage(enabled ? "La visibilidad de varios doctores fue habilitada." : "La visibilidad de varios doctores fue ocultada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la configuración de clínica.");
+    }
+  }
+
   function startDoctorEdit(doctor: Doctor) {
     setEditingDoctorId(doctor.id);
     setDoctorAdminForm({
@@ -1285,6 +1304,8 @@ export function ClinicalConsole() {
     () => communicationDispatches.find((dispatch) => dispatch.id === activeDispatchStatusId) ?? null,
     [activeDispatchStatusId, communicationDispatches],
   );
+  const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
+  const canChooseAmongMultipleDoctors = isAdmin || allowMultiDoctorVisibility;
   const reviewPatientOptions = useMemo(() => {
     if (!activeReviewItem) {
       return [];
@@ -1740,7 +1761,7 @@ export function ClinicalConsole() {
                   </option>
                 ))}
               </select>
-            ) : availableDoctors.length > 1 ? (
+            ) : canChooseAmongMultipleDoctors && availableDoctors.length > 1 ? (
               <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
                 <option value="">Selecciona doctor</option>
                 {availableDoctors.map((doctor) => (
@@ -1749,10 +1770,12 @@ export function ClinicalConsole() {
                   </option>
                 ))}
               </select>
+            ) : !isAdmin && availableDoctors.length > 1 ? (
+              <div className="context-pill">Hay varios doctores asignados. Contacta al administrador para habilitar visibilidad.</div>
             ) : selectedDoctor ? (
               <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div>
             ) : null}
-            {!isAdmin && availableDoctors.length > 1 ? (
+            {!isAdmin && allowMultiDoctorVisibility && availableDoctors.length > 1 ? (
               <div className="context-pill">Recepción con {availableDoctors.length} doctores asignados</div>
             ) : null}
             <div className="chip-row">
@@ -1826,7 +1849,7 @@ export function ClinicalConsole() {
                   ))}
                 </select>
               </label>
-              {isAdmin || availableDoctors.length > 1 ? (
+              {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
                   <span>Doctor</span>
                   <select
@@ -1842,6 +1865,8 @@ export function ClinicalConsole() {
                     ))}
                   </select>
                 </label>
+              ) : !isAdmin && availableDoctors.length > 1 ? (
+                <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>
               ) : selectedDoctor ? (
                 <label>
                   <span>Doctor</span>
@@ -2142,7 +2167,7 @@ export function ClinicalConsole() {
                   ))}
                 </select>
               </label>
-              {isAdmin || availableDoctors.length > 1 ? (
+              {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
                   <span>Doctor</span>
                   <select
@@ -2158,6 +2183,8 @@ export function ClinicalConsole() {
                     ))}
                   </select>
                 </label>
+              ) : !isAdmin && availableDoctors.length > 1 ? (
+                <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>
               ) : selectedDoctor ? (
                 <label>
                   <span>Doctor</span>
@@ -2734,6 +2761,46 @@ export function ClinicalConsole() {
           </div>
         </form>
       </article>
+
+      {isAdmin ? (
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Configuración</p>
+              <h2>Visibilidad de doctores</h2>
+            </div>
+          </div>
+          <div className="detail-panel compact-panel">
+            <strong>{allowMultiDoctorVisibility ? "Visibilidad habilitada" : "Visibilidad restringida"}</strong>
+            <span>
+              {allowMultiDoctorVisibility
+                ? "Recepción puede ver y elegir entre varios doctores asignados."
+                : "Recepción no verá nombres de varios doctores; deberá contactar a administración."}
+            </span>
+          </div>
+          <div className="row-actions">
+            <button
+              type="button"
+              className={allowMultiDoctorVisibility ? "secondary-button" : undefined}
+              onClick={() => toggleMultiDoctorVisibility(true)}
+              disabled={allowMultiDoctorVisibility}
+            >
+              Habilitar visibilidad
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => toggleMultiDoctorVisibility(false)}
+              disabled={!allowMultiDoctorVisibility}
+            >
+              Ocultar nombres
+            </button>
+          </div>
+          <p className="empty-state">
+            Esta configuración solo aplica a la interfaz interna. La integración pública por WhatsApp sigue sin exponer nombres de doctores.
+          </p>
+        </article>
+      ) : null}
 
       <article className="card section-card span-two">
         <div className="subsection-header">

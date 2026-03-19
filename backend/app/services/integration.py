@@ -9,7 +9,6 @@ from app.schemas.appointment import AppointmentCreate
 from app.schemas.communication_dispatch import CommunicationDispatchUpdate
 from app.schemas.encounter import DiagnosisCreate, EncounterCreate, ExamOrderCreate
 from app.schemas.integration import (
-    AvailableDoctorOption,
     AppointmentActionResponse,
     AppointmentCancelRequest,
     AppointmentCancelResponse,
@@ -242,16 +241,6 @@ class IntegrationService:
         ]
         return doctors
 
-    @staticmethod
-    def _serialize_available_doctors(doctors: list[Doctor]) -> list[AvailableDoctorOption]:
-        return [
-            AvailableDoctorOption(
-                id=doctor.id,
-                full_name=f"{doctor.first_name} {doctor.last_name}".strip(),
-            )
-            for doctor in doctors
-        ]
-
     def _resolve_doctor(self, payload: ProposedAppointmentRequest) -> Doctor:
         accessible_doctor_ids = self._requester_accessible_doctor_ids(payload.requester_phone_number)
 
@@ -314,12 +303,11 @@ class IntegrationService:
             and accessible_doctors is not None
             and len(accessible_doctors) > 1
         ):
-            review_message = "El solicitante puede agendar para varios doctores y debe especificar cuál usar."
+            review_message = "Debe especificar el doctor. Contacte a su administrador."
             create_review_item(review_reason="doctor_resolution", review_message=review_message)
             return ProposedAppointmentResponse(
                 status="needs_manual_review",
                 message=review_message,
-                available_doctors=self._serialize_available_doctors(accessible_doctors),
             )
 
         try:

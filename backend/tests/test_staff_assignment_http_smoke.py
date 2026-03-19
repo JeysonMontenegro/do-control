@@ -133,7 +133,41 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
 
         receptionist_doctors_status, receptionist_doctors_body = request_json("/doctors", token=receptionist_token)
         self.assertEqual(receptionist_doctors_status, 200)
-        self.assertEqual(len(receptionist_doctors_body), 2)
+        self.assertEqual(receptionist_doctors_body, [])
+
+        setting_update_status, setting_update_body = request_json(
+            "/clinic-settings",
+            method="PATCH",
+            token=self.admin_token,
+            payload={"allow_multi_doctor_visibility": True},
+        )
+        self.assertEqual(setting_update_status, 200)
+        self.assertTrue(setting_update_body["allow_multi_doctor_visibility"])
+
+        receptionist_visible_status, receptionist_visible_body = request_json("/doctors", token=receptionist_token)
+        self.assertEqual(receptionist_visible_status, 200)
+        self.assertEqual(len(receptionist_visible_body), 2)
+
+        hidden_doctor_status, _hidden_doctor_body = request_json(
+            f"/doctors/{doctor_body['id']}",
+            token=receptionist_token,
+        )
+        self.assertEqual(hidden_doctor_status, 200)
+
+        reset_setting_status, reset_setting_body = request_json(
+            "/clinic-settings",
+            method="PATCH",
+            token=self.admin_token,
+            payload={"allow_multi_doctor_visibility": False},
+        )
+        self.assertEqual(reset_setting_status, 200)
+        self.assertFalse(reset_setting_body["allow_multi_doctor_visibility"])
+
+        hidden_after_reset_status, _hidden_after_reset_body = request_json(
+            f"/doctors/{doctor_body['id']}",
+            token=receptionist_token,
+        )
+        self.assertEqual(hidden_after_reset_status, 404)
 
         patient_status, patient_body = request_json(
             "/patients",

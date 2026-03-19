@@ -5,6 +5,7 @@ from app.api.routes import (
     appointments,
     attachments,
     auth,
+    clinic_settings,
     communication_dispatches,
     communication_templates,
     doctors,
@@ -17,6 +18,7 @@ from app.api.routes import (
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(clinic_settings.router, prefix="/clinic-settings", tags=["clinic-settings"])
 api_router.include_router(appointment_review_items.router, prefix="/appointment-review-items", tags=["appointment-review-items"])
 api_router.include_router(attachments.router, prefix="/attachments", tags=["attachments"])
 api_router.include_router(communication_templates.router, prefix="/communication-templates", tags=["communication-templates"])

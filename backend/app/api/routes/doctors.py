@@ -23,11 +23,11 @@ def list_doctors(
 def get_doctor(
     doctor_id: int,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> DoctorRead:
     try:
         service = DoctorService(db)
-        return service.serialize_doctor(service.get_doctor(doctor_id))
+        return service.serialize_doctor(service.get_doctor(doctor_id, current_user=current_user))
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

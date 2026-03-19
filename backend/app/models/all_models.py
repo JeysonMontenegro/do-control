@@ -1,6 +1,7 @@
 from app.models.appointment import Appointment, AppointmentHistory
 from app.models.appointment_review_item import AppointmentReviewItem
 from app.models.audit import AuditLog
+from app.models.clinic_setting import ClinicSetting
 from app.models.communication_dispatch import CommunicationDispatch
 from app.models.communication_dispatch_attempt import CommunicationDispatchAttempt
 from app.models.communication_template import CommunicationTemplate
@@ -18,6 +19,7 @@ __all__ = [
     "AppointmentHistory",
     "AppointmentReviewItem",
     "AuditLog",
+    "ClinicSetting",
     "CommunicationDispatch",
     "CommunicationDispatchAttempt",
     "CommunicationTemplate",
