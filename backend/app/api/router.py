@@ -9,6 +9,8 @@ from app.api.routes import (
     communication_dispatches,
     communication_templates,
     doctors,
+    email_dispatches,
+    email_templates,
     encounters,
     integrations,
     patients,
@@ -23,6 +25,8 @@ api_router.include_router(appointment_review_items.router, prefix="/appointment-
 api_router.include_router(attachments.router, prefix="/attachments", tags=["attachments"])
 api_router.include_router(communication_templates.router, prefix="/communication-templates", tags=["communication-templates"])
 api_router.include_router(communication_dispatches.router, prefix="/communication-dispatches", tags=["communication-dispatches"])
+api_router.include_router(email_templates.router, prefix="/email-templates", tags=["email-templates"])
+api_router.include_router(email_dispatches.router, prefix="/email-dispatches", tags=["email-dispatches"])
 api_router.include_router(doctors.router, prefix="/doctors", tags=["doctors"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])

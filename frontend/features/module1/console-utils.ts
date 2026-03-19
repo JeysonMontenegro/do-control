@@ -128,6 +128,18 @@ export const confirmationLabel = (value: string) => {
   return labels[value] ?? value;
 };
 
+export const reminderLeadTimeLabel = (minutesBefore: number) => {
+  if (minutesBefore % (24 * 60) === 0) {
+    const days = minutesBefore / (24 * 60);
+    return days === 1 ? "24 horas antes" : `${days} días antes`;
+  }
+  if (minutesBefore % 60 === 0) {
+    const hours = minutesBefore / 60;
+    return hours === 1 ? "1 hora antes" : `${hours} horas antes`;
+  }
+  return `${minutesBefore} minutos antes`;
+};
+
 export const reviewReasonLabel = (value: string) => {
   const labels: Record<string, string> = {
     doctor_resolution: "Resolver doctor",

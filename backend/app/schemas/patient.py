@@ -3,6 +3,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 from app.schemas.appointment import AppointmentSummaryRead
+from app.schemas.receptionist import ReceptionistDoctorRead
 from app.schemas.encounter import EncounterDetailRead
 from app.schemas.file_attachment import FileAttachmentRead
 from app.schemas.patient_phone_number import PatientPhoneNumberRead
@@ -66,6 +67,7 @@ class PatientRead(PatientBase):
     created_at: datetime
     updated_at: datetime
     phone_numbers: list[PatientPhoneNumberRead] = []
+    assigned_doctors: list[ReceptionistDoctorRead] = []
 
 
 class PatientSummaryRead(BaseModel):

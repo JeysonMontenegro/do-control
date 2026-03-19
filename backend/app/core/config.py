@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     minio_bucket: str = "docontrol-files"
     dispatch_generation_job_enabled: bool = True
     dispatch_generation_job_interval_seconds: int = 60
+    brevo_api_key: str | None = None
+    email_from_address: str = "no-reply@docontrol.app"
+    email_from_name: str = "do-control"
+    app_url: str = "http://localhost:13000"
+    email_delivery_enabled: bool = False
+    password_reset_token_expire_minutes: int = 60
+    admin_invite_token_expire_minutes: int = 1440
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

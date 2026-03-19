@@ -147,6 +147,7 @@ class IntegrationService:
                 first_name=first_name,
                 last_name=last_name,
                 primary_phone=payload.primary_phone,
+                doctor_id=payload.doctor_id,
             )
         )
         return IntegrationPatientCreateResponse(
@@ -334,7 +335,12 @@ class IntegrationService:
         elif payload.create_patient_if_missing:
             first_name, last_name = self.patient_service.split_full_name(payload.patient_name)
             patient = self.patient_service.create_patient(
-                PatientCreate(first_name=first_name, last_name=last_name, primary_phone=payload.phone_number)
+                PatientCreate(
+                    first_name=first_name,
+                    last_name=last_name,
+                    primary_phone=payload.phone_number,
+                    doctor_id=doctor.id,
+                )
             )
             patient_id = patient.id
         else:

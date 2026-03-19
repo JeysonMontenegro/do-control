@@ -13,11 +13,20 @@ export type Doctor = {
   first_name: string;
   last_name: string;
   gender: string | null;
+  date_of_birth?: string | null;
   specialty: string | null;
   is_active: boolean;
   license_number?: string | null;
   linked_user_id?: number | null;
   linked_user_email?: string | null;
+  clinics?: {
+    id: number;
+    clinic_name: string;
+    address?: string | null;
+    phone_number?: string | null;
+    notes?: string | null;
+    is_primary: boolean;
+  }[];
   phone_numbers?: { id: number; phone_number: string; is_primary: boolean; is_active: boolean; channel_type: string | null }[];
   assigned_receptionists?: AssignedReceptionist[];
 };
@@ -47,6 +56,12 @@ export type Patient = {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+  assigned_doctors?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    specialty?: string | null;
+  }[];
 };
 
 export type Appointment = {
@@ -290,4 +305,40 @@ export type Receptionist = {
   created_at: string;
   updated_at: string;
   assigned_doctors: ReceptionistAssignedDoctor[];
+};
+
+export type EmailTemplate = {
+  id: number;
+  template_key: string;
+  title: string;
+  subject: string;
+  html_body: string;
+  text_body: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmailTemplatePreview = {
+  rendered_subject: string;
+  rendered_html_body: string;
+  rendered_text_body: string | null;
+};
+
+export type EmailDispatch = {
+  id: number;
+  user_id: number | null;
+  template_id: number | null;
+  recipient_email: string;
+  subject: string;
+  html_body: string;
+  text_body: string | null;
+  template_key: string | null;
+  status: string;
+  provider: string;
+  provider_message_id: string | null;
+  error_message: string | null;
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
 };

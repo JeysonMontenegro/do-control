@@ -42,3 +42,7 @@ class Patient(TimestampMixin, Base):
     encounters = relationship("Encounter", back_populates="patient")
     phone_numbers = relationship("PatientPhoneNumber", back_populates="patient", cascade="all, delete-orphan")
     doctor_assignments = relationship("PatientDoctorAssignment", back_populates="patient", cascade="all, delete-orphan")
+
+    @property
+    def assigned_doctors(self):
+        return [assignment.doctor for assignment in self.doctor_assignments if assignment.doctor is not None]

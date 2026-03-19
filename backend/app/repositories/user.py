@@ -48,6 +48,11 @@ class UserRepository:
     def get_role_by_name(self, name: str) -> Role | None:
         return self.db.scalar(select(Role).where(Role.name == name))
 
+    def create_role(self, role: Role) -> Role:
+        self.db.add(role)
+        self.db.flush()
+        return role
+
     def add_role(self, user_role: UserRole) -> UserRole:
         self.db.add(user_role)
         self.db.flush()

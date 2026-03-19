@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, ForeignKey, String
+from datetime import date
+
+from sqlalchemy import Boolean, Date, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,6 +14,7 @@ class Doctor(TimestampMixin, Base):
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     gender: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     license_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
     linked_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, unique=True)
@@ -19,6 +22,7 @@ class Doctor(TimestampMixin, Base):
 
     appointments = relationship("Appointment", back_populates="doctor")
     encounters = relationship("Encounter", back_populates="doctor")
+    clinics = relationship("DoctorClinic", back_populates="doctor", cascade="all, delete-orphan")
     phone_numbers = relationship("DoctorPhoneNumber", back_populates="doctor", cascade="all, delete-orphan")
     linked_user = relationship("User", back_populates="doctor_profile")
     receptionist_assignments = relationship("ReceptionistDoctorAssignment", back_populates="doctor", cascade="all, delete-orphan")

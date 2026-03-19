@@ -1,12 +1,14 @@
 from sqlalchemy.orm import Session
 
 from app.models.doctor import Doctor
+from app.models.doctor_clinic import DoctorClinic
 from app.models.doctor_phone_number import DoctorPhoneNumber
-from app.models.user import User, UserRole
+from app.models.user import Role, User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead, DoctorUpdate
 from app.services.audit import create_audit_log
+from app.services.email_service import EmailService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password
 
@@ -52,6 +54,7 @@ class DoctorService:
             first_name=doctor.first_name,
             last_name=doctor.last_name,
             gender=doctor.gender,
+            date_of_birth=doctor.date_of_birth,
             license_number=doctor.license_number,
             specialty=doctor.specialty,
             linked_user_id=doctor.linked_user_id,
@@ -59,6 +62,7 @@ class DoctorService:
             is_active=doctor.is_active,
             created_at=doctor.created_at,
             updated_at=doctor.updated_at,
+            clinics=doctor.clinics,
             phone_numbers=doctor.phone_numbers,
             assigned_receptionists=[
                 AssignedReceptionistRead(
@@ -102,11 +106,14 @@ class DoctorService:
 
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
+        clinics_payload = data.pop("clinics", [])
         primary_phone = data.pop("primary_phone", None)
         phone_channel_type = data.pop("phone_channel_type", "whatsapp")
         user_email = data.pop("user_email", None)
         user_password = data.pop("user_password", None)
         doctor = self.repository.create(Doctor(**data))
+        if clinics_payload:
+            self.repository.replace_clinics(doctor, [DoctorClinic(**clinic_data) for clinic_data in clinics_payload])
         if primary_phone:
             self.repository.add_phone_number(
                 DoctorPhoneNumber(
@@ -124,7 +131,7 @@ class DoctorService:
                 raise ValidationError("A user with that email already exists.")
             doctor_role = self.user_repository.get_role_by_name("doctor")
             if doctor_role is None:
-                raise ValidationError("Doctor role not found.")
+                doctor_role = self.user_repository.create_role(Role(name="doctor", description="Doctor"))
             user = self.user_repository.create(
                 User(
                     email=user_email,
@@ -147,6 +154,8 @@ class DoctorService:
         )
         self.db.commit()
         self.db.refresh(doctor)
+        if doctor.linked_user is not None:
+            EmailService(self.db).send_welcome_email(doctor.linked_user, temporary_password=user_password)
         return doctor
 
     def update_doctor(self, doctor_id: int, payload: DoctorUpdate) -> Doctor:
@@ -155,11 +164,15 @@ class DoctorService:
             raise NotFoundError("Doctor not found.")
 
         updates = payload.model_dump(exclude_unset=True)
+        clinics_payload = updates.pop("clinics", None) if "clinics" in updates else None
         primary_phone = updates.pop("primary_phone", None) if "primary_phone" in updates else None
         user_password = updates.pop("user_password", None) if "user_password" in updates else None
 
         for field, value in updates.items():
             setattr(doctor, field, value)
+
+        if clinics_payload is not None:
+            self.repository.replace_clinics(doctor, [DoctorClinic(**clinic_data) for clinic_data in clinics_payload])
 
         if primary_phone is not None:
             self.repository.deactivate_primary_phone_numbers(doctor.id)

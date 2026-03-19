@@ -28,6 +28,8 @@ class PatientService:
     def create_patient(self, payload: PatientCreate, *, accessible_doctor_ids: set[int] | None = None) -> Patient:
         data = payload.model_dump()
         scoped_doctor_id = self._resolve_scoped_doctor_id(accessible_doctor_ids, data.pop("doctor_id", None))
+        if scoped_doctor_id is None:
+            raise ConflictError("Debe seleccionar el doctor responsable del paciente.")
         data["medical_record_number"] = data.get("medical_record_number") or self.repository.next_medical_record_number()
         patient = Patient(**data)
         duplicate = self.repository.find_duplicate(patient)
@@ -50,11 +52,12 @@ class PatientService:
             entity_id=str(created.id),
             after_data={"medical_record_number": created.medical_record_number},
         )
-        if scoped_doctor_id is not None:
-            self.repository.ensure_doctor_assignment(created.id, scoped_doctor_id)
+        self.repository.ensure_doctor_assignment(created.id, scoped_doctor_id)
         self.db.commit()
-        self.db.refresh(created)
-        return created
+        refreshed = self.repository.get(created.id)
+        if refreshed is None:
+            raise NotFoundError("Patient not found.")
+        return refreshed
 
     def split_full_name(self, full_name: str) -> tuple[str, str]:
         normalized = " ".join(full_name.split())

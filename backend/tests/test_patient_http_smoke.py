@@ -45,6 +45,7 @@ class PatientHttpSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.doctor_token = login("doctor@docontrol.local", "Doctor123!")
+        cls.admin_token = login("admin@docontrol.local", "ChangeMe123!")
 
     def test_doctor_can_create_and_update_patient(self) -> None:
         unique_suffix = str(int(time.time() * 1000) % 10000000)
@@ -82,6 +83,46 @@ class PatientHttpSmokeTests(unittest.TestCase):
         self.assertIsInstance(updated_patient, dict)
         self.assertEqual(updated_patient["first_name"], "Paciente Editado")
         self.assertEqual(updated_patient["notes"], "Actualizado por doctor")
+
+    def test_admin_must_select_doctor_when_creating_patient(self) -> None:
+        doctors_status, doctors_body = request_json("/doctors", token=self.admin_token)
+        self.assertEqual(doctors_status, 200)
+        self.assertIsInstance(doctors_body, list)
+        self.assertTrue(doctors_body)
+        doctor_id = doctors_body[0]["id"]
+
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        unique_phone = f"559{int(time.time() * 1000) % 10000000:07d}"
+
+        create_without_doctor_status, create_without_doctor_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "medical_record_number": f"EXP-ADMIN-{unique_suffix}",
+                "first_name": "Paciente",
+                "last_name": f"Admin{unique_suffix}",
+                "primary_phone": unique_phone,
+            },
+        )
+        self.assertEqual(create_without_doctor_status, 409)
+        self.assertEqual(create_without_doctor_body["detail"], "Debe seleccionar el doctor responsable del paciente.")
+
+        create_with_doctor_status, create_with_doctor_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "medical_record_number": f"EXP-ADMIN-OK-{unique_suffix}",
+                "first_name": "Paciente",
+                "last_name": f"AdminDoctor{unique_suffix}",
+                "primary_phone": f"556{int(time.time() * 1000) % 10000000:07d}",
+                "doctor_id": doctor_id,
+            },
+        )
+        self.assertEqual(create_with_doctor_status, 201)
+        self.assertIsInstance(create_with_doctor_body, dict)
+        self.assertEqual(create_with_doctor_body["assigned_doctors"][0]["id"], doctor_id)
 
 
 if __name__ == "__main__":

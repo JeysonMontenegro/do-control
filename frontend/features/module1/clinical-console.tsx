@@ -26,6 +26,7 @@ import {
   hasAnyRole,
   lastDispatchStatus,
   nowPlusMinutes,
+  reminderLeadTimeLabel,
   reviewReasonLabel,
   startOfDay,
   startOfMonthGrid,
@@ -46,6 +47,9 @@ import type {
   ClinicSetting,
   Diagnosis,
   Doctor,
+  EmailDispatch,
+  EmailTemplate,
+  EmailTemplatePreview,
   Encounter,
   ExamOrder,
   LoginResponse,
@@ -64,6 +68,27 @@ type LoadState = {
 };
 
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
+type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "doctores" | "recepcion";
+type DoctorRosterTab = "activos" | "inactivos";
+type DoctorClinicForm = {
+  clinic_name: string;
+  address: string;
+  phone_number: string;
+  notes: string;
+  is_primary: boolean;
+};
+type DoctorAdminForm = {
+  first_name: string;
+  last_name: string;
+  gender: string;
+  date_of_birth: string;
+  specialty: string;
+  license_number: string;
+  primary_phone: string;
+  user_email: string;
+  user_password: string;
+  clinics: DoctorClinicForm[];
+};
 
 const initialLoadState: LoadState = {
   doctors: [],
@@ -71,6 +96,27 @@ const initialLoadState: LoadState = {
   appointments: [],
   encounters: [],
 };
+
+const emptyDoctorClinic = (): DoctorClinicForm => ({
+  clinic_name: "",
+  address: "",
+  phone_number: "",
+  notes: "",
+  is_primary: false,
+});
+
+const createDoctorAdminForm = (): DoctorAdminForm => ({
+  first_name: "",
+  last_name: "",
+  gender: "male",
+  date_of_birth: "",
+  specialty: "",
+  license_number: "",
+  primary_phone: "",
+  user_email: "",
+  user_password: "",
+  clinics: [emptyDoctorClinic()],
+});
 
 export function ClinicalConsole() {
   const [data, setData] = useState<LoadState>(initialLoadState);
@@ -83,6 +129,8 @@ export function ClinicalConsole() {
   const [currentUserGender, setCurrentUserGender] = useState<string | null>(null);
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
+  const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
+  const [doctorRosterTab, setDoctorRosterTab] = useState<DoctorRosterTab>("activos");
   const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
@@ -103,6 +151,8 @@ export function ClinicalConsole() {
   const [receptionists, setReceptionists] = useState<Receptionist[]>([]);
   const [clinicSetting, setClinicSetting] = useState<ClinicSetting | null>(null);
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [emailDispatches, setEmailDispatches] = useState<EmailDispatch[]>([]);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
@@ -115,6 +165,7 @@ export function ClinicalConsole() {
   const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
   const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
+  const [emailTemplatePreview, setEmailTemplatePreview] = useState<EmailTemplatePreview | null>(null);
   const [dispatchFilters, setDispatchFilters] = useState({
     status_filter: "",
     channel: "",
@@ -124,8 +175,8 @@ export function ClinicalConsole() {
     doctor_id: "",
     channel: "whatsapp",
     trigger_type: "before_appointment",
-    minutes_before: "120",
-    template_key: "appointment_2h",
+    minutes_before: "1440",
+    template_key: CONFIRMATION_TEMPLATE_KEY,
     is_active: true,
   });
   const [templateForm, setTemplateForm] = useState({
@@ -136,6 +187,15 @@ export function ClinicalConsole() {
     body: DEFAULT_CONFIRMATION_BODY,
     is_active: true,
   });
+  const [emailTemplateForm, setEmailTemplateForm] = useState({
+    template_key: "welcome_email",
+    title: "Bienvenida",
+    subject: "Bienvenido a {app_name}",
+    html_body: "<p>Hola {recipient_name},</p>",
+    text_body: "Hola {recipient_name}",
+    is_active: true,
+  });
+  const [testEmailRecipient, setTestEmailRecipient] = useState("");
   const [patientForm, setPatientForm] = useState({
     medical_record_number: "",
     first_name: "",
@@ -144,6 +204,7 @@ export function ClinicalConsole() {
     national_id: "",
     tax_id: "",
     email: "",
+    doctor_id: "",
   });
   const [patientEditForm, setPatientEditForm] = useState({
     first_name: "",
@@ -184,17 +245,10 @@ export function ClinicalConsole() {
   const [examOrders, setExamOrders] = useState<ExamOrder[]>([
     { exam_name: "", exam_category: null, instructions: null },
   ]);
-  const [doctorAdminForm, setDoctorAdminForm] = useState({
-    first_name: "",
-    last_name: "",
-    gender: "male",
-    specialty: "",
-    license_number: "",
-    primary_phone: "",
-    user_email: "",
-    user_password: "",
-  });
+  const [doctorAdminForm, setDoctorAdminForm] = useState<DoctorAdminForm>(createDoctorAdminForm());
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
+  const [activeDoctorPage, setActiveDoctorPage] = useState(1);
+  const [inactiveDoctorPage, setInactiveDoctorPage] = useState(1);
   const [receptionistForm, setReceptionistForm] = useState({
     first_name: "",
     last_name: "",
@@ -205,6 +259,11 @@ export function ClinicalConsole() {
     doctor_ids: [] as number[],
   });
   const [editingReceptionistId, setEditingReceptionistId] = useState<number | null>(null);
+  const [showReceptionistModal, setShowReceptionistModal] = useState(false);
+  const [selectedReceptionistId, setSelectedReceptionistId] = useState<number | null>(null);
+  const [receptionistDoctorSearch, setReceptionistDoctorSearch] = useState("");
+  const [activeReceptionistPage, setActiveReceptionistPage] = useState(1);
+  const [inactiveReceptionistPage, setInactiveReceptionistPage] = useState(1);
   const [activeReviewItemId, setActiveReviewItemId] = useState<number | null>(null);
   const [activeDispatchStatusId, setActiveDispatchStatusId] = useState<number | null>(null);
   const [reviewResolutionForm, setReviewResolutionForm] = useState<{
@@ -270,6 +329,8 @@ export function ClinicalConsole() {
         loadedReviewItems,
         loadedReceptionists,
         loadedClinicSetting,
+        loadedEmailTemplates,
+        loadedEmailDispatches,
       ] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPathWithScope),
@@ -284,6 +345,8 @@ export function ClinicalConsole() {
         canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
         isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
         apiGet<ClinicSetting>("/api/clinic-settings"),
+        isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
+        isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
       ]);
 
       setData({ doctors, patients, appointments, encounters });
@@ -294,6 +357,8 @@ export function ClinicalConsole() {
       setAppointmentReviewItems(loadedReviewItems);
       setReceptionists(loadedReceptionists);
       setClinicSetting(loadedClinicSetting);
+      setEmailTemplates(loadedEmailTemplates);
+      setEmailDispatches(loadedEmailDispatches);
       if (!appointmentForm.doctor_id && doctors[0]) {
         setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
       }
@@ -498,7 +563,7 @@ export function ClinicalConsole() {
       await apiPost<Patient>("/api/patients", {
         ...patientForm,
         national_id: patientForm.national_id || null,
-        doctor_id: scopedDoctorId,
+        doctor_id: patientForm.doctor_id ? Number(patientForm.doctor_id) : scopedDoctorId,
       });
       setPatientForm({
         medical_record_number: "",
@@ -508,6 +573,7 @@ export function ClinicalConsole() {
         national_id: "",
         tax_id: "",
         email: "",
+        doctor_id: hasSingleDoctorContext ? String(availableDoctors[0]?.id ?? "") : "",
       });
       setActiveSectionAction(null);
       await loadData();
@@ -773,14 +839,66 @@ export function ClinicalConsole() {
         doctor_id: "",
         channel: "whatsapp",
         trigger_type: "before_appointment",
-        minutes_before: "120",
-        template_key: "appointment_2h",
+        minutes_before: "1440",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
         is_active: true,
       });
       await loadData();
       setMessage("Regla de recordatorio creada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear la regla.");
+    }
+  }
+
+  async function activateDefault24HourReminder() {
+    setMessage("");
+    try {
+      const templatePayload = {
+        doctor_id: null,
+        channel: "whatsapp",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        title: templateForm.title || DEFAULT_CONFIRMATION_TITLE,
+        body: templateForm.body || DEFAULT_CONFIRMATION_BODY,
+        is_active: true,
+      };
+
+      const generalConfirmationTemplate = communicationTemplates.find(
+        (template) => template.template_key === CONFIRMATION_TEMPLATE_KEY && template.doctor_id === null,
+      );
+
+      if (generalConfirmationTemplate) {
+        await apiPatch<CommunicationTemplate>(`/api/communication-templates/${generalConfirmationTemplate.id}`, templatePayload);
+      } else {
+        await apiPost<CommunicationTemplate>("/api/communication-templates", templatePayload);
+      }
+
+      const generalRule = reminderRules.find((rule) => rule.doctor_id === null && rule.trigger_type === "before_appointment");
+      const rulePayload = {
+        doctor_id: null,
+        channel: "whatsapp",
+        trigger_type: "before_appointment",
+        minutes_before: 1440,
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        is_active: true,
+      };
+
+      if (generalRule) {
+        await apiPatch<ReminderRule>(`/api/reminder-rules/${generalRule.id}`, rulePayload);
+      } else {
+        await apiPost<ReminderRule>("/api/reminder-rules", rulePayload);
+      }
+
+      setReminderRuleForm((current) => ({
+        ...current,
+        doctor_id: "",
+        minutes_before: "1440",
+        template_key: CONFIRMATION_TEMPLATE_KEY,
+        is_active: true,
+      }));
+      await loadData();
+      setMessage("La regla general de 24 horas quedó activa.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo activar la regla general de 24 horas.");
     }
   }
 
@@ -792,9 +910,19 @@ export function ClinicalConsole() {
         first_name: doctorAdminForm.first_name,
         last_name: doctorAdminForm.last_name,
         gender: doctorAdminForm.gender,
+        date_of_birth: doctorAdminForm.date_of_birth || null,
         specialty: doctorAdminForm.specialty || null,
         license_number: doctorAdminForm.license_number || null,
         primary_phone: doctorAdminForm.primary_phone || null,
+        clinics: doctorAdminForm.clinics
+          .filter((clinic) => clinic.clinic_name.trim())
+          .map((clinic, index) => ({
+            clinic_name: clinic.clinic_name.trim(),
+            address: clinic.address.trim() || null,
+            phone_number: clinic.phone_number.trim() || null,
+            notes: clinic.notes.trim() || null,
+            is_primary: clinic.is_primary || index === 0,
+          })),
         ...(editingDoctorId
           ? { user_password: doctorAdminForm.user_password || undefined }
           : { user_email: doctorAdminForm.user_email || null, user_password: doctorAdminForm.user_password || null }),
@@ -830,6 +958,7 @@ export function ClinicalConsole() {
       } else {
         await apiPost<Receptionist>("/api/receptionists", payload);
       }
+      setSelectedReceptionistId(editingReceptionistId);
       resetReceptionistForm();
       await loadData();
       setMessage(editingReceptionistId ? "Recepcionista actualizada." : "Recepcionista registrada.");
@@ -880,29 +1009,69 @@ export function ClinicalConsole() {
       first_name: doctor.first_name,
       last_name: doctor.last_name,
       gender: doctor.gender ?? "other",
+      date_of_birth: doctor.date_of_birth ?? "",
       specialty: doctor.specialty ?? "",
       license_number: doctor.license_number ?? "",
       primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "",
       user_email: doctor.linked_user_email ?? "",
       user_password: "",
+      clinics: doctor.clinics?.length
+        ? doctor.clinics.map((clinic) => ({
+            clinic_name: clinic.clinic_name,
+            address: clinic.address ?? "",
+            phone_number: clinic.phone_number ?? "",
+            notes: clinic.notes ?? "",
+            is_primary: clinic.is_primary,
+          }))
+        : [emptyDoctorClinic()],
     });
   }
 
   function resetDoctorAdminForm() {
     setEditingDoctorId(null);
-    setDoctorAdminForm({
-      first_name: "",
-      last_name: "",
-      gender: "male",
-      specialty: "",
-      license_number: "",
-      primary_phone: "",
-      user_email: "",
-      user_password: "",
+    setDoctorAdminForm(createDoctorAdminForm());
+  }
+
+  function updateDoctorClinic(index: number, field: keyof DoctorClinicForm, value: string | boolean) {
+    setDoctorAdminForm((current) => {
+      const clinics = current.clinics.map((clinic, clinicIndex) => {
+        if (clinicIndex !== index) {
+          return clinic;
+        }
+        if (field === "is_primary" && value === true) {
+          return { ...clinic, is_primary: true };
+        }
+        return { ...clinic, [field]: value };
+      });
+      if (field === "is_primary" && value === true) {
+        return {
+          ...current,
+          clinics: clinics.map((clinic, clinicIndex) => ({ ...clinic, is_primary: clinicIndex === index })),
+        };
+      }
+      return { ...current, clinics };
+    });
+  }
+
+  function addDoctorClinic() {
+    setDoctorAdminForm((current) => ({
+      ...current,
+      clinics: [...current.clinics, emptyDoctorClinic()],
+    }));
+  }
+
+  function removeDoctorClinic(index: number) {
+    setDoctorAdminForm((current) => {
+      const nextClinics = current.clinics.filter((_, clinicIndex) => clinicIndex !== index);
+      return {
+        ...current,
+        clinics: nextClinics.length ? nextClinics : [emptyDoctorClinic()],
+      };
     });
   }
 
   function startReceptionistEdit(receptionist: Receptionist) {
+    setSelectedReceptionistId(receptionist.id);
     setEditingReceptionistId(receptionist.id);
     setReceptionistForm({
       first_name: receptionist.first_name,
@@ -913,6 +1082,8 @@ export function ClinicalConsole() {
       password: "",
       doctor_ids: receptionist.assigned_doctors.map((doctor) => doctor.id),
     });
+    setReceptionistDoctorSearch("");
+    setShowReceptionistModal(true);
   }
 
   function resetReceptionistForm() {
@@ -926,6 +1097,8 @@ export function ClinicalConsole() {
       password: "",
       doctor_ids: [],
     });
+    setReceptionistDoctorSearch("");
+    setShowReceptionistModal(false);
   }
 
   async function toggleReminderRule(rule: ReminderRule) {
@@ -1007,6 +1180,89 @@ export function ClinicalConsole() {
       setMessage(`Plantilla ${template.is_active ? "desactivada" : "activada"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo actualizar la plantilla.");
+    }
+  }
+
+  async function saveEmailTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      const existingTemplate = emailTemplates.find((template) => template.template_key === emailTemplateForm.template_key);
+      const payload = {
+        title: emailTemplateForm.title,
+        subject: emailTemplateForm.subject,
+        html_body: emailTemplateForm.html_body,
+        text_body: emailTemplateForm.text_body || null,
+        is_active: emailTemplateForm.is_active,
+      };
+      if (existingTemplate) {
+        await apiPatch<EmailTemplate>(`/api/email-templates/${existingTemplate.id}`, payload);
+        setMessage("Plantilla de correo actualizada.");
+      } else {
+        await apiPost<EmailTemplate>("/api/email-templates", {
+          template_key: emailTemplateForm.template_key,
+          ...payload,
+        });
+        setMessage("Plantilla de correo creada.");
+      }
+      await loadData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo guardar la plantilla de correo.");
+    }
+  }
+
+  async function previewEmailTemplate() {
+    setMessage("");
+    try {
+      const preview = await apiPost<EmailTemplatePreview>("/api/email-templates/preview", {
+        subject: emailTemplateForm.subject,
+        html_body: emailTemplateForm.html_body,
+        text_body: emailTemplateForm.text_body || null,
+        variables: {
+          app_name: "do-control",
+          recipient_name: selectedSummary ? `${selectedSummary.patient.first_name} ${selectedSummary.patient.last_name}` : "Paciente Demo",
+          first_name: selectedSummary?.patient.first_name ?? "Paciente",
+          last_name: selectedSummary?.patient.last_name ?? "Demo",
+          email: selectedSummary?.patient.email ?? currentUserEmail ?? "usuario@demo.com",
+          temporary_password: "Temp123456",
+          reset_link: `${API_URL}/reset-password-demo`,
+          invite_link: `${API_URL}/activate-admin-demo`,
+          expires_in_minutes: "60",
+        },
+      });
+      setEmailTemplatePreview(preview);
+      setMessage("Vista previa de correo generada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa del correo.");
+    }
+  }
+
+  async function resendEmailDispatch(dispatchId: number) {
+    setMessage("");
+    try {
+      await apiPost<EmailDispatch>(`/api/email-dispatches/${dispatchId}/resend`, {});
+      await loadData();
+      setMessage("Correo reenviado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el correo.");
+    }
+  }
+
+  async function sendTestEmail() {
+    if (!testEmailRecipient.trim()) {
+      setMessage("Ingresa un correo de prueba.");
+      return;
+    }
+    setMessage("");
+    try {
+      await apiPost<EmailDispatch>("/api/email-dispatches/test", {
+        recipient_email: testEmailRecipient.trim(),
+        template_key: emailTemplateForm.template_key,
+      });
+      await loadData();
+      setMessage("Correo de prueba enviado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo enviar el correo de prueba.");
     }
   }
 
@@ -1361,6 +1617,7 @@ export function ClinicalConsole() {
   const inactiveDoctors = useMemo(() => data.doctors.filter((doctor) => !doctor.is_active), [data.doctors]);
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
   const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
+  const teamPageSize = 6;
   const activeReviewItem = useMemo(
     () => appointmentReviewItems.find((item) => item.id === activeReviewItemId) ?? null,
     [activeReviewItemId, appointmentReviewItems],
@@ -1384,6 +1641,35 @@ export function ClinicalConsole() {
     }
     return fullName;
   }, [currentRoles, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
+  const paginatedActiveDoctors = useMemo(
+    () => activeDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
+    [activeDoctorPage, activeDoctors, teamPageSize],
+  );
+  const paginatedInactiveDoctors = useMemo(
+    () => inactiveDoctors.slice((inactiveDoctorPage - 1) * teamPageSize, inactiveDoctorPage * teamPageSize),
+    [inactiveDoctorPage, inactiveDoctors, teamPageSize],
+  );
+  const paginatedActiveReceptionists = useMemo(
+    () => activeReceptionists.slice((activeReceptionistPage - 1) * teamPageSize, activeReceptionistPage * teamPageSize),
+    [activeReceptionistPage, activeReceptionists, teamPageSize],
+  );
+  const paginatedInactiveReceptionists = useMemo(
+    () => inactiveReceptionists.slice((inactiveReceptionistPage - 1) * teamPageSize, inactiveReceptionistPage * teamPageSize),
+    [inactiveReceptionistPage, inactiveReceptionists, teamPageSize],
+  );
+  const selectedReceptionist = useMemo(
+    () => receptionists.find((receptionist) => receptionist.id === selectedReceptionistId) ?? activeReceptionists[0] ?? null,
+    [activeReceptionists, receptionists, selectedReceptionistId],
+  );
+  const filteredDoctorOptions = useMemo(() => {
+    const search = receptionistDoctorSearch.trim().toLowerCase();
+    if (!search) {
+      return data.doctors;
+    }
+    return data.doctors.filter((doctor) =>
+      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""}`.toLowerCase().includes(search),
+    );
+  }, [data.doctors, receptionistDoctorSearch]);
   const reviewPatientOptions = useMemo(() => {
     if (!activeReviewItem) {
       return [];
@@ -1435,6 +1721,16 @@ export function ClinicalConsole() {
   );
   const availableDoctors = activeDoctors;
   const hasSingleDoctorContext = availableDoctors.length === 1;
+  const doctorNameById = useMemo(
+    () =>
+      new Map(
+        data.doctors.map((doctor) => [
+          doctor.id,
+          `Dr. ${doctor.first_name} ${doctor.last_name}`.trim(),
+        ]),
+      ),
+    [data.doctors],
+  );
 
   const scopedDoctorId = useMemo(() => {
     if (currentRoles.includes("doctor")) {
@@ -1447,6 +1743,10 @@ export function ClinicalConsole() {
     () =>
       reminderRules.filter((rule) => rule.is_active && (scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)),
     [reminderRules, scopedDoctorId],
+  );
+  const generalReminderRule = useMemo(
+    () => reminderRules.find((rule) => rule.doctor_id === null && rule.trigger_type === "before_appointment") ?? null,
+    [reminderRules],
   );
 
   const scopedUpcomingAppointments = useMemo(() => {
@@ -1521,8 +1821,11 @@ export function ClinicalConsole() {
       if (encounterForm.doctor_id !== onlyDoctorId) {
         setEncounterForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
       }
+      if (patientForm.doctor_id !== onlyDoctorId) {
+        setPatientForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
+      }
     }
-  }, [appointmentForm.doctor_id, availableDoctors, doctorFilter, encounterForm.doctor_id, hasSingleDoctorContext]);
+  }, [appointmentForm.doctor_id, availableDoctors, doctorFilter, encounterForm.doctor_id, hasSingleDoctorContext, patientForm.doctor_id]);
 
   useEffect(() => {
     if (!confirmationTemplate || templateForm.body.trim()) {
@@ -2011,6 +2314,7 @@ export function ClinicalConsole() {
               <tr>
                 <th>Expediente</th>
                 <th>Paciente</th>
+                <th>{isAdmin ? "Doctor(es)" : "Doctor"}</th>
                 <th>Teléfono</th>
                 <th>Creado</th>
                 <th>Estado</th>
@@ -2026,6 +2330,11 @@ export function ClinicalConsole() {
                   <td>{patient.medical_record_number}</td>
                   <td>
                     {patient.first_name} {patient.last_name}
+                  </td>
+                  <td>
+                    {patient.assigned_doctors?.length
+                      ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
+                      : "Sin asignación"}
                   </td>
                   <td>{patient.primary_phone}</td>
                   <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
@@ -2077,6 +2386,12 @@ export function ClinicalConsole() {
               <div className="two-column-grid">
                 <span>Nombre: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
                 <span>Teléfono: {selectedSummary.patient.primary_phone}</span>
+                <span>
+                  Doctor(es):{" "}
+                  {selectedSummary.patient.assigned_doctors?.length
+                    ? selectedSummary.patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
+                    : "Sin asignación"}
+                </span>
                 <span>DPI: {selectedSummary.patient.national_id ?? "Sin registro"}</span>
                 <span>Estado: {selectedSummary.patient.is_active ? "Activo" : "Inactivo"}</span>
               </div>
@@ -2799,536 +3114,830 @@ export function ClinicalConsole() {
     );
   };
 
-  const renderGestionTab = () => (
-    <section className="tab-layout">
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Configuración</p>
-            <h2>Mensaje de confirmación</h2>
-          </div>
-          {selectedDoctor ? <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div> : null}
-        </div>
-        <form className="form-card compact-form" onSubmit={saveConfirmationTemplate}>
-          <label>
-            <span>Título interno</span>
-            <input
-              value={templateForm.title}
-              onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))}
-              placeholder={DEFAULT_CONFIRMATION_TITLE}
-            />
-          </label>
-          <label>
-            <span>Mensaje</span>
-            <textarea
-              value={templateForm.body}
-              onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
-              placeholder={DEFAULT_CONFIRMATION_BODY}
-              required
-            />
-          </label>
-          <p className="empty-state">
-            Variables disponibles: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"} y {"{appointment_time}"}.
-          </p>
-          {templatePreview ? <div className="message-preview">{templatePreview.rendered_message}</div> : null}
-          <div className="row-actions">
-            <button type="button" className="secondary-button" onClick={previewConfirmationTemplate}>
-              Vista previa
-            </button>
-            <button type="submit">Guardar mensaje</button>
-          </div>
-        </form>
-      </article>
+  const renderGestionTab = () => {
+    const gestionTabs: Array<{ id: GestionSubtab; label: string }> = [
+      { id: "resumen", label: "Resumen" },
+      { id: "mensajes", label: "Mensajes" },
+      { id: "recordatorios", label: "Recordatorios" },
+      ...(isAdmin ? [{ id: "correos" as GestionSubtab, label: "Correos" }] : []),
+      ...(isAdmin ? [{ id: "doctores" as GestionSubtab, label: "Doctores" }, { id: "recepcion" as GestionSubtab, label: "Recepción" }] : []),
+    ];
 
-      {isAdmin ? (
-        <article className="card section-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Configuración</p>
-              <h2>Visibilidad de doctores</h2>
-            </div>
-          </div>
-          <div className="detail-panel compact-panel">
-            <strong>{allowMultiDoctorVisibility ? "Visibilidad habilitada" : "Visibilidad restringida"}</strong>
-            <span>
-              {allowMultiDoctorVisibility
-                ? "Recepción puede ver y elegir entre varios doctores asignados."
-                : "Recepción no verá nombres de varios doctores; deberá contactar a administración."}
-            </span>
-          </div>
-          <div className="row-actions">
-            <button
-              type="button"
-              className={allowMultiDoctorVisibility ? "secondary-button" : undefined}
-              onClick={() => toggleMultiDoctorVisibility(true)}
-              disabled={allowMultiDoctorVisibility}
-            >
-              Habilitar visibilidad
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => toggleMultiDoctorVisibility(false)}
-              disabled={!allowMultiDoctorVisibility}
-            >
-              Ocultar nombres
-            </button>
-          </div>
-          <p className="empty-state">
-            Esta configuración solo aplica a la interfaz interna. La integración pública por WhatsApp sigue sin exponer nombres de doctores.
-          </p>
-        </article>
-      ) : null}
+    const renderPager = (page: number, totalItems: number, onChange: (page: number) => void) => {
+      const totalPages = Math.max(1, Math.ceil(totalItems / teamPageSize));
+      if (totalPages <= 1) {
+        return null;
+      }
+      return (
+        <div className="pagination-bar">
+          <button type="button" className="secondary-button" onClick={() => onChange(page - 1)} disabled={page <= 1}>
+            Anterior
+          </button>
+          <span>
+            Página {page} de {totalPages}
+          </span>
+          <button type="button" className="secondary-button" onClick={() => onChange(page + 1)} disabled={page >= totalPages}>
+            Siguiente
+          </button>
+        </div>
+      );
+    };
 
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Resumen</p>
-            <h2>Seguimiento de recordatorios</h2>
-          </div>
-        </div>
-        <div className="summary-grid">
-          <div className="metric-card" title="Citas futuras con reglas activas de recordatorio.">
-            <strong>{remindersScheduledCount}</strong>
-            <span>Recordatorios por enviar</span>
-          </div>
-          <div className="metric-card" title="Citas futuras que ya quedaron confirmadas.">
-            <strong>{confirmedUpcomingCount}</strong>
-            <span>Confirmadas</span>
-          </div>
-          <div className="metric-card" title="Citas futuras que aún están pendientes de respuesta.">
-            <strong>{unconfirmedUpcomingCount}</strong>
-            <span>Sin confirmar</span>
-          </div>
-          <div className="metric-card" title="Citas futuras canceladas que siguen en agenda histórica.">
-            <strong>{cancelledUpcomingCount}</strong>
-            <span>Canceladas</span>
-          </div>
-        </div>
-        <div className="table-list">
-          {scopedUpcomingAppointments.slice(0, 6).map((appointment) => (
-            <button
-              type="button"
-              className="simple-list-item"
-              key={`gestion-upcoming-${appointment.id}`}
-              onClick={() => {
-                setActiveTab("agenda");
-                toggleAppointmentHistory(appointment.id);
-              }}
-            >
-              <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-              <span>{formatDateTime(appointment.scheduled_start)}</span>
-              {renderAppointmentBadges(appointment)}
-            </button>
-          ))}
-          {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este doctor.</p> : null}
-        </div>
-      </article>
-
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Configuración</p>
-            <h2>Recordatorios automáticos</h2>
-          </div>
-        </div>
-        <form className="form-card compact-form" onSubmit={submitReminderRule}>
-          {isAdmin ? (
-            <label>
-              <span>Doctor</span>
-              <select
-                value={reminderRuleForm.doctor_id}
-                onChange={(event) => setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))}
-              >
-                <option value="">Todos</option>
-                {data.doctors.map((doctor) => (
-                  <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
-                    {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : selectedDoctor ? (
-            <label>
-              <span>Doctor</span>
-              <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
-            </label>
-          ) : null}
-          <label>
-            <span>Minutos antes de la cita</span>
-            <input
-              type="number"
-              value={reminderRuleForm.minutes_before}
-              onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
-            />
-          </label>
-          <button type="submit">Guardar regla</button>
-        </form>
-        <div className="table-list">
-          {reminderRules
-            .filter((rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)
-            .map((rule) => (
-              <div className="simple-list-item" key={`reminder-${rule.id}`}>
-                <strong>{rule.is_active ? "Recordatorio activo" : "Recordatorio inactivo"}</strong>
-                <span>{rule.minutes_before} minutos antes</span>
-                <span>{rule.doctor_id ? "Doctor actual" : "General"}</span>
-                <button type="button" className="secondary-button" onClick={() => toggleReminderRule(rule)}>
-                  {rule.is_active ? "Desactivar" : "Activar"}
-                </button>
-              </div>
-            ))}
-          {!reminderRules.length ? <p className="empty-state">Todavía no hay reglas de recordatorio configuradas.</p> : null}
-        </div>
-      </article>
-
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Configuración</p>
-            <h2>Mensajes activos</h2>
-          </div>
-        </div>
-        <div className="table-list">
-          {communicationTemplates
-            .filter((template) => scopedDoctorId === null || template.doctor_id === null || template.doctor_id === scopedDoctorId)
-            .map((template) => (
-              <div className="simple-list-item" key={`template-${template.id}`}>
-                <strong>{template.title}</strong>
-                <span>{template.template_key === CONFIRMATION_TEMPLATE_KEY ? "Mensaje de confirmación" : "Mensaje automático"}</span>
-                <span>{template.is_active ? "Activo" : "Inactivo"}</span>
-                <div className="message-preview">{template.body}</div>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      setTemplateForm({
-                        doctor_id: template.doctor_id ? String(template.doctor_id) : "",
-                        channel: template.channel,
-                        template_key: template.template_key,
-                        title: template.title,
-                        body: template.body,
-                        is_active: template.is_active,
-                      })
-                    }
-                  >
-                    Usar como base
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
-                    {template.is_active ? "Desactivar" : "Activar"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          {!communicationTemplates.length ? <p className="empty-state">Todavía no hay mensajes configurados.</p> : null}
-        </div>
-      </article>
-
-      {isAdmin ? (
-        <article className="card section-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
-            </div>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
-            <div className="two-column-grid">
-              <label>
-                <span>Nombres</span>
-                <input
-                  value={doctorAdminForm.first_name}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Apellidos</span>
-                <input
-                  value={doctorAdminForm.last_name}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Género</span>
-                <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
-                  <option value="male">Masculino</option>
-                  <option value="female">Femenino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </label>
-              <label>
-                <span>Teléfono principal</span>
-                <input
-                  value={doctorAdminForm.primary_phone}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Especialidad</span>
-                <input
-                  value={doctorAdminForm.specialty}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Colegiado</span>
-                <input
-                  value={doctorAdminForm.license_number}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Correo de acceso</span>
-                <input
-                  type="email"
-                  value={doctorAdminForm.user_email}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))}
-                  disabled={editingDoctorId !== null}
-                />
-              </label>
-              <label>
-                <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-                <input
-                  type="password"
-                  value={doctorAdminForm.user_password}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))}
-                />
-              </label>
-            </div>
-            <div className="row-actions">
-              {editingDoctorId ? (
-                <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
-                  Cancelar edición
-                </button>
-              ) : null}
-              <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
-            </div>
-          </form>
-        </article>
-      ) : null}
-
-      {isAdmin ? (
-        <article className="card section-card span-two">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>{editingReceptionistId ? "Editar recepcionista" : "Registrar recepcionista"}</h2>
-            </div>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitReceptionist}>
-            <div className="two-column-grid">
-              <label>
-                <span>Nombres</span>
-                <input
-                  value={receptionistForm.first_name}
-                  onChange={(event) => setReceptionistForm((current) => ({ ...current, first_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Apellidos</span>
-                <input
-                  value={receptionistForm.last_name}
-                  onChange={(event) => setReceptionistForm((current) => ({ ...current, last_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Género</span>
-                <select value={receptionistForm.gender} onChange={(event) => setReceptionistForm((current) => ({ ...current, gender: event.target.value }))}>
-                  <option value="female">Femenino</option>
-                  <option value="male">Masculino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </label>
-              <label>
-                <span>Teléfono</span>
-                <input
-                  value={receptionistForm.phone_number}
-                  onChange={(event) => setReceptionistForm((current) => ({ ...current, phone_number: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Correo</span>
-                <input
-                  type="email"
-                  value={receptionistForm.email}
-                  onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))}
-                  required
-                  disabled={editingReceptionistId !== null}
-                />
-              </label>
-              <label>
-                <span>{editingReceptionistId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-                <input
-                  type="password"
-                  value={receptionistForm.password}
-                  onChange={(event) => setReceptionistForm((current) => ({ ...current, password: event.target.value }))}
-                  required={editingReceptionistId === null}
-                />
-              </label>
-            </div>
-            <div className="subsection">
-              <strong>Doctores asignados</strong>
-              <div className="table-list">
-                {data.doctors.map((doctor) => (
-                  <label key={`receptionist-doctor-${doctor.id}`} className="simple-list-item">
-                    <span>
-                      <input
-                        type="checkbox"
-                        checked={receptionistForm.doctor_ids.includes(doctor.id)}
-                        onChange={(event) =>
-                          setReceptionistForm((current) => ({
-                            ...current,
-                            doctor_ids: event.target.checked
-                              ? [...current.doctor_ids, doctor.id]
-                              : current.doctor_ids.filter((doctorId) => doctorId !== doctor.id),
-                          }))
-                        }
-                      />
-                    </span>
-                    <strong>
-                      {doctor.first_name} {doctor.last_name}
-                    </strong>
-                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="row-actions">
-              {editingReceptionistId ? (
-                <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
-                  Cancelar edición
-                </button>
-              ) : null}
-              <button type="submit">{editingReceptionistId ? "Actualizar recepcionista" : "Registrar recepcionista"}</button>
-            </div>
-          </form>
-        </article>
-      ) : null}
-
-      {isAdmin ? (
+    return (
+      <section className="tab-layout">
         <article className="card section-card span-three">
           <div className="subsection-header">
             <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>Doctores y recepcionistas</h2>
+              <p className="eyebrow">Configuración</p>
+              <h2>Centro de administración</h2>
             </div>
+            {selectedDoctor ? <div className="context-pill">Contexto: {selectedDoctor.first_name} {selectedDoctor.last_name}</div> : null}
           </div>
-          <div className="table-list">
-            <div className="simple-list-item">
-              <strong>Doctores activos</strong>
-              <span>{activeDoctors.length} registrados para agenda y operación diaria.</span>
-            </div>
-            {activeDoctors.map((doctor) => (
-              <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
-                <strong>
-                  {doctor.first_name} {doctor.last_name}
-                </strong>
-                <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                <span>{doctor.gender === "female" ? "Femenino" : doctor.gender === "male" ? "Masculino" : "Sin género"}</span>
-                <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
-                <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                <span>{doctor.is_active ? "Activo" : "Inactivo"}</span>
-                <span>
-                  {doctor.assigned_receptionists?.length
-                    ? `Recepción: ${doctor.assigned_receptionists.map((item) => `${item.first_name} ${item.last_name}`).join(", ")}`
-                    : "Sin recepcionista asignada"}
-                </span>
+          <div className="chip-row">
+            {gestionTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`filter-chip ${gestionSubtab === tab.id ? "filter-chip-active" : ""}`}
+                onClick={() => setGestionSubtab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </article>
+
+        {gestionSubtab === "resumen" ? (
+          <>
+            {isAdmin ? (
+              <article className="card section-card span-three">
+                <div className="summary-grid">
+                  <div className="metric-card">
+                    <strong>{activeDoctors.length}</strong>
+                    <span>Doctores activos</span>
+                  </div>
+                  <div className="metric-card">
+                    <strong>{activeReceptionists.length}</strong>
+                    <span>Recepcionistas activas</span>
+                  </div>
+                  <div className="metric-card">
+                    <strong>{inactiveDoctors.length + inactiveReceptionists.length}</strong>
+                    <span>Usuarios inactivos</span>
+                  </div>
+                </div>
+              </article>
+            ) : null}
+
+            {isAdmin ? (
+              <article className="card section-card">
+                <div className="subsection-header">
+                  <div>
+                    <p className="eyebrow">Administración</p>
+                    <h2>Visibilidad de doctores</h2>
+                  </div>
+                </div>
+                <div className="detail-panel compact-panel">
+                  <strong>{allowMultiDoctorVisibility ? "Visibilidad habilitada" : "Visibilidad restringida"}</strong>
+                  <span>
+                    {allowMultiDoctorVisibility
+                      ? "Recepción puede ver y elegir entre varios doctores asignados."
+                      : "Recepción no verá nombres de varios doctores; deberá contactar a administración."}
+                  </span>
+                </div>
                 <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>
-                    Editar
+                  <button
+                    type="button"
+                    className={allowMultiDoctorVisibility ? "secondary-button" : undefined}
+                    onClick={() => toggleMultiDoctorVisibility(true)}
+                    disabled={allowMultiDoctorVisibility}
+                  >
+                    Habilitar visibilidad
                   </button>
-                  <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
-                    {doctor.is_active ? "Desactivar" : "Activar"}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => toggleMultiDoctorVisibility(false)}
+                    disabled={!allowMultiDoctorVisibility}
+                  >
+                    Ocultar nombres
+                  </button>
+                </div>
+              </article>
+            ) : null}
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Resumen</p>
+                  <h2>Seguimiento de recordatorios</h2>
+                </div>
+              </div>
+              <div className="summary-grid">
+                <div className="metric-card" title="Citas futuras con reglas activas de recordatorio.">
+                  <strong>{remindersScheduledCount}</strong>
+                  <span>Recordatorios por enviar</span>
+                </div>
+                <div className="metric-card" title="Citas futuras que ya quedaron confirmadas.">
+                  <strong>{confirmedUpcomingCount}</strong>
+                  <span>Confirmadas</span>
+                </div>
+                <div className="metric-card" title="Citas futuras que aún están pendientes de respuesta.">
+                  <strong>{unconfirmedUpcomingCount}</strong>
+                  <span>Sin confirmar</span>
+                </div>
+                <div className="metric-card" title="Citas futuras canceladas que siguen en agenda histórica.">
+                  <strong>{cancelledUpcomingCount}</strong>
+                  <span>Canceladas</span>
+                </div>
+              </div>
+              <div className="table-list">
+                {scopedUpcomingAppointments.slice(0, 6).map((appointment) => (
+                  <button
+                    type="button"
+                    className="simple-list-item"
+                    key={`gestion-upcoming-${appointment.id}`}
+                    onClick={() => {
+                      setActiveTab("agenda");
+                      toggleAppointmentHistory(appointment.id);
+                    }}
+                  >
+                    <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
+                    <span>{formatDateTime(appointment.scheduled_start)}</span>
+                    {renderAppointmentBadges(appointment)}
+                  </button>
+                ))}
+                {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este contexto.</p> : null}
+              </div>
+            </article>
+          </>
+        ) : null}
+
+        {gestionSubtab === "mensajes" ? (
+          <>
+            <article className="card section-card">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Mensajes</p>
+                  <h2>Mensaje de confirmación</h2>
+                </div>
+              </div>
+              <form className="form-card compact-form" onSubmit={saveConfirmationTemplate}>
+                <label>
+                  <span>Título interno</span>
+                  <input
+                    value={templateForm.title}
+                    onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))}
+                    placeholder={DEFAULT_CONFIRMATION_TITLE}
+                  />
+                </label>
+                <label>
+                  <span>Mensaje</span>
+                  <textarea
+                    value={templateForm.body}
+                    onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
+                    placeholder={DEFAULT_CONFIRMATION_BODY}
+                    required
+                  />
+                </label>
+                <p className="empty-state">
+                  Variables disponibles: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"} y {"{appointment_time}"}.
+                </p>
+                {templatePreview ? <div className="message-preview">{templatePreview.rendered_message}</div> : null}
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={previewConfirmationTemplate}>
+                    Vista previa
+                  </button>
+                  <button type="submit">Guardar mensaje</button>
+                </div>
+              </form>
+            </article>
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Mensajes</p>
+                  <h2>Plantillas activas</h2>
+                </div>
+              </div>
+              <div className="table-list">
+                {communicationTemplates
+                  .filter((template) => scopedDoctorId === null || template.doctor_id === null || template.doctor_id === scopedDoctorId)
+                  .map((template) => (
+                    <div className="simple-list-item" key={`template-${template.id}`}>
+                      <strong>{template.title}</strong>
+                      <span>{template.template_key === CONFIRMATION_TEMPLATE_KEY ? "Mensaje de confirmación" : "Mensaje automático"}</span>
+                      <span>{template.is_active ? "Activo" : "Inactivo"}</span>
+                      <div className="message-preview">{template.body}</div>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() =>
+                            setTemplateForm({
+                              doctor_id: template.doctor_id ? String(template.doctor_id) : "",
+                              channel: template.channel,
+                              template_key: template.template_key,
+                              title: template.title,
+                              body: template.body,
+                              is_active: template.is_active,
+                            })
+                          }
+                        >
+                          Usar como base
+                        </button>
+                        <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
+                          {template.is_active ? "Desactivar" : "Activar"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {!communicationTemplates.length ? <p className="empty-state">Todavía no hay mensajes configurados.</p> : null}
+              </div>
+            </article>
+          </>
+        ) : null}
+
+        {gestionSubtab === "recordatorios" ? (
+          <>
+            <article className="card section-card">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Recordatorios</p>
+                  <h2>Regla base de la clínica</h2>
+                </div>
+                {isAdmin ? (
+                  <button type="button" className="secondary-button" onClick={activateDefault24HourReminder}>
+                    Activar regla general 24 horas
+                  </button>
+                ) : null}
+              </div>
+              <div className="summary-grid">
+                <div className="metric-card">
+                  <small>Regla general</small>
+                  <strong>{generalReminderRule?.is_active ? "Activa" : "Pendiente"}</strong>
+                  <span>{generalReminderRule ? reminderLeadTimeLabel(generalReminderRule.minutes_before) : "Recomendada: 24 horas antes"}</span>
+                </div>
+                <div className="metric-card">
+                  <small>Citas cubiertas</small>
+                  <strong>{generalReminderRule?.is_active ? scopedUpcomingAppointments.length : 0}</strong>
+                  <span>Próximas citas que tomarán la regla base</span>
+                </div>
+                <div className="metric-card">
+                  <small>Plantilla usada</small>
+                  <strong>{generalReminderRule?.template_key === CONFIRMATION_TEMPLATE_KEY ? "Confirmación" : generalReminderRule?.template_key ?? "Pendiente"}</strong>
+                  <span>Mensaje enviado 24 horas antes</span>
+                </div>
+              </div>
+              <p className="empty-state">
+                La configuración recomendada es una sola regla general de WhatsApp, 24 horas antes de la cita. Solo crea reglas por doctor si realmente necesitas una excepción.
+              </p>
+              <form className="form-card compact-form" onSubmit={submitReminderRule}>
+                {isAdmin ? (
+                  <label>
+                    <span>Alcance</span>
+                    <select
+                      value={reminderRuleForm.doctor_id}
+                      onChange={(event) => setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                    >
+                      <option value="">General para toda la clínica</option>
+                      {data.doctors.map((doctor) => (
+                        <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
+                          Solo Dr. {doctor.first_name} {doctor.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : selectedDoctor ? (
+                  <label>
+                    <span>Doctor</span>
+                    <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
+                  </label>
+                ) : null}
+                <label>
+                  <span>Momento del recordatorio</span>
+                  <select
+                    value={reminderRuleForm.minutes_before}
+                    onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
+                  >
+                    <option value="1440">24 horas antes</option>
+                    <option value="720">12 horas antes</option>
+                    <option value="120">2 horas antes</option>
+                    <option value="60">1 hora antes</option>
+                    <option value="30">30 minutos antes</option>
+                  </select>
+                </label>
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => setReminderRuleForm((current) => ({ ...current, minutes_before: "1440", doctor_id: "" }))}>
+                    Usar 24 horas
+                  </button>
+                  <button type="submit">Guardar regla</button>
+                </div>
+              </form>
+            </article>
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Recordatorios</p>
+                  <h2>Reglas configuradas</h2>
+                </div>
+              </div>
+              <div className="table-list">
+                {reminderRules
+                  .filter((rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)
+                  .map((rule) => (
+                    <div className="simple-list-item" key={`reminder-${rule.id}`}>
+                      <strong>{rule.doctor_id ? "Regla por doctor" : "Regla general"}</strong>
+                      <span>{reminderLeadTimeLabel(rule.minutes_before)}</span>
+                      <span>
+                        {rule.doctor_id
+                          ? `Asignada a ${doctorNameById.get(rule.doctor_id) ?? `Doctor ${rule.doctor_id}`}`
+                          : "General para toda la clínica"}
+                      </span>
+                      <span>{rule.template_key === CONFIRMATION_TEMPLATE_KEY ? "Usa mensaje de confirmación" : `Plantilla ${rule.template_key}`}</span>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() =>
+                            setReminderRuleForm({
+                              doctor_id: rule.doctor_id ? String(rule.doctor_id) : "",
+                              channel: rule.channel,
+                              trigger_type: rule.trigger_type,
+                              minutes_before: String(rule.minutes_before),
+                              template_key: rule.template_key,
+                              is_active: rule.is_active,
+                            })
+                          }
+                        >
+                          Usar como base
+                        </button>
+                        <button type="button" className="secondary-button" onClick={() => toggleReminderRule(rule)}>
+                          {rule.is_active ? "Desactivar" : "Activar"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {!reminderRules.length ? <p className="empty-state">Todavía no hay reglas de recordatorio configuradas.</p> : null}
+              </div>
+            </article>
+          </>
+        ) : null}
+
+        {gestionSubtab === "correos" && isAdmin ? (
+          <>
+            <article className="card section-card">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Correos</p>
+                  <h2>Plantillas transaccionales</h2>
+                </div>
+              </div>
+              <form className="form-card compact-form" onSubmit={saveEmailTemplate}>
+                <label>
+                  <span>Tipo de correo</span>
+                  <select
+                    value={emailTemplateForm.template_key}
+                    onChange={(event) => {
+                      const template = emailTemplates.find((item) => item.template_key === event.target.value);
+                      if (template) {
+                        setEmailTemplateForm({
+                          template_key: template.template_key,
+                          title: template.title,
+                          subject: template.subject,
+                          html_body: template.html_body,
+                          text_body: template.text_body ?? "",
+                          is_active: template.is_active,
+                        });
+                      } else {
+                        setEmailTemplateForm((current) => ({ ...current, template_key: event.target.value }));
+                      }
+                    }}
+                  >
+                    <option value="welcome_email">Bienvenida</option>
+                    <option value="password_reset_email">Recuperación de contraseña</option>
+                    <option value="admin_invite_email">Invitación de administrador</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Título interno</span>
+                  <input value={emailTemplateForm.title} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, title: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Asunto</span>
+                  <input value={emailTemplateForm.subject} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, subject: event.target.value }))} />
+                </label>
+                <label>
+                  <span>HTML</span>
+                  <textarea value={emailTemplateForm.html_body} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, html_body: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Texto plano</span>
+                  <textarea value={emailTemplateForm.text_body} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, text_body: event.target.value }))} />
+                </label>
+                <p className="empty-state">
+                  Variables disponibles: {"{app_name}"}, {"{recipient_name}"}, {"{email}"}, {"{temporary_password}"}, {"{reset_link}"}, {"{invite_link}"} y {"{expires_in_minutes}"}.
+                </p>
+                {emailTemplatePreview ? (
+                  <div className="detail-stack">
+                    <strong>{emailTemplatePreview.rendered_subject}</strong>
+                    <div className="message-preview">{emailTemplatePreview.rendered_html_body}</div>
+                    {emailTemplatePreview.rendered_text_body ? <div className="message-preview">{emailTemplatePreview.rendered_text_body}</div> : null}
+                  </div>
+                ) : null}
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={previewEmailTemplate}>
+                    Vista previa
+                  </button>
+                  <button type="submit">Guardar plantilla</button>
+                </div>
+              </form>
+              <div className="form-card compact-form">
+                <label>
+                  <span>Correo de prueba</span>
+                  <input
+                    type="email"
+                    value={testEmailRecipient}
+                    onChange={(event) => setTestEmailRecipient(event.target.value)}
+                    placeholder="tu-correo@dominio.com"
+                  />
+                </label>
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={sendTestEmail}>
+                    Enviar correo de prueba
                   </button>
                 </div>
               </div>
-            ))}
-            {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
-            <div className="simple-list-item">
-              <strong>Recepcionistas activas</strong>
-              <span>{activeReceptionists.length} disponibles para gestionar agenda y pacientes.</span>
-            </div>
-            {activeReceptionists.length ? (
-              activeReceptionists.map((receptionist) => (
-                <div className="simple-list-item" key={`receptionist-team-${receptionist.id}`}>
-                  <strong>
-                    Recepción: {receptionist.first_name} {receptionist.last_name}
-                  </strong>
-                  <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
-                  <span>{receptionist.email}</span>
-                  <span>{receptionist.is_active ? "Activa" : "Inactiva"}</span>
-                  <span>
-                    {receptionist.assigned_doctors.length
-                      ? receptionist.assigned_doctors.length === 1
-                        ? `Asiste solo a ${receptionist.assigned_doctors[0].first_name} ${receptionist.assigned_doctors[0].last_name}`
-                        : `Asiste a ${receptionist.assigned_doctors.length} doctores: ${receptionist.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")}`
-                      : "Sin doctores asignados"}
-                  </span>
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>
-                      Editar
-                    </button>
-                    <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(receptionist)}>
-                      {receptionist.is_active ? "Desactivar" : "Activar"}
-                    </button>
-                  </div>
+            </article>
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Correos</p>
+                  <h2>Envíos recientes</h2>
                 </div>
-              ))
-            ) : (
-              <p className="empty-state">No hay recepcionistas activas registradas.</p>
-            )}
-            {inactiveDoctors.length || inactiveReceptionists.length ? (
-              <>
-                <div className="simple-list-item">
-                  <strong>Personal inactivo</strong>
-                  <span>Se conserva para histórico, pero ya no aparece en los selectores de trabajo diario.</span>
-                </div>
-                {inactiveDoctors.map((doctor) => (
-                  <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
-                    <strong>
-                      {doctor.first_name} {doctor.last_name}
-                    </strong>
-                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                    <span>Doctor inactivo</span>
-                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+              </div>
+              <div className="table-list">
+                {emailDispatches.map((dispatch) => (
+                  <div className="simple-list-item" key={`email-dispatch-${dispatch.id}`}>
+                    <strong>{dispatch.subject}</strong>
+                    <span>{dispatch.recipient_email}</span>
+                    <span>{dispatch.template_key ?? "Correo libre"}</span>
+                    <span>{dispatch.status}</span>
+                    <span>{formatDateTime(dispatch.created_at)}</span>
+                    {dispatch.error_message ? <span>{dispatch.error_message}</span> : null}
                     <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>
-                        Editar
-                      </button>
-                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
-                        Activar
+                      <button type="button" className="secondary-button" onClick={() => resendEmailDispatch(dispatch.id)}>
+                        Reenviar correo
                       </button>
                     </div>
                   </div>
                 ))}
-                {inactiveReceptionists.map((receptionist) => (
-                  <div className="simple-list-item" key={`receptionist-team-inactive-${receptionist.id}`}>
-                    <strong>
-                      Recepción: {receptionist.first_name} {receptionist.last_name}
-                    </strong>
+                {!emailDispatches.length ? <p className="empty-state">Todavía no hay correos enviados.</p> : null}
+              </div>
+            </article>
+          </>
+        ) : null}
+
+        {gestionSubtab === "doctores" && isAdmin ? (
+          <>
+            <article className="card section-card">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Equipo clínico</p>
+                  <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
+                </div>
+              </div>
+              <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
+                <div className="two-column-grid">
+                  <label>
+                    <span>Nombres</span>
+                    <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
+                  </label>
+                  <label>
+                    <span>Apellidos</span>
+                    <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
+                  </label>
+                  <label>
+                    <span>Género</span>
+                    <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
+                      <option value="male">Masculino</option>
+                      <option value="female">Femenino</option>
+                      <option value="other">Otro</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Fecha de nacimiento</span>
+                    <input type="date" value={doctorAdminForm.date_of_birth} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>Teléfono principal</span>
+                    <input value={doctorAdminForm.primary_phone} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>Especialidad</span>
+                    <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>Colegiado</span>
+                    <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>Correo de acceso</span>
+                    <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
+                  </label>
+                  <label>
+                    <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
+                    <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
+                  </label>
+                </div>
+                <div className="stack-block">
+                  <div className="subsection-header">
+                    <div>
+                      <p className="eyebrow">Sedes</p>
+                      <h3>Clínicas del doctor</h3>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={addDoctorClinic}>
+                      Agregar clínica
+                    </button>
+                  </div>
+                  <div className="table-list">
+                    {doctorAdminForm.clinics.map((clinic, index) => (
+                      <div className="simple-list-item" key={`doctor-clinic-form-${index}`}>
+                        <div className="two-column-grid">
+                          <label>
+                            <span>Nombre de clínica</span>
+                            <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
+                          </label>
+                          <label>
+                            <span>Teléfono</span>
+                            <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
+                          </label>
+                          <label>
+                            <span>Dirección</span>
+                            <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
+                          </label>
+                          <label>
+                            <span>Notas</span>
+                            <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
+                          </label>
+                        </div>
+                        <div className="row-actions">
+                          <label className="inline-check">
+                            <input
+                              type="checkbox"
+                              checked={clinic.is_primary}
+                              onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
+                            />
+                            <span>Sede principal</span>
+                          </label>
+                          <button type="button" className="secondary-button" onClick={() => removeDoctorClinic(index)}>
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="row-actions">
+                  {editingDoctorId ? (
+                    <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
+                      Cancelar edición
+                    </button>
+                  ) : null}
+                  <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
+                </div>
+              </form>
+            </article>
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Equipo clínico</p>
+                  <h2>Listado de doctores</h2>
+                </div>
+              </div>
+              <div className="chip-row">
+                <button
+                  type="button"
+                  className={`filter-chip ${doctorRosterTab === "activos" ? "filter-chip-active" : ""}`}
+                  onClick={() => setDoctorRosterTab("activos")}
+                >
+                  Activos
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${doctorRosterTab === "inactivos" ? "filter-chip-active" : ""}`}
+                  onClick={() => setDoctorRosterTab("inactivos")}
+                >
+                  Inactivos
+                </button>
+              </div>
+              {doctorRosterTab === "activos" ? (
+                <>
+                  <div className="table-list">
+                    {paginatedActiveDoctors.map((doctor) => (
+                      <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
+                        <strong>{doctor.first_name} {doctor.last_name}</strong>
+                        <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                        <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                        <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
+                        <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                        <span>
+                          {doctor.clinics?.length
+                            ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
+                            : "Sin clínicas registradas"}
+                        </span>
+                        {doctor.clinics?.length ? (
+                          <div className="detail-stack">
+                            {doctor.clinics.map((clinic) => (
+                              <span key={`doctor-clinic-${doctor.id}-${clinic.id}`}>
+                                {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
+                                {clinic.address ? ` · ${clinic.address}` : ""}
+                                {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="row-actions">
+                          <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
+                          <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
+                            Desactivar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
+                  </div>
+                  {renderPager(activeDoctorPage, activeDoctors.length, setActiveDoctorPage)}
+                </>
+              ) : (
+                <>
+                  <div className="table-list">
+                    {paginatedInactiveDoctors.map((doctor) => (
+                      <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
+                        <strong>{doctor.first_name} {doctor.last_name}</strong>
+                        <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                        <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                        <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                        <span>
+                          {doctor.clinics?.length
+                            ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
+                            : "Sin clínicas registradas"}
+                        </span>
+                        {doctor.clinics?.length ? (
+                          <div className="detail-stack">
+                            {doctor.clinics.map((clinic) => (
+                              <span key={`doctor-clinic-inactive-${doctor.id}-${clinic.id}`}>
+                                {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
+                                {clinic.address ? ` · ${clinic.address}` : ""}
+                                {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="row-actions">
+                          <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
+                          <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
+                        </div>
+                      </div>
+                    ))}
+                    {!inactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos registrados.</p> : null}
+                  </div>
+                  {renderPager(inactiveDoctorPage, inactiveDoctors.length, setInactiveDoctorPage)}
+                </>
+              )}
+            </article>
+          </>
+        ) : null}
+
+        {gestionSubtab === "recepcion" && isAdmin ? (
+          <>
+            <article className="card section-card span-three">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Equipo clínico</p>
+                  <h2>Recepción</h2>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    resetReceptionistForm();
+                    setShowReceptionistModal(true);
+                  }}
+                >
+                  Agregar recepcionista
+                </button>
+              </div>
+              <p className="empty-state">
+                Cada recepcionista indica claramente qué doctores atiende. Usa editar para cambiar asignaciones o datos de acceso.
+              </p>
+            </article>
+
+            <article className="card section-card">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Equipo clínico</p>
+                  <h2>Recepcionistas</h2>
+                </div>
+              </div>
+              <div className="table-list">
+                {paginatedActiveReceptionists.map((receptionist) => (
+                  <button
+                    type="button"
+                    className={`simple-list-item ${selectedReceptionist?.id === receptionist.id ? "table-row-active" : ""}`}
+                    key={`receptionist-team-${receptionist.id}`}
+                    onClick={() => setSelectedReceptionistId(receptionist.id)}
+                  >
+                    <strong>Recepción: {receptionist.first_name} {receptionist.last_name}</strong>
+                    <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
                     <span>{receptionist.email}</span>
-                    <span>Recepcionista inactiva</span>
+                    <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
                     <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>
-                        Editar
-                      </button>
+                      <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>Editar</button>
                       <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(receptionist)}>
-                        Activar
+                        {receptionist.is_active ? "Desactivar" : "Activar"}
                       </button>
                     </div>
-                  </div>
+                  </button>
                 ))}
-              </>
-            ) : null}
-          </div>
-        </article>
-      ) : null}
-    </section>
-  );
+                {!activeReceptionists.length ? <p className="empty-state">No hay recepcionistas activas registradas.</p> : null}
+              </div>
+              {renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
+            </article>
+
+            <article className="card section-card span-two">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Detalle</p>
+                  <h2>{selectedReceptionist ? `Recepción ${selectedReceptionist.first_name} ${selectedReceptionist.last_name}` : "Selecciona una recepcionista"}</h2>
+                </div>
+              </div>
+              {selectedReceptionist ? (
+                <div className="detail-stack">
+                  <div className="detail-panel compact-panel">
+                    <strong>Datos principales</strong>
+                    <span>Correo: {selectedReceptionist.email}</span>
+                    <span>Teléfono: {selectedReceptionist.phone_number ?? "Sin teléfono"}</span>
+                    <span>Estado: {selectedReceptionist.is_active ? "Activa" : "Inactiva"}</span>
+                  </div>
+                  <div className="detail-panel compact-panel">
+                    <strong>Doctores asignados</strong>
+                    {selectedReceptionist.assigned_doctors.length ? (
+                      selectedReceptionist.assigned_doctors.map((doctor) => (
+                        <div className="timeline-item" key={`selected-receptionist-doctor-${doctor.id}`}>
+                          <strong>Dr. {doctor.first_name} {doctor.last_name}</strong>
+                          <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">Esta recepcionista no tiene doctores asignados.</p>
+                    )}
+                  </div>
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(selectedReceptionist)}>
+                      Editar recepcionista
+                    </button>
+                    <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(selectedReceptionist)}>
+                      {selectedReceptionist.is_active ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="empty-state">Selecciona una recepcionista del listado para ver sus doctores asignados.</p>
+              )}
+              {inactiveReceptionists.length ? (
+                <>
+                  <div className="subsection-header">
+                    <div>
+                      <p className="eyebrow">Histórico</p>
+                      <h2>Recepcionistas inactivas</h2>
+                    </div>
+                  </div>
+                  <div className="table-list">
+                    {paginatedInactiveReceptionists.map((receptionist) => (
+                      <button
+                        type="button"
+                        className="simple-list-item"
+                        key={`receptionist-team-inactive-${receptionist.id}`}
+                        onClick={() => setSelectedReceptionistId(receptionist.id)}
+                      >
+                        <strong>Recepción: {receptionist.first_name} {receptionist.last_name}</strong>
+                        <span>{receptionist.email}</span>
+                        <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
+                      </button>
+                    ))}
+                  </div>
+                  {renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
+                </>
+              ) : null}
+            </article>
+          </>
+        ) : null}
+      </section>
+    );
+  };
 
   const renderActiveTab = () => {
     if (activeTab === "agenda") {
@@ -3369,6 +3978,21 @@ export function ClinicalConsole() {
             </div>
             <form className="form-card" onSubmit={submitPatient}>
               <div className="three-column-grid">
+                <label>
+                  <span>Doctor responsable</span>
+                  <select
+                    value={patientForm.doctor_id}
+                    onChange={(event) => setPatientForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                    required
+                  >
+                    <option value="">Selecciona doctor</option>
+                    {availableDoctors.map((doctor) => (
+                      <option key={`patient-create-doctor-${doctor.id}`} value={doctor.id}>
+                        Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label>
                   <span>Expediente</span>
                   <input
@@ -3747,6 +4371,97 @@ export function ClinicalConsole() {
     );
   };
 
+  const renderReceptionistModal = () => {
+    if (!showReceptionistModal || !isAdmin) {
+      return null;
+    }
+
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true">
+        <div className="modal-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>{editingReceptionistId ? "Editar recepcionista" : "Registrar recepcionista"}</h2>
+            </div>
+            <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
+              Cerrar
+            </button>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitReceptionist}>
+            <div className="two-column-grid">
+              <label>
+                <span>Nombres</span>
+                <input value={receptionistForm.first_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, first_name: event.target.value }))} required />
+              </label>
+              <label>
+                <span>Apellidos</span>
+                <input value={receptionistForm.last_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, last_name: event.target.value }))} required />
+              </label>
+              <label>
+                <span>Género</span>
+                <select value={receptionistForm.gender} onChange={(event) => setReceptionistForm((current) => ({ ...current, gender: event.target.value }))}>
+                  <option value="female">Femenino</option>
+                  <option value="male">Masculino</option>
+                  <option value="other">Otro</option>
+                </select>
+              </label>
+              <label>
+                <span>Teléfono</span>
+                <input value={receptionistForm.phone_number} onChange={(event) => setReceptionistForm((current) => ({ ...current, phone_number: event.target.value }))} />
+              </label>
+              <label>
+                <span>Correo</span>
+                <input type="email" value={receptionistForm.email} onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))} required disabled={editingReceptionistId !== null} />
+              </label>
+              <label>
+                <span>{editingReceptionistId ? "Nueva contraseña" : "Contraseña inicial"}</span>
+                <input type="password" value={receptionistForm.password} onChange={(event) => setReceptionistForm((current) => ({ ...current, password: event.target.value }))} required={editingReceptionistId === null} />
+              </label>
+            </div>
+            <div className="subsection">
+              <strong>Doctores asignados</strong>
+              <input
+                className="search-input"
+                placeholder="Filtrar doctores por nombre o especialidad"
+                value={receptionistDoctorSearch}
+                onChange={(event) => setReceptionistDoctorSearch(event.target.value)}
+              />
+              <div className="table-list">
+                {filteredDoctorOptions.map((doctor) => (
+                  <label key={`receptionist-doctor-${doctor.id}`} className="simple-list-item">
+                    <span>
+                      <input
+                        type="checkbox"
+                        checked={receptionistForm.doctor_ids.includes(doctor.id)}
+                        onChange={(event) =>
+                          setReceptionistForm((current) => ({
+                            ...current,
+                            doctor_ids: event.target.checked
+                              ? [...current.doctor_ids, doctor.id]
+                              : current.doctor_ids.filter((doctorId) => doctorId !== doctor.id),
+                          }))
+                        }
+                      />
+                    </span>
+                    <strong>Dr. {doctor.first_name} {doctor.last_name}</strong>
+                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
+                Cancelar
+              </button>
+              <button type="submit">{editingReceptionistId ? "Actualizar recepcionista" : "Registrar recepcionista"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -3828,6 +4543,7 @@ export function ClinicalConsole() {
           {renderSectionActionModal()}
           {renderReviewResolutionModal()}
           {renderDispatchStatusModal()}
+          {renderReceptionistModal()}
         </section>
       )}
     </main>

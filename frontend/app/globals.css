@@ -424,6 +424,14 @@ textarea {
   justify-items: end;
 }
 
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+}
+
 .secondary-button,
 .filter-chip,
 .month-event,
@@ -840,6 +848,23 @@ textarea {
   display: grid;
   gap: 8px;
   padding-top: 4px;
+}
+
+.stack-block {
+  display: grid;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.inline-check {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  color: var(--text) !important;
+}
+
+.inline-check input {
+  width: auto;
 }
 
 .badge {

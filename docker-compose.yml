@@ -21,7 +21,7 @@ services:
     build:
       context: ./backend
     env_file:
-      - .env.example
+      - .env
     depends_on:
       - postgres
       - minio
@@ -35,7 +35,7 @@ services:
     build:
       context: ./frontend
     env_file:
-      - .env.example
+      - .env
     depends_on:
       - backend
     volumes:

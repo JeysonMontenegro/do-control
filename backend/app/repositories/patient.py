@@ -23,7 +23,10 @@ class PatientRepository:
     def get(self, patient_id: int) -> Patient | None:
         statement = (
             select(Patient)
-            .options(selectinload(Patient.phone_numbers))
+            .options(
+                selectinload(Patient.phone_numbers),
+                selectinload(Patient.doctor_assignments).selectinload(PatientDoctorAssignment.doctor),
+            )
             .where(Patient.id == patient_id)
         )
         return self.db.scalar(statement)
@@ -31,7 +34,10 @@ class PatientRepository:
     def list(self, query: str | None = None) -> List[Patient]:
         statement: Select[tuple[Patient]] = (
             select(Patient)
-            .options(selectinload(Patient.phone_numbers))
+            .options(
+                selectinload(Patient.phone_numbers),
+                selectinload(Patient.doctor_assignments).selectinload(PatientDoctorAssignment.doctor),
+            )
             .outerjoin(PatientPhoneNumber, PatientPhoneNumber.patient_id == Patient.id)
             .order_by(Patient.last_name, Patient.first_name)
         )
@@ -52,8 +58,11 @@ class PatientRepository:
     def list_for_doctor(self, doctor_id: int, query: str | None = None) -> List[Patient]:
         statement: Select[tuple[Patient]] = (
             select(Patient)
+            .options(
+                selectinload(Patient.phone_numbers),
+                selectinload(Patient.doctor_assignments).selectinload(PatientDoctorAssignment.doctor),
+            )
             .join(PatientDoctorAssignment, PatientDoctorAssignment.patient_id == Patient.id)
-            .options(selectinload(Patient.phone_numbers))
             .outerjoin(PatientPhoneNumber, PatientPhoneNumber.patient_id == Patient.id)
             .where(PatientDoctorAssignment.doctor_id == doctor_id)
             .order_by(Patient.last_name, Patient.first_name)

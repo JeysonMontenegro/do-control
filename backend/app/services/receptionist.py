@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
 
-from app.models.user import ReceptionistDoctorAssignment, User, UserRole
+from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead, ReceptionistDoctorRead, ReceptionistUpdate
 from app.services.audit import create_audit_log
+from app.services.email_service import EmailService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password
 
@@ -48,7 +49,7 @@ class ReceptionistService:
 
         receptionist_role = self.user_repository.get_role_by_name("receptionist")
         if receptionist_role is None:
-            raise ValidationError("Receptionist role not found.")
+            receptionist_role = self.user_repository.create_role(Role(name="receptionist", description="Receptionist"))
 
         doctors = []
         for doctor_id in payload.doctor_ids:
@@ -85,6 +86,7 @@ class ReceptionistService:
         refreshed = self.user_repository.get(user.id)
         if refreshed is None:
             raise NotFoundError("Receptionist not found after creation.")
+        EmailService(self.db).send_welcome_email(refreshed, temporary_password=payload.password)
         return self._serialize_receptionist(refreshed)
 
     def update_receptionist(self, receptionist_id: int, payload: ReceptionistUpdate) -> ReceptionistRead:

@@ -58,14 +58,26 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "first_name": "Jeyson",
                 "last_name": f"Montenegro{unique_suffix}",
                 "gender": "male",
+                "date_of_birth": "1988-05-10",
                 "specialty": "Medicina general",
                 "license_number": f"COL-{unique_suffix}",
                 "primary_phone": f"401{int(unique_suffix) % 10000000:07d}",
                 "user_email": f"dr.montenegro.{unique_suffix}@docontrol.local",
                 "user_password": "DoctorNew123!",
+                "clinics": [
+                    {
+                        "clinic_name": f"Clínica Centro {unique_suffix}",
+                        "address": "Zona 10",
+                        "phone_number": "55510000",
+                        "notes": "Sede principal",
+                        "is_primary": True,
+                    }
+                ],
             },
         )
         self.assertEqual(doctor_status, 201)
+        self.assertEqual(doctor_body["date_of_birth"], "1988-05-10")
+        self.assertEqual(len(doctor_body["clinics"]), 1)
 
         extra_doctor_status, extra_doctor_body = request_json(
             "/doctors",
@@ -106,10 +118,22 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
             payload={
                 "specialty": "Medicina interna",
                 "primary_phone": f"404{int(unique_suffix) % 10000000:07d}",
+                "date_of_birth": "1988-06-11",
+                "clinics": [
+                    {
+                        "clinic_name": f"Clínica Norte {unique_suffix}",
+                        "address": "Zona 15",
+                        "phone_number": "55520000",
+                        "notes": "Horario vespertino",
+                        "is_primary": True,
+                    }
+                ],
             },
         )
         self.assertEqual(doctor_update_status, 200)
         self.assertEqual(doctor_update_body["specialty"], "Medicina interna")
+        self.assertEqual(doctor_update_body["date_of_birth"], "1988-06-11")
+        self.assertEqual(doctor_update_body["clinics"][0]["clinic_name"], f"Clínica Norte {unique_suffix}")
 
         receptionist_update_status, receptionist_update_body = request_json(
             f"/receptionists/{receptionist_body['id']}",
@@ -117,11 +141,26 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
             token=self.admin_token,
             payload={
                 "phone_number": f"405{int(unique_suffix) % 10000000:07d}",
-                "doctor_ids": [doctor_body["id"], 1],
+                "doctor_ids": [doctor_body["id"], extra_doctor_body["id"]],
             },
         )
         self.assertEqual(receptionist_update_status, 200)
         self.assertEqual(len(receptionist_update_body["assigned_doctors"]), 2)
+
+        blocked_doctor_status, blocked_doctor_body = request_json(
+            "/doctors",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "first_name": "Bloqueado",
+                "last_name": f"Doctor{unique_suffix}",
+                "gender": "male",
+                "specialty": "Dermatología",
+                "license_number": f"COL-BLOCK-{unique_suffix}",
+                "primary_phone": f"407{int(unique_suffix) % 10000000:07d}",
+            },
+        )
+        self.assertEqual(blocked_doctor_status, 201)
 
         doctor_token = login(doctor_body["linked_user_email"], "DoctorNew123!")
         receptionist_token = login(receptionist_body["email"], "ReceptionNew123!")
@@ -188,7 +227,7 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
         self.assertEqual(scoped_patients_body[0]["id"], patient_body["id"])
 
         other_scope_status, other_scope_body = request_json(
-            "/patients?doctor_id=1",
+            f"/patients?doctor_id={extra_doctor_body['id']}",
             token=receptionist_token,
         )
         self.assertEqual(other_scope_status, 200)
@@ -219,7 +258,7 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
             token=receptionist_token,
             payload={
                 "patient_id": patient_body["id"],
-                "doctor_id": extra_doctor_body["id"],
+                "doctor_id": blocked_doctor_body["id"],
                 "scheduled_start": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=11)).isoformat(),
                 "scheduled_end": (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=11, minutes=30)).isoformat(),
                 "appointment_type": "follow_up",
@@ -267,6 +306,7 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "first_name": "Paciente",
                 "last_name": f"Inactivo{unique_suffix}",
                 "primary_phone": f"602{int(unique_suffix) % 10000000:07d}",
+                "doctor_id": doctor_body["id"],
                 "national_id": None,
                 "tax_id": None,
                 "email": None,

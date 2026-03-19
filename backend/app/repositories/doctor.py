@@ -4,6 +4,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.doctor import Doctor
+from app.models.doctor_clinic import DoctorClinic
 from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.models.user import ReceptionistDoctorAssignment, User
 
@@ -22,6 +23,7 @@ class DoctorRepository:
             select(Doctor)
             .options(
                 selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.clinics),
                 selectinload(Doctor.linked_user),
                 selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
             )
@@ -33,6 +35,7 @@ class DoctorRepository:
         statement: Select[tuple[Doctor]] = (
             select(Doctor)
             .options(selectinload(Doctor.phone_numbers))
+            .options(selectinload(Doctor.clinics))
             .options(selectinload(Doctor.linked_user))
             .options(selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user))
             .outerjoin(DoctorPhoneNumber, DoctorPhoneNumber.doctor_id == Doctor.id)
@@ -61,6 +64,7 @@ class DoctorRepository:
             select(Doctor)
             .options(
                 selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.clinics),
                 selectinload(Doctor.linked_user),
                 selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
             )
@@ -75,6 +79,7 @@ class DoctorRepository:
             .join(ReceptionistDoctorAssignment, ReceptionistDoctorAssignment.doctor_id == Doctor.id)
             .options(
                 selectinload(Doctor.phone_numbers),
+                selectinload(Doctor.clinics),
                 selectinload(Doctor.linked_user),
                 selectinload(Doctor.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.user),
             )
@@ -96,3 +101,10 @@ class DoctorRepository:
         for phone_number in phone_numbers:
             phone_number.is_primary = False
             phone_number.is_active = False
+
+    def replace_clinics(self, doctor: Doctor, clinics: List[DoctorClinic]) -> None:
+        doctor.clinics.clear()
+        self.db.flush()
+        for clinic in clinics:
+            doctor.clinics.append(clinic)
+        self.db.flush()
