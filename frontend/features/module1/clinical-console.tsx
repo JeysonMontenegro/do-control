@@ -78,7 +78,7 @@ type LoadState = {
 };
 
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
-type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "doctores" | "recepcion";
+type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
 type MessagesSubtab = "paciente" | "citas" | "operacion";
 type DoctorRosterTab = "activos" | "inactivos";
 type DoctorClinicForm = {
@@ -108,6 +108,22 @@ const initialLoadState: LoadState = {
   encounters: [],
 };
 
+const DEFAULT_COUNTRY_DIAL_CODE = "+502";
+
+const normalizePhoneWithDefaultCountry = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.startsWith("+")) {
+    return normalized;
+  }
+  if (normalized.startsWith("502")) {
+    return `+${normalized}`;
+  }
+  return `${DEFAULT_COUNTRY_DIAL_CODE}${normalized}`;
+};
+
 const emptyDoctorClinic = (): DoctorClinicForm => ({
   clinic_name: "",
   address: "",
@@ -123,7 +139,7 @@ const createDoctorAdminForm = (): DoctorAdminForm => ({
   date_of_birth: "",
   specialty: "",
   license_number: "",
-  primary_phone: "",
+  primary_phone: DEFAULT_COUNTRY_DIAL_CODE,
   user_email: "",
   user_password: "",
   clinics: [emptyDoctorClinic()],
@@ -511,13 +527,17 @@ export function ClinicalConsole() {
     if (!isAuthenticated) {
       return;
     }
+    const defaultPhone =
+      (currentRoles.includes("admin") || currentRoles.includes("doctor")) && !currentUserPhoneNumber
+        ? DEFAULT_COUNTRY_DIAL_CODE
+        : currentUserPhoneNumber ?? "";
     setProfileForm((current) => ({
       ...current,
       first_name: currentUserFirstName,
       last_name: currentUserLastName,
       display_name: currentUserDisplayName ?? "",
       gender: currentUserGender ?? "",
-      phone_number: currentUserPhoneNumber ?? "",
+      phone_number: defaultPhone,
     }));
   }, [
     currentUserDisplayName,
@@ -525,6 +545,7 @@ export function ClinicalConsole() {
     currentUserGender,
     currentUserLastName,
     currentUserPhoneNumber,
+    currentRoles,
     isAuthenticated,
   ]);
 
@@ -764,7 +785,7 @@ export function ClinicalConsole() {
         last_name: profileForm.last_name.trim(),
         display_name: profileForm.display_name.trim() || null,
         gender: profileForm.gender || null,
-        phone_number: profileForm.phone_number.trim() || null,
+        phone_number: profileForm.phone_number.trim() ? normalizePhoneWithDefaultCountry(profileForm.phone_number) : null,
         current_password: profileForm.current_password || null,
         new_password: profileForm.new_password || null,
       });
@@ -1199,7 +1220,7 @@ export function ClinicalConsole() {
         date_of_birth: doctorAdminForm.date_of_birth || null,
         specialty: doctorAdminForm.specialty || null,
         license_number: doctorAdminForm.license_number || null,
-        primary_phone: doctorAdminForm.primary_phone || null,
+        primary_phone: doctorAdminForm.primary_phone.trim() ? normalizePhoneWithDefaultCountry(doctorAdminForm.primary_phone) : null,
         clinics: doctorAdminForm.clinics
           .filter((clinic) => clinic.clinic_name.trim())
           .map((clinic, index) => ({
@@ -1298,7 +1319,7 @@ export function ClinicalConsole() {
       date_of_birth: doctor.date_of_birth ?? "",
       specialty: doctor.specialty ?? "",
       license_number: doctor.license_number ?? "",
-      primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "",
+      primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? DEFAULT_COUNTRY_DIAL_CODE,
       user_email: doctor.linked_user_email ?? "",
       user_password: "",
       clinics: doctor.clinics?.length
@@ -3529,34 +3550,255 @@ export function ClinicalConsole() {
     );
   };
 
+  const renderPager = (page: number, totalItems: number, onChange: (page: number) => void) => {
+    const totalPages = Math.max(1, Math.ceil(totalItems / teamPageSize));
+    if (totalPages <= 1) {
+      return null;
+    }
+    return (
+      <div className="pagination-bar">
+        <button type="button" className="secondary-button" onClick={() => onChange(page - 1)} disabled={page <= 1}>
+          Anterior
+        </button>
+        <span>
+          Página {page} de {totalPages}
+        </span>
+        <button type="button" className="secondary-button" onClick={() => onChange(page + 1)} disabled={page >= totalPages}>
+          Siguiente
+        </button>
+      </div>
+    );
+  };
+
+  const renderDoctoresTab = () => {
+    if (!isAdmin) {
+      return renderAgendaTab();
+    }
+
+    return (
+      <section className="tab-layout">
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
+            </div>
+          </div>
+          <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
+            <div className="two-column-grid">
+              <label>
+                <span>Nombres</span>
+                <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
+              </label>
+              <label>
+                <span>Apellidos</span>
+                <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
+              </label>
+              <label>
+                <span>Género</span>
+                <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
+                  <option value="male">Masculino</option>
+                  <option value="female">Femenino</option>
+                  <option value="other">Otro</option>
+                </select>
+              </label>
+              <label>
+                <span>Fecha de nacimiento</span>
+                <input type="date" value={doctorAdminForm.date_of_birth} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
+              </label>
+              <label>
+                <span>Teléfono principal</span>
+                <input
+                  value={doctorAdminForm.primary_phone}
+                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))}
+                  placeholder="+502"
+                />
+              </label>
+              <label>
+                <span>Especialidad</span>
+                <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
+              </label>
+              <label>
+                <span>Colegiado</span>
+                <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
+              </label>
+              <label>
+                <span>Correo de acceso</span>
+                <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
+              </label>
+              <label>
+                <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
+                <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
+              </label>
+            </div>
+            <div className="stack-block">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Sedes</p>
+                  <h3>Clínicas del doctor</h3>
+                </div>
+                <button type="button" className="secondary-button" onClick={addDoctorClinic}>
+                  Agregar clínica
+                </button>
+              </div>
+              <div className="table-list">
+                {doctorAdminForm.clinics.map((clinic, index) => (
+                  <div className="simple-list-item" key={`doctor-clinic-form-${index}`}>
+                    <div className="two-column-grid">
+                      <label>
+                        <span>Nombre de clínica</span>
+                        <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
+                      </label>
+                      <label>
+                        <span>Teléfono</span>
+                        <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
+                      </label>
+                      <label>
+                        <span>Dirección</span>
+                        <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
+                      </label>
+                      <label>
+                        <span>Notas</span>
+                        <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
+                      </label>
+                    </div>
+                    <div className="row-actions">
+                      <label className="inline-check">
+                        <input
+                          type="checkbox"
+                          checked={clinic.is_primary}
+                          onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
+                        />
+                        <span>Sede principal</span>
+                      </label>
+                      <button type="button" className="secondary-button" onClick={() => removeDoctorClinic(index)}>
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="row-actions">
+              {editingDoctorId ? (
+                <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
+                  Cancelar edición
+                </button>
+              ) : null}
+              <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
+            </div>
+          </form>
+        </article>
+
+        <article className="card section-card span-two">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Equipo clínico</p>
+              <h2>Listado de doctores</h2>
+            </div>
+          </div>
+          <div className="chip-row">
+            <button
+              type="button"
+              className={`filter-chip ${doctorRosterTab === "activos" ? "filter-chip-active" : ""}`}
+              onClick={() => setDoctorRosterTab("activos")}
+            >
+              Activos
+            </button>
+            <button
+              type="button"
+              className={`filter-chip ${doctorRosterTab === "inactivos" ? "filter-chip-active" : ""}`}
+              onClick={() => setDoctorRosterTab("inactivos")}
+            >
+              Inactivos
+            </button>
+          </div>
+          {doctorRosterTab === "activos" ? (
+            <>
+              <div className="table-list">
+                {paginatedActiveDoctors.map((doctor) => (
+                  <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
+                    <strong>{doctor.first_name} {doctor.last_name}</strong>
+                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                    <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                    <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
+                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                    <span>
+                      {doctor.clinics?.length
+                        ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
+                        : "Sin clínicas registradas"}
+                    </span>
+                    {doctor.clinics?.length ? (
+                      <div className="detail-stack">
+                        {doctor.clinics.map((clinic) => (
+                          <span key={`doctor-clinic-${doctor.id}-${clinic.id}`}>
+                            {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
+                            {clinic.address ? ` · ${clinic.address}` : ""}
+                            {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="row-actions">
+                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
+                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
+                        Desactivar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
+              </div>
+              {renderPager(activeDoctorPage, activeDoctors.length, setActiveDoctorPage)}
+            </>
+          ) : (
+            <>
+              <div className="table-list">
+                {paginatedInactiveDoctors.map((doctor) => (
+                  <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
+                    <strong>{doctor.first_name} {doctor.last_name}</strong>
+                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
+                    <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
+                    <span>
+                      {doctor.clinics?.length
+                        ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
+                        : "Sin clínicas registradas"}
+                    </span>
+                    {doctor.clinics?.length ? (
+                      <div className="detail-stack">
+                        {doctor.clinics.map((clinic) => (
+                          <span key={`doctor-clinic-inactive-${doctor.id}-${clinic.id}`}>
+                            {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
+                            {clinic.address ? ` · ${clinic.address}` : ""}
+                            {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="row-actions">
+                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
+                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
+                    </div>
+                  </div>
+                ))}
+                {!inactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos registrados.</p> : null}
+              </div>
+              {renderPager(inactiveDoctorPage, inactiveDoctors.length, setInactiveDoctorPage)}
+            </>
+          )}
+        </article>
+      </section>
+    );
+  };
+
   const renderGestionTab = () => {
     const gestionTabs: Array<{ id: GestionSubtab; label: string }> = [
       { id: "resumen", label: "Resumen" },
       { id: "mensajes", label: "Mensajes" },
       { id: "recordatorios", label: "Recordatorios" },
-      ...(isAdmin ? [{ id: "correos" as GestionSubtab, label: "Correos" }] : []),
-      ...(isAdmin ? [{ id: "doctores" as GestionSubtab, label: "Doctores" }, { id: "recepcion" as GestionSubtab, label: "Recepción" }] : []),
+      ...(isAdmin ? [{ id: "correos" as GestionSubtab, label: "Correos" }, { id: "recepcion" as GestionSubtab, label: "Recepción" }] : []),
     ];
-
-    const renderPager = (page: number, totalItems: number, onChange: (page: number) => void) => {
-      const totalPages = Math.max(1, Math.ceil(totalItems / teamPageSize));
-      if (totalPages <= 1) {
-        return null;
-      }
-      return (
-        <div className="pagination-bar">
-          <button type="button" className="secondary-button" onClick={() => onChange(page - 1)} disabled={page <= 1}>
-            Anterior
-          </button>
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <button type="button" className="secondary-button" onClick={() => onChange(page + 1)} disabled={page >= totalPages}>
-            Siguiente
-          </button>
-        </div>
-      );
-    };
 
     return (
       <section className="tab-layout">
@@ -3642,7 +3884,7 @@ export function ClinicalConsole() {
                       <input
                         value={profileForm.phone_number}
                         onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))}
-                        placeholder="50258420737"
+                        placeholder="+50258420737"
                       />
                     </label>
                     <label>
@@ -4236,218 +4478,6 @@ export function ClinicalConsole() {
           </>
         ) : null}
 
-        {gestionSubtab === "doctores" && isAdmin ? (
-          <>
-            <article className="card section-card">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Equipo clínico</p>
-                  <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
-                </div>
-              </div>
-              <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
-                <div className="two-column-grid">
-                  <label>
-                    <span>Nombres</span>
-                    <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
-                  </label>
-                  <label>
-                    <span>Apellidos</span>
-                    <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
-                  </label>
-                  <label>
-                    <span>Género</span>
-                    <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
-                      <option value="male">Masculino</option>
-                      <option value="female">Femenino</option>
-                      <option value="other">Otro</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Fecha de nacimiento</span>
-                    <input type="date" value={doctorAdminForm.date_of_birth} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
-                  </label>
-                  <label>
-                    <span>Teléfono principal</span>
-                    <input value={doctorAdminForm.primary_phone} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))} />
-                  </label>
-                  <label>
-                    <span>Especialidad</span>
-                    <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
-                  </label>
-                  <label>
-                    <span>Colegiado</span>
-                    <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
-                  </label>
-                  <label>
-                    <span>Correo de acceso</span>
-                    <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
-                  </label>
-                  <label>
-                    <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-                    <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
-                  </label>
-                </div>
-                <div className="stack-block">
-                  <div className="subsection-header">
-                    <div>
-                      <p className="eyebrow">Sedes</p>
-                      <h3>Clínicas del doctor</h3>
-                    </div>
-                    <button type="button" className="secondary-button" onClick={addDoctorClinic}>
-                      Agregar clínica
-                    </button>
-                  </div>
-                  <div className="table-list">
-                    {doctorAdminForm.clinics.map((clinic, index) => (
-                      <div className="simple-list-item" key={`doctor-clinic-form-${index}`}>
-                        <div className="two-column-grid">
-                          <label>
-                            <span>Nombre de clínica</span>
-                            <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
-                          </label>
-                          <label>
-                            <span>Teléfono</span>
-                            <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
-                          </label>
-                          <label>
-                            <span>Dirección</span>
-                            <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
-                          </label>
-                          <label>
-                            <span>Notas</span>
-                            <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
-                          </label>
-                        </div>
-                        <div className="row-actions">
-                          <label className="inline-check">
-                            <input
-                              type="checkbox"
-                              checked={clinic.is_primary}
-                              onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
-                            />
-                            <span>Sede principal</span>
-                          </label>
-                          <button type="button" className="secondary-button" onClick={() => removeDoctorClinic(index)}>
-                            Quitar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="row-actions">
-                  {editingDoctorId ? (
-                    <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
-                      Cancelar edición
-                    </button>
-                  ) : null}
-                  <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
-                </div>
-              </form>
-            </article>
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Equipo clínico</p>
-                  <h2>Listado de doctores</h2>
-                </div>
-              </div>
-              <div className="chip-row">
-                <button
-                  type="button"
-                  className={`filter-chip ${doctorRosterTab === "activos" ? "filter-chip-active" : ""}`}
-                  onClick={() => setDoctorRosterTab("activos")}
-                >
-                  Activos
-                </button>
-                <button
-                  type="button"
-                  className={`filter-chip ${doctorRosterTab === "inactivos" ? "filter-chip-active" : ""}`}
-                  onClick={() => setDoctorRosterTab("inactivos")}
-                >
-                  Inactivos
-                </button>
-              </div>
-              {doctorRosterTab === "activos" ? (
-                <>
-                  <div className="table-list">
-                    {paginatedActiveDoctors.map((doctor) => (
-                      <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
-                        <strong>{doctor.first_name} {doctor.last_name}</strong>
-                        <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                        <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
-                        <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
-                        <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                        <span>
-                          {doctor.clinics?.length
-                            ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                            : "Sin clínicas registradas"}
-                        </span>
-                        {doctor.clinics?.length ? (
-                          <div className="detail-stack">
-                            {doctor.clinics.map((clinic) => (
-                              <span key={`doctor-clinic-${doctor.id}-${clinic.id}`}>
-                                {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                                {clinic.address ? ` · ${clinic.address}` : ""}
-                                {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="row-actions">
-                          <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                          <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
-                            Desactivar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
-                  </div>
-                  {renderPager(activeDoctorPage, activeDoctors.length, setActiveDoctorPage)}
-                </>
-              ) : (
-                <>
-                  <div className="table-list">
-                    {paginatedInactiveDoctors.map((doctor) => (
-                      <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
-                        <strong>{doctor.first_name} {doctor.last_name}</strong>
-                        <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                        <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
-                        <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                        <span>
-                          {doctor.clinics?.length
-                            ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                            : "Sin clínicas registradas"}
-                        </span>
-                        {doctor.clinics?.length ? (
-                          <div className="detail-stack">
-                            {doctor.clinics.map((clinic) => (
-                              <span key={`doctor-clinic-inactive-${doctor.id}-${clinic.id}`}>
-                                {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                                {clinic.address ? ` · ${clinic.address}` : ""}
-                                {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="row-actions">
-                          <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                          <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
-                        </div>
-                      </div>
-                    ))}
-                    {!inactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos registrados.</p> : null}
-                  </div>
-                  {renderPager(inactiveDoctorPage, inactiveDoctors.length, setInactiveDoctorPage)}
-                </>
-              )}
-            </article>
-          </>
-        ) : null}
-
         {gestionSubtab === "recepcion" && isAdmin ? (
           <>
             <article className="card section-card span-three">
@@ -4579,6 +4609,9 @@ export function ClinicalConsole() {
   const renderActiveTab = () => {
     if (activeTab === "agenda") {
       return renderAgendaTab();
+    }
+    if (activeTab === "doctores") {
+      return isAdmin ? renderDoctoresTab() : renderAgendaTab();
     }
     if (activeTab === "pacientes") {
       return renderPacientesTab();
@@ -5113,6 +5146,7 @@ export function ClinicalConsole() {
             </div>
             <nav className="sidebar-nav">
               {consoleTabs
+                .filter((tab) => tab.id !== "doctores" || isAdmin)
                 .filter((tab) => tab.id !== "gestion" || canViewGestion)
                 .filter((tab) => tab.id !== "mensajes" || canViewMessages)
                 .filter((tab) => tab.id !== "pendientes" || canViewReviewQueue)
