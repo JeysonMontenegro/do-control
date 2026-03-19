@@ -41,3 +41,4 @@ class Patient(TimestampMixin, Base):
     appointments = relationship("Appointment", back_populates="patient")
     encounters = relationship("Encounter", back_populates="patient")
     phone_numbers = relationship("PatientPhoneNumber", back_populates="patient", cascade="all, delete-orphan")
+    doctor_assignments = relationship("PatientDoctorAssignment", back_populates="patient", cascade="all, delete-orphan")

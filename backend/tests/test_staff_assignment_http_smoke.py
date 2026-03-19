@@ -133,43 +133,15 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
 
         receptionist_doctors_status, receptionist_doctors_body = request_json("/doctors", token=receptionist_token)
         self.assertEqual(receptionist_doctors_status, 200)
-        self.assertEqual(receptionist_doctors_body, [])
+        self.assertEqual(len(receptionist_doctors_body), 2)
 
-        setting_update_status, setting_update_body = request_json(
-            "/clinic-settings",
-            method="PATCH",
-            token=self.admin_token,
-            payload={"allow_multi_doctor_visibility": True},
-        )
-        self.assertEqual(setting_update_status, 200)
-        self.assertTrue(setting_update_body["allow_multi_doctor_visibility"])
-
-        receptionist_visible_status, receptionist_visible_body = request_json("/doctors", token=receptionist_token)
-        self.assertEqual(receptionist_visible_status, 200)
-        self.assertEqual(len(receptionist_visible_body), 2)
-
-        hidden_doctor_status, _hidden_doctor_body = request_json(
+        visible_doctor_status, _visible_doctor_body = request_json(
             f"/doctors/{doctor_body['id']}",
             token=receptionist_token,
         )
-        self.assertEqual(hidden_doctor_status, 200)
+        self.assertEqual(visible_doctor_status, 200)
 
-        reset_setting_status, reset_setting_body = request_json(
-            "/clinic-settings",
-            method="PATCH",
-            token=self.admin_token,
-            payload={"allow_multi_doctor_visibility": False},
-        )
-        self.assertEqual(reset_setting_status, 200)
-        self.assertFalse(reset_setting_body["allow_multi_doctor_visibility"])
-
-        hidden_after_reset_status, _hidden_after_reset_body = request_json(
-            f"/doctors/{doctor_body['id']}",
-            token=receptionist_token,
-        )
-        self.assertEqual(hidden_after_reset_status, 404)
-
-        patient_status, patient_body = request_json(
+        unscoped_patient_status, unscoped_patient_body = request_json(
             "/patients",
             method="POST",
             token=receptionist_token,
@@ -183,7 +155,44 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "email": None,
             },
         )
+        self.assertEqual(unscoped_patient_status, 409)
+        self.assertIn("debe seleccionar el doctor", unscoped_patient_body["detail"].lower())
+
+        patient_status, patient_body = request_json(
+            "/patients",
+            method="POST",
+            token=receptionist_token,
+            payload={
+                "medical_record_number": f"EXP-STAFF-{unique_suffix}",
+                "first_name": "Paciente",
+                "last_name": f"Scope{unique_suffix}",
+                "primary_phone": f"403{int(unique_suffix) % 10000000:07d}",
+                "national_id": None,
+                "tax_id": None,
+                "email": None,
+                "doctor_id": doctor_body["id"],
+            },
+        )
         self.assertEqual(patient_status, 201)
+
+        patients_missing_scope_status, patients_missing_scope_body = request_json("/patients", token=receptionist_token)
+        self.assertEqual(patients_missing_scope_status, 400)
+        self.assertIn("debe seleccionar el doctor", patients_missing_scope_body["detail"].lower())
+
+        scoped_patients_status, scoped_patients_body = request_json(
+            f"/patients?doctor_id={doctor_body['id']}",
+            token=receptionist_token,
+        )
+        self.assertEqual(scoped_patients_status, 200)
+        self.assertEqual(len(scoped_patients_body), 1)
+        self.assertEqual(scoped_patients_body[0]["id"], patient_body["id"])
+
+        other_scope_status, other_scope_body = request_json(
+            "/patients?doctor_id=1",
+            token=receptionist_token,
+        )
+        self.assertEqual(other_scope_status, 200)
+        self.assertNotIn(patient_body["id"], {patient["id"] for patient in other_scope_body})
 
         start_at = (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=10)).isoformat()
         end_at = (datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=10, minutes=30)).isoformat()

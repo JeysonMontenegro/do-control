@@ -63,6 +63,8 @@ class AppointmentService:
         if self.repository.has_overlap(payload.doctor_id, payload.scheduled_start, payload.scheduled_end):
             raise ConflictError("Doctor already has an appointment in that time range.")
 
+        self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
+
         appointment = Appointment(**payload.model_dump())
         created = self.repository.create(appointment)
         self.repository.add_history(

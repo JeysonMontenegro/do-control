@@ -34,6 +34,8 @@ class EncounterService:
             if appointment.patient_id != payload.patient_id:
                 raise ValidationError("Appointment does not belong to the selected patient.")
 
+        self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
+
         encounter = Encounter(
             patient_id=payload.patient_id,
             doctor_id=payload.doctor_id,

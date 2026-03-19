@@ -7,6 +7,7 @@ from app.models.appointment import Appointment
 from app.models.encounter import Encounter
 from app.models.file_attachment import FileAttachment
 from app.models.patient import Patient
+from app.models.patient_doctor_assignment import PatientDoctorAssignment
 from app.models.patient_phone_number import PatientPhoneNumber
 
 
@@ -32,6 +33,29 @@ class PatientRepository:
             select(Patient)
             .options(selectinload(Patient.phone_numbers))
             .outerjoin(PatientPhoneNumber, PatientPhoneNumber.patient_id == Patient.id)
+            .order_by(Patient.last_name, Patient.first_name)
+        )
+        if query:
+            search = f"%{query.lower()}%"
+            statement = statement.where(
+                or_(
+                    func.lower(Patient.first_name).like(search),
+                    func.lower(Patient.last_name).like(search),
+                    func.lower(Patient.primary_phone).like(search),
+                    func.lower(func.coalesce(PatientPhoneNumber.phone_number, "")).like(search),
+                    func.lower(func.coalesce(Patient.national_id, "")).like(search),
+                    func.lower(Patient.medical_record_number).like(search),
+                ),
+            )
+        return list(self.db.scalars(statement.distinct()))
+
+    def list_for_doctor(self, doctor_id: int, query: str | None = None) -> List[Patient]:
+        statement: Select[tuple[Patient]] = (
+            select(Patient)
+            .join(PatientDoctorAssignment, PatientDoctorAssignment.patient_id == Patient.id)
+            .options(selectinload(Patient.phone_numbers))
+            .outerjoin(PatientPhoneNumber, PatientPhoneNumber.patient_id == Patient.id)
+            .where(PatientDoctorAssignment.doctor_id == doctor_id)
             .order_by(Patient.last_name, Patient.first_name)
         )
         if query:
@@ -102,6 +126,30 @@ class PatientRepository:
                 .order_by(FileAttachment.created_at.desc()),
             )
         )
+
+    def is_assigned_to_doctor(self, patient_id: int, doctor_id: int) -> bool:
+        return bool(
+            self.db.scalar(
+                select(func.count(PatientDoctorAssignment.id)).where(
+                    PatientDoctorAssignment.patient_id == patient_id,
+                    PatientDoctorAssignment.doctor_id == doctor_id,
+                )
+            )
+        )
+
+    def ensure_doctor_assignment(self, patient_id: int, doctor_id: int) -> PatientDoctorAssignment:
+        assignment = self.db.scalar(
+            select(PatientDoctorAssignment).where(
+                PatientDoctorAssignment.patient_id == patient_id,
+                PatientDoctorAssignment.doctor_id == doctor_id,
+            )
+        )
+        if assignment is not None:
+            return assignment
+        assignment = PatientDoctorAssignment(patient_id=patient_id, doctor_id=doctor_id)
+        self.db.add(assignment)
+        self.db.flush()
+        return assignment
 
     def add_phone_number(self, phone_number: PatientPhoneNumber) -> PatientPhoneNumber:
         self.db.add(phone_number)

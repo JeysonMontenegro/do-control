@@ -22,3 +22,4 @@ class Doctor(TimestampMixin, Base):
     phone_numbers = relationship("DoctorPhoneNumber", back_populates="doctor", cascade="all, delete-orphan")
     linked_user = relationship("User", back_populates="doctor_profile")
     receptionist_assignments = relationship("ReceptionistDoctorAssignment", back_populates="doctor", cascade="all, delete-orphan")
+    patient_assignments = relationship("PatientDoctorAssignment", back_populates="doctor", cascade="all, delete-orphan")

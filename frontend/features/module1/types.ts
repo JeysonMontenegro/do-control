@@ -170,6 +170,9 @@ export type LoginResponse = {
   access_token: string;
   token_type: string;
   user_email: string;
+  first_name: string;
+  last_name: string;
+  gender?: string | null;
   roles: string[];
 };
 

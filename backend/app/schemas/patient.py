@@ -32,7 +32,7 @@ class PatientBase(BaseModel):
 
 
 class PatientCreate(PatientBase):
-    pass
+    doctor_id: int | None = None
 
 
 class PatientUpdate(BaseModel):

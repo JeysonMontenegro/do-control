@@ -78,6 +78,9 @@ export function ClinicalConsole() {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState("");
+  const [currentUserFirstName, setCurrentUserFirstName] = useState("");
+  const [currentUserLastName, setCurrentUserLastName] = useState("");
+  const [currentUserGender, setCurrentUserGender] = useState<string | null>(null);
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
   const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
@@ -234,6 +237,7 @@ export function ClinicalConsole() {
   const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canViewGestion = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const isAdmin = hasAnyRole(currentRoles, ["admin"]);
+  const isReceptionist = hasAnyRole(currentRoles, ["receptionist"]);
 
   async function loadData() {
     setLoading(true);
@@ -241,6 +245,8 @@ export function ClinicalConsole() {
       const patientPath = patientSearch.trim()
         ? `/api/patients?query=${encodeURIComponent(patientSearch.trim())}`
         : "/api/patients";
+      const patientPathWithScope =
+        scopedDoctorId !== null ? `${patientPath}${patientPath.includes("?") ? "&" : "?"}doctor_id=${scopedDoctorId}` : patientPath;
       const dispatchParams = new URLSearchParams({ limit: "40" });
       if (dispatchFilters.status_filter) {
         dispatchParams.set("status_filter", dispatchFilters.status_filter);
@@ -266,7 +272,7 @@ export function ClinicalConsole() {
         loadedClinicSetting,
       ] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
-        apiGet<Patient[]>(patientPath),
+        apiGet<Patient[]>(patientPathWithScope),
         apiGet<Appointment[]>("/api/appointments"),
         apiGet<Encounter[]>("/api/encounters"),
         canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
@@ -297,7 +303,7 @@ export function ClinicalConsole() {
       if (!selectedPatientId && patients[0]) {
         setSelectedPatientId(String(patients[0].id));
       }
-      if (!doctorFilter && doctors[0] && currentRoles.includes("doctor")) {
+      if (!doctorFilter && doctors[0] && (currentRoles.includes("doctor") || currentRoles.includes("receptionist"))) {
         setDoctorFilter(String(doctors[0].id));
       }
       if (!reminderRuleForm.doctor_id && doctors[0] && currentRoles.includes("doctor")) {
@@ -316,12 +322,24 @@ export function ClinicalConsole() {
   useEffect(() => {
     const token = window.localStorage.getItem("docontrol_token");
     const email = window.localStorage.getItem("docontrol_user_email");
+    const firstName = window.localStorage.getItem("docontrol_user_first_name");
+    const lastName = window.localStorage.getItem("docontrol_user_last_name");
+    const gender = window.localStorage.getItem("docontrol_user_gender");
     const roles = window.localStorage.getItem("docontrol_roles");
     if (token) {
       setIsAuthenticated(true);
     }
     if (email) {
       setCurrentUserEmail(email);
+    }
+    if (firstName) {
+      setCurrentUserFirstName(firstName);
+    }
+    if (lastName) {
+      setCurrentUserLastName(lastName);
+    }
+    if (gender) {
+      setCurrentUserGender(gender);
     }
     if (roles) {
       try {
@@ -336,7 +354,7 @@ export function ClinicalConsole() {
     if (isAuthenticated) {
       loadData();
     }
-  }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters]);
+  }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -350,7 +368,11 @@ export function ClinicalConsole() {
       }
 
       try {
-        const summary = await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`);
+        const summaryPath =
+          scopedDoctorId !== null
+            ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+            : `/api/patients/${selectedPatientId}/summary`;
+        const summary = await apiGet<PatientSummary>(summaryPath);
         setSelectedSummary(summary);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "No se pudo cargar el resumen del paciente.");
@@ -358,7 +380,7 @@ export function ClinicalConsole() {
     }
 
     loadSummary();
-  }, [isAuthenticated, selectedPatientId]);
+  }, [isAuthenticated, selectedPatientId, doctorFilter, currentRoles]);
 
   useEffect(() => {
     if (!selectedSummary) {
@@ -430,11 +452,21 @@ export function ClinicalConsole() {
       const payload = (await response.json()) as LoginResponse;
       window.localStorage.setItem("docontrol_token", payload.access_token);
       window.localStorage.setItem("docontrol_user_email", payload.user_email);
+      window.localStorage.setItem("docontrol_user_first_name", payload.first_name);
+      window.localStorage.setItem("docontrol_user_last_name", payload.last_name);
+      if (payload.gender) {
+        window.localStorage.setItem("docontrol_user_gender", payload.gender);
+      } else {
+        window.localStorage.removeItem("docontrol_user_gender");
+      }
       window.localStorage.setItem("docontrol_roles", JSON.stringify(payload.roles));
       setIsAuthenticated(true);
       setCurrentUserEmail(payload.user_email);
+      setCurrentUserFirstName(payload.first_name);
+      setCurrentUserLastName(payload.last_name);
+      setCurrentUserGender(payload.gender ?? null);
       setCurrentRoles(payload.roles);
-      setMessage(`Sesión iniciada como ${payload.user_email}.`);
+      setMessage(`Sesión iniciada como ${payload.first_name} ${payload.last_name}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo iniciar sesión.");
     }
@@ -443,9 +475,15 @@ export function ClinicalConsole() {
   function logout() {
     window.localStorage.removeItem("docontrol_token");
     window.localStorage.removeItem("docontrol_user_email");
+    window.localStorage.removeItem("docontrol_user_first_name");
+    window.localStorage.removeItem("docontrol_user_last_name");
+    window.localStorage.removeItem("docontrol_user_gender");
     window.localStorage.removeItem("docontrol_roles");
     setIsAuthenticated(false);
     setCurrentUserEmail("");
+    setCurrentUserFirstName("");
+    setCurrentUserLastName("");
+    setCurrentUserGender(null);
     setCurrentRoles([]);
     setData(initialLoadState);
     setSelectedSummary(null);
@@ -460,6 +498,7 @@ export function ClinicalConsole() {
       await apiPost<Patient>("/api/patients", {
         ...patientForm,
         national_id: patientForm.national_id || null,
+        doctor_id: scopedDoctorId,
       });
       setPatientForm({
         medical_record_number: "",
@@ -487,7 +526,9 @@ export function ClinicalConsole() {
 
     setMessage("");
     try {
-      await apiPatch<Patient>(`/api/patients/${selectedPatientId}`, {
+      const updatePath =
+        scopedDoctorId !== null ? `/api/patients/${selectedPatientId}?doctor_id=${scopedDoctorId}` : `/api/patients/${selectedPatientId}`;
+      await apiPatch<Patient>(updatePath, {
         first_name: patientEditForm.first_name,
         last_name: patientEditForm.last_name,
         primary_phone: patientEditForm.primary_phone,
@@ -499,7 +540,13 @@ export function ClinicalConsole() {
         is_active: patientEditForm.is_active,
       });
       await loadData();
-      setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
+      setSelectedSummary(
+        await apiGet<PatientSummary>(
+          scopedDoctorId !== null
+            ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+            : `/api/patients/${selectedPatientId}/summary`,
+        ),
+      );
       setActiveSectionAction(null);
       setMessage("Paciente actualizado.");
     } catch (error) {
@@ -587,7 +634,13 @@ export function ClinicalConsole() {
       });
       await loadData();
       if (selectedPatientId) {
-        setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
+        setSelectedSummary(
+          await apiGet<PatientSummary>(
+            scopedDoctorId !== null
+              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+              : `/api/patients/${selectedPatientId}/summary`,
+          ),
+        );
       }
       setMessage(`Cita ${appointmentId} actualizada a ${appointmentStatusLabel(status)}.`);
     } catch (error) {
@@ -631,7 +684,13 @@ export function ClinicalConsole() {
       });
       await loadData();
       if (selectedPatientId) {
-        setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
+        setSelectedSummary(
+          await apiGet<PatientSummary>(
+            scopedDoctorId !== null
+              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+              : `/api/patients/${selectedPatientId}/summary`,
+          ),
+        );
       }
       setMessage(`Consulta ${encounterId} cerrada.`);
     } catch (error) {
@@ -668,7 +727,13 @@ export function ClinicalConsole() {
       setAttachmentFile(null);
       setAttachmentEncounterId("");
       if (selectedPatientId) {
-        setSelectedSummary(await apiGet<PatientSummary>(`/api/patients/${selectedPatientId}/summary`));
+        setSelectedSummary(
+          await apiGet<PatientSummary>(
+            scopedDoctorId !== null
+              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+              : `/api/patients/${selectedPatientId}/summary`,
+          ),
+        );
       }
       setMessage("Documento adjuntado.");
     } catch (error) {
@@ -1305,7 +1370,20 @@ export function ClinicalConsole() {
     [activeDispatchStatusId, communicationDispatches],
   );
   const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
-  const canChooseAmongMultipleDoctors = isAdmin || allowMultiDoctorVisibility;
+  const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
+  const currentUserDisplay = useMemo(() => {
+    const fullName = `${currentUserFirstName} ${currentUserLastName}`.trim();
+    if (!fullName) {
+      return currentUserEmail;
+    }
+    if (currentRoles.includes("doctor")) {
+      return `${currentUserGender === "female" ? "Dra." : "Dr."} ${fullName}`;
+    }
+    if (currentRoles.includes("receptionist")) {
+      return `Recepción ${fullName}`;
+    }
+    return fullName;
+  }, [currentRoles, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
   const reviewPatientOptions = useMemo(() => {
     if (!activeReviewItem) {
       return [];
@@ -3721,9 +3799,18 @@ export function ClinicalConsole() {
               <div className="topbar-copy">
                 <p className="eyebrow">Vista actual</p>
                 <h2>{consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda"}</h2>
-                <span>{currentUserEmail}</span>
+                <span>{currentUserDisplay}</span>
               </div>
               <div className="topbar-actions">
+                {isReceptionist && availableDoctors.length > 1 ? (
+                  <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
+                    {availableDoctors.map((doctor) => (
+                      <option key={`topbar-doctor-${doctor.id}`} value={doctor.id}>
+                        Gestionando pacientes de Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
                 <input
                   className="search-input topbar-search"
                   placeholder="Buscar paciente o expediente"

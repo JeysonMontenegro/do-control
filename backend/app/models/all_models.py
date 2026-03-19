@@ -10,6 +10,7 @@ from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.models.encounter import Diagnosis, Encounter, ExamOrder, Prescription, PrescriptionItem
 from app.models.file_attachment import FileAttachment
 from app.models.patient import Patient
+from app.models.patient_doctor_assignment import PatientDoctorAssignment
 from app.models.patient_phone_number import PatientPhoneNumber
 from app.models.reminder_rule import ReminderRule
 from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
@@ -30,6 +31,7 @@ __all__ = [
     "ExamOrder",
     "FileAttachment",
     "Patient",
+    "PatientDoctorAssignment",
     "PatientPhoneNumber",
     "Prescription",
     "PrescriptionItem",

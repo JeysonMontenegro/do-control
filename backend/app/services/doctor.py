@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from app.models.doctor import Doctor
 from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.models.user import User, UserRole
-from app.repositories.clinic_setting import ClinicSettingRepository
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead, DoctorUpdate
@@ -17,7 +16,6 @@ class DoctorService:
         self.db = db
         self.repository = DoctorRepository(db)
         self.user_repository = UserRepository(db)
-        self.clinic_setting_repository = ClinicSettingRepository(db)
 
     @staticmethod
     def _role_names(user) -> set[str]:
@@ -35,8 +33,6 @@ class DoctorService:
             return self._apply_query_filter(doctors, query)
         if "receptionist" in role_names:
             doctors = self.repository.list_for_receptionist_user(current_user.id)
-            if len(doctors) > 1 and not self._allow_multi_doctor_visibility():
-                return []
             return self._apply_query_filter(doctors, query)
         return []
 
@@ -47,8 +43,6 @@ class DoctorService:
         if current_user is not None:
             accessible_ids = self.accessible_doctor_ids(current_user)
             if accessible_ids is not None and doctor.id not in accessible_ids:
-                raise NotFoundError("Doctor not found.")
-            if self._is_receptionist_with_hidden_multi_doctor_scope(current_user):
                 raise NotFoundError("Doctor not found.")
         return doctor
 
@@ -105,16 +99,6 @@ class DoctorService:
             return {doctor.id for doctor in self.repository.list_for_receptionist_user(current_user.id)}
         return set()
 
-    def _allow_multi_doctor_visibility(self) -> bool:
-        setting = self.clinic_setting_repository.get_singleton()
-        return bool(setting and setting.allow_multi_doctor_visibility)
-
-    def _is_receptionist_with_hidden_multi_doctor_scope(self, current_user) -> bool:
-        role_names = self._role_names(current_user)
-        if "receptionist" not in role_names or "admin" in role_names:
-            return False
-        doctors = self.repository.list_for_receptionist_user(current_user.id)
-        return len(doctors) > 1 and not self._allow_multi_doctor_visibility()
 
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
