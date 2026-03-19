@@ -108,6 +108,26 @@ class PatientRepository:
         self.db.flush()
         return phone_number
 
+    def get_phone_number_for_patient(self, patient_id: int, phone_number: str) -> PatientPhoneNumber | None:
+        return self.db.scalar(
+            select(PatientPhoneNumber).where(
+                PatientPhoneNumber.patient_id == patient_id,
+                PatientPhoneNumber.phone_number == phone_number,
+            )
+        )
+
+    def unset_primary_phone_numbers(self, patient_id: int) -> None:
+        phone_numbers = list(
+            self.db.scalars(
+                select(PatientPhoneNumber).where(
+                    PatientPhoneNumber.patient_id == patient_id,
+                    PatientPhoneNumber.is_primary.is_(True),
+                )
+            )
+        )
+        for phone_number in phone_numbers:
+            phone_number.is_primary = False
+
     def deactivate_primary_phone_numbers(self, patient_id: int) -> None:
         phone_numbers = list(
             self.db.scalars(

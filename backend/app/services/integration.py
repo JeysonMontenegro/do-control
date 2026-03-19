@@ -25,6 +25,8 @@ from app.schemas.integration import (
     IntegrationEncounterCreateResponse,
     IntegrationPatientCreateRequest,
     IntegrationPatientCreateResponse,
+    IntegrationPatientPhoneUpdateRequest,
+    IntegrationPatientPhoneUpdateResponse,
     PatientMatchCandidate,
     PatientMatchRequest,
     PatientMatchResponse,
@@ -153,6 +155,19 @@ class IntegrationService:
             medical_record_number=patient.medical_record_number,
             patient_name=f"{patient.first_name} {patient.last_name}".strip(),
             primary_phone=patient.primary_phone,
+        )
+
+    def update_patient_phone(
+        self,
+        patient_id: int,
+        payload: IntegrationPatientPhoneUpdateRequest,
+    ) -> IntegrationPatientPhoneUpdateResponse:
+        patient, previous_phone = self.patient_service.update_primary_phone_with_history(patient_id, payload.phone_number)
+        return IntegrationPatientPhoneUpdateResponse(
+            status="updated",
+            patient_id=patient.id,
+            primary_phone=patient.primary_phone,
+            previous_phone=previous_phone,
         )
 
     def match_doctor(self, payload: DoctorMatchRequest) -> DoctorMatchResponse:

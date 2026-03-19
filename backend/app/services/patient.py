@@ -66,15 +66,7 @@ class PatientService:
         for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(patient, field, value)
         if new_primary_phone and new_primary_phone != before["primary_phone"]:
-            self.repository.deactivate_primary_phone_numbers(patient.id)
-            self.repository.add_phone_number(
-                PatientPhoneNumber(
-                    patient_id=patient.id,
-                    phone_number=new_primary_phone,
-                    is_primary=True,
-                    is_active=True,
-                )
-            )
+            self._replace_primary_phone(patient, new_primary_phone)
         create_audit_log(
             self.db,
             action="update",
@@ -86,6 +78,42 @@ class PatientService:
         self.db.commit()
         self.db.refresh(patient)
         return patient
+
+    def update_primary_phone_with_history(self, patient_id: int, phone_number: str) -> tuple[Patient, str]:
+        patient = self.get_patient(patient_id)
+        previous_phone = patient.primary_phone
+        if phone_number == previous_phone:
+            return patient, previous_phone
+
+        self._replace_primary_phone(patient, phone_number)
+        create_audit_log(
+            self.db,
+            action="update_primary_phone",
+            entity_type="patient",
+            entity_id=str(patient.id),
+            before_data={"primary_phone": previous_phone},
+            after_data={"primary_phone": patient.primary_phone},
+        )
+        self.db.commit()
+        self.db.refresh(patient)
+        return patient, previous_phone
+
+    def _replace_primary_phone(self, patient: Patient, phone_number: str) -> None:
+        self.repository.unset_primary_phone_numbers(patient.id)
+        existing_phone = self.repository.get_phone_number_for_patient(patient.id, phone_number)
+        if existing_phone is not None:
+            existing_phone.is_primary = True
+            existing_phone.is_active = True
+        else:
+            self.repository.add_phone_number(
+                PatientPhoneNumber(
+                    patient_id=patient.id,
+                    phone_number=phone_number,
+                    is_primary=True,
+                    is_active=True,
+                )
+            )
+        patient.primary_phone = phone_number
 
     def get_patient_summary(self, patient_id: int) -> PatientSummaryRead:
         patient = self.get_patient(patient_id)

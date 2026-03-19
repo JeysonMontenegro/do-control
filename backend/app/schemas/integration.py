@@ -71,6 +71,17 @@ class IntegrationPatientCreateResponse(BaseModel):
     primary_phone: str
 
 
+class IntegrationPatientPhoneUpdateRequest(BaseModel):
+    phone_number: str
+
+
+class IntegrationPatientPhoneUpdateResponse(BaseModel):
+    status: str
+    patient_id: int
+    primary_phone: str
+    previous_phone: str | None = None
+
+
 class ProposedAppointmentRequest(BaseModel):
     patient_name: str
     phone_number: str
