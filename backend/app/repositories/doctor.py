@@ -7,6 +7,7 @@ from app.models.doctor import Doctor
 from app.models.doctor_clinic import DoctorClinic
 from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.models.user import ReceptionistDoctorAssignment, User
+from app.services.phone_number import phone_number_candidates
 
 
 class DoctorRepository:
@@ -110,11 +111,14 @@ class DoctorRepository:
         self.db.flush()
 
     def phone_number_in_use(self, phone_number: str, *, exclude_linked_user_id: int | None = None) -> bool:
+        candidates = phone_number_candidates(phone_number)
+        if not candidates:
+            return False
         statement = (
             select(DoctorPhoneNumber.id)
             .select_from(DoctorPhoneNumber)
             .join(Doctor, Doctor.id == DoctorPhoneNumber.doctor_id)
-            .where(DoctorPhoneNumber.phone_number == phone_number)
+            .where(or_(*(DoctorPhoneNumber.phone_number == candidate for candidate in candidates)))
         )
         if exclude_linked_user_id is not None:
             statement = statement.where(or_(Doctor.linked_user_id.is_(None), Doctor.linked_user_id != exclude_linked_user_id))

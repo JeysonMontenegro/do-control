@@ -8,6 +8,7 @@ from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import AuthProfileRead, AuthProfileUpdate, LoginResponse
 from app.services.errors import ValidationError
+from app.services.phone_number import phone_number_candidates
 from app.services.security import create_access_token, hash_password, verify_password
 from app.services.storage import StorageService
 
@@ -49,7 +50,8 @@ class AuthService:
                 phone.is_active = False
         if phone_number is None:
             return
-        existing_phone = next((phone for phone in doctor.phone_numbers if phone.phone_number == phone_number), None)
+        candidates = phone_number_candidates(phone_number)
+        existing_phone = next((phone for phone in doctor.phone_numbers if phone.phone_number in candidates), None)
         if existing_phone is not None:
             existing_phone.is_primary = True
             existing_phone.is_active = True

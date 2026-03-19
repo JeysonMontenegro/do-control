@@ -1,8 +1,9 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.doctor import Doctor
 from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
+from app.services.phone_number import phone_number_candidates
 
 
 class UserRepository:
@@ -21,6 +22,9 @@ class UserRepository:
         return self.db.scalar(statement)
 
     def get_by_phone_number(self, phone_number: str) -> User | None:
+        candidates = phone_number_candidates(phone_number)
+        if not candidates:
+            return None
         statement = (
             select(User)
             .options(
@@ -28,7 +32,7 @@ class UserRepository:
                 selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
                 selectinload(User.doctor_profile).selectinload(Doctor.phone_numbers),
             )
-            .where(User.phone_number == phone_number)
+            .where(or_(*(User.phone_number == candidate for candidate in candidates)))
         )
         return self.db.scalar(statement)
 

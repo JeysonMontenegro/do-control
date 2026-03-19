@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from urllib import error, request
 
@@ -14,10 +15,13 @@ def request_json(
     method: str = "GET",
     payload: dict | None = None,
     integration_key: str | None = None,
+    token: str | None = None,
 ) -> tuple[int, dict | list]:
     headers = {"Content-Type": "application/json"}
     if integration_key:
         headers["x-integration-key"] = integration_key
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = request.Request(
         f"{BASE_URL}{path}",
         data=json.dumps(payload).encode("utf-8") if payload is not None else None,
@@ -32,6 +36,17 @@ def request_json(
 
 
 class IntegrationUserVerifyHttpSmokeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        status_code, body = request_json(
+            "/auth/login",
+            method="POST",
+            payload={"email": "admin@docontrol.local", "password": "ChangeMe123!"},
+        )
+        if status_code != 200 or not isinstance(body, dict):
+            raise AssertionError(f"Admin login failed: {status_code} {body}")
+        cls.admin_token = body["access_token"]
+
     def test_verify_admin_by_phone(self) -> None:
         status_code, body = request_json(
             f"/integrations/users/verify?phone={ADMIN_PHONE}",
@@ -55,6 +70,32 @@ class IntegrationUserVerifyHttpSmokeTests(unittest.TestCase):
         self.assertIsNone(body["role"])
         self.assertEqual(body["roles"], [])
         self.assertEqual(body["permissions"], [])
+
+    def test_verify_doctor_by_phone_accepts_plus_502_variants(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        create_status, create_body = request_json(
+            "/doctors",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "first_name": "Doctor",
+                "last_name": unique_suffix,
+                "primary_phone": "+50258420738",
+                "user_email": f"doctor.{unique_suffix}@docontrol.local",
+                "user_password": "Doctor123!",
+            },
+        )
+        self.assertEqual(create_status, 201)
+
+        for phone_variant in ("+50258420738", "50258420738", "58420738"):
+            status_code, body = request_json(
+                f"/integrations/users/verify?phone={phone_variant}",
+                integration_key=INTEGRATION_KEY,
+            )
+            self.assertEqual(status_code, 200)
+            self.assertEqual(body["is_valid"], True)
+            self.assertEqual(body["role"], "doctor")
+            self.assertEqual(body["user_id"], create_body["linked_user_id"])
 
 
 if __name__ == "__main__":
