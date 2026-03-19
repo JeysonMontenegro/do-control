@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.models.email_dispatch import EmailDispatch
 from app.models.user import Role, User, UserRole
 from app.models.user_action_token import UserActionToken
+from app.repositories.clinic_setting import ClinicSettingRepository
 from app.repositories.email_dispatch import EmailDispatchRepository
 from app.repositories.email_template import EmailTemplateRepository
 from app.repositories.user import UserRepository
@@ -26,12 +27,27 @@ class EmailService:
     def __init__(self, db) -> None:
         self.db = db
         self.dispatch_repository = EmailDispatchRepository(db)
+        self.clinic_setting_repository = ClinicSettingRepository(db)
         self.template_repository = EmailTemplateRepository(db)
         self.user_repository = UserRepository(db)
         self.token_repository = UserActionTokenRepository(db)
 
+    @staticmethod
+    def _is_non_production_recipient(email: str) -> bool:
+        normalized = email.strip().lower()
+        return (
+            normalized.endswith("@docontrol.local")
+            or normalized.endswith("@example.com")
+            or normalized.endswith(".test")
+            or normalized.endswith("@localhost")
+        )
+
     def _send_with_brevo(self, *, to_email: str, to_name: str | None, subject: str, html_body: str, text_body: str | None) -> str | None:
-        if not settings.email_delivery_enabled or not settings.brevo_api_key:
+        if self._is_non_production_recipient(to_email):
+            return None
+        clinic_setting = self.clinic_setting_repository.get_singleton()
+        clinic_enabled = clinic_setting.email_delivery_enabled if clinic_setting is not None else True
+        if not settings.email_delivery_enabled or not clinic_enabled or not settings.brevo_api_key:
             return None
         payload = {
             "sender": {"name": settings.email_from_name, "email": settings.email_from_address},
@@ -88,7 +104,7 @@ class EmailService:
                 html_body=html_body,
                 text_body=text_body,
             )
-            dispatch.status = "sent" if provider_message_id or settings.email_delivery_enabled else "skipped"
+            dispatch.status = "sent" if provider_message_id else "skipped"
             dispatch.provider_message_id = provider_message_id
             dispatch.error_message = None
         except error.HTTPError as exc:

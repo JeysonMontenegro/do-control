@@ -12,7 +12,7 @@ class ClinicSettingRepository:
         return self.db.scalar(select(ClinicSetting).where(ClinicSetting.id == 1))
 
     def create_default(self) -> ClinicSetting:
-        setting = ClinicSetting(id=1, allow_multi_doctor_visibility=False)
+        setting = ClinicSetting(id=1, allow_multi_doctor_visibility=False, email_delivery_enabled=True)
         self.db.add(setting)
         self.db.flush()
         return setting

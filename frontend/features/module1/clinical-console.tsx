@@ -53,6 +53,7 @@ import type {
   Encounter,
   ExamOrder,
   LoginResponse,
+  AuthProfile,
   Patient,
   PatientSummary,
   PrescriptionItem,
@@ -126,7 +127,10 @@ export function ClinicalConsole() {
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [currentUserFirstName, setCurrentUserFirstName] = useState("");
   const [currentUserLastName, setCurrentUserLastName] = useState("");
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [currentUserGender, setCurrentUserGender] = useState<string | null>(null);
+  const [currentUserPhoneNumber, setCurrentUserPhoneNumber] = useState<string | null>(null);
+  const [currentUserProfilePhotoUrl, setCurrentUserProfilePhotoUrl] = useState<string | null>(null);
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
@@ -196,6 +200,17 @@ export function ClinicalConsole() {
     is_active: true,
   });
   const [testEmailRecipient, setTestEmailRecipient] = useState("");
+  const [profileForm, setProfileForm] = useState({
+    first_name: "",
+    last_name: "",
+    display_name: "",
+    gender: "",
+    phone_number: "",
+    current_password: "",
+    new_password: "",
+    confirm_new_password: "",
+  });
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [patientForm, setPatientForm] = useState({
     medical_record_number: "",
     first_name: "",
@@ -389,7 +404,10 @@ export function ClinicalConsole() {
     const email = window.localStorage.getItem("docontrol_user_email");
     const firstName = window.localStorage.getItem("docontrol_user_first_name");
     const lastName = window.localStorage.getItem("docontrol_user_last_name");
+    const displayName = window.localStorage.getItem("docontrol_user_display_name");
     const gender = window.localStorage.getItem("docontrol_user_gender");
+    const phoneNumber = window.localStorage.getItem("docontrol_user_phone_number");
+    const profilePhotoUrl = window.localStorage.getItem("docontrol_user_profile_photo_url");
     const roles = window.localStorage.getItem("docontrol_roles");
     if (token) {
       setIsAuthenticated(true);
@@ -403,8 +421,17 @@ export function ClinicalConsole() {
     if (lastName) {
       setCurrentUserLastName(lastName);
     }
+    if (displayName) {
+      setCurrentUserDisplayName(displayName);
+    }
     if (gender) {
       setCurrentUserGender(gender);
+    }
+    if (phoneNumber) {
+      setCurrentUserPhoneNumber(phoneNumber);
+    }
+    if (profilePhotoUrl) {
+      setCurrentUserProfilePhotoUrl(profilePhotoUrl);
     }
     if (roles) {
       try {
@@ -420,6 +447,53 @@ export function ClinicalConsole() {
       loadData();
     }
   }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    async function refreshProfile() {
+      try {
+        const profile = await apiGet<AuthProfile>("/api/auth/me");
+        setCurrentUserEmail(profile.user_email);
+        setCurrentUserFirstName(profile.first_name);
+        setCurrentUserLastName(profile.last_name);
+        setCurrentUserDisplayName(profile.display_name ?? null);
+        setCurrentUserGender(profile.gender ?? null);
+        setCurrentUserPhoneNumber(profile.phone_number ?? null);
+        setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
+        setCurrentRoles(profile.roles);
+        window.localStorage.setItem("docontrol_user_email", profile.user_email);
+        window.localStorage.setItem("docontrol_user_first_name", profile.first_name);
+        window.localStorage.setItem("docontrol_user_last_name", profile.last_name);
+        if (profile.display_name) {
+          window.localStorage.setItem("docontrol_user_display_name", profile.display_name);
+        } else {
+          window.localStorage.removeItem("docontrol_user_display_name");
+        }
+        if (profile.gender) {
+          window.localStorage.setItem("docontrol_user_gender", profile.gender);
+        } else {
+          window.localStorage.removeItem("docontrol_user_gender");
+        }
+        if (profile.phone_number) {
+          window.localStorage.setItem("docontrol_user_phone_number", profile.phone_number);
+        } else {
+          window.localStorage.removeItem("docontrol_user_phone_number");
+        }
+        if (profile.profile_photo_url) {
+          window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
+        } else {
+          window.localStorage.removeItem("docontrol_user_profile_photo_url");
+        }
+      } catch {
+        // Leave the locally restored session state in place if profile refresh fails.
+      }
+    }
+
+    refreshProfile();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -519,17 +593,45 @@ export function ClinicalConsole() {
       window.localStorage.setItem("docontrol_user_email", payload.user_email);
       window.localStorage.setItem("docontrol_user_first_name", payload.first_name);
       window.localStorage.setItem("docontrol_user_last_name", payload.last_name);
+      if (payload.display_name) {
+        window.localStorage.setItem("docontrol_user_display_name", payload.display_name);
+      } else {
+        window.localStorage.removeItem("docontrol_user_display_name");
+      }
       if (payload.gender) {
         window.localStorage.setItem("docontrol_user_gender", payload.gender);
       } else {
         window.localStorage.removeItem("docontrol_user_gender");
+      }
+      if (payload.phone_number) {
+        window.localStorage.setItem("docontrol_user_phone_number", payload.phone_number);
+      } else {
+        window.localStorage.removeItem("docontrol_user_phone_number");
+      }
+      if (payload.profile_photo_url) {
+        window.localStorage.setItem("docontrol_user_profile_photo_url", payload.profile_photo_url);
+      } else {
+        window.localStorage.removeItem("docontrol_user_profile_photo_url");
       }
       window.localStorage.setItem("docontrol_roles", JSON.stringify(payload.roles));
       setIsAuthenticated(true);
       setCurrentUserEmail(payload.user_email);
       setCurrentUserFirstName(payload.first_name);
       setCurrentUserLastName(payload.last_name);
+      setCurrentUserDisplayName(payload.display_name ?? null);
       setCurrentUserGender(payload.gender ?? null);
+      setCurrentUserPhoneNumber(payload.phone_number ?? null);
+      setCurrentUserProfilePhotoUrl(payload.profile_photo_url ?? null);
+      setProfileForm({
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        display_name: payload.display_name ?? "",
+        gender: payload.gender ?? "",
+        phone_number: payload.phone_number ?? "",
+        current_password: "",
+        new_password: "",
+        confirm_new_password: "",
+      });
       setCurrentRoles(payload.roles);
       setMessage(`Sesión iniciada como ${payload.first_name} ${payload.last_name}.`);
     } catch (error) {
@@ -542,13 +644,30 @@ export function ClinicalConsole() {
     window.localStorage.removeItem("docontrol_user_email");
     window.localStorage.removeItem("docontrol_user_first_name");
     window.localStorage.removeItem("docontrol_user_last_name");
+    window.localStorage.removeItem("docontrol_user_display_name");
     window.localStorage.removeItem("docontrol_user_gender");
+    window.localStorage.removeItem("docontrol_user_phone_number");
+    window.localStorage.removeItem("docontrol_user_profile_photo_url");
     window.localStorage.removeItem("docontrol_roles");
     setIsAuthenticated(false);
     setCurrentUserEmail("");
     setCurrentUserFirstName("");
     setCurrentUserLastName("");
+    setCurrentUserDisplayName(null);
     setCurrentUserGender(null);
+    setCurrentUserPhoneNumber(null);
+    setCurrentUserProfilePhotoUrl(null);
+    setProfileForm({
+      first_name: "",
+      last_name: "",
+      display_name: "",
+      gender: "",
+      phone_number: "",
+      current_password: "",
+      new_password: "",
+      confirm_new_password: "",
+    });
+    setProfilePhotoFile(null);
     setCurrentRoles([]);
     setData(initialLoadState);
     setSelectedSummary(null);
@@ -580,6 +699,110 @@ export function ClinicalConsole() {
       setMessage("Paciente creado.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear el paciente.");
+    }
+  }
+
+  async function updateCurrentProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      if (profileForm.new_password && profileForm.new_password !== profileForm.confirm_new_password) {
+        throw new Error("La nueva contraseña y su confirmación no coinciden.");
+      }
+      const profile = await apiPatch<AuthProfile>("/api/auth/me", {
+        first_name: profileForm.first_name.trim(),
+        last_name: profileForm.last_name.trim(),
+        display_name: profileForm.display_name.trim() || null,
+        gender: profileForm.gender || null,
+        phone_number: profileForm.phone_number.trim() || null,
+        current_password: profileForm.current_password || null,
+        new_password: profileForm.new_password || null,
+      });
+      setCurrentUserFirstName(profile.first_name);
+      setCurrentUserLastName(profile.last_name);
+      setCurrentUserDisplayName(profile.display_name ?? null);
+      setCurrentUserGender(profile.gender ?? null);
+      setCurrentUserPhoneNumber(profile.phone_number ?? null);
+      setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
+      setProfileForm((current) => ({
+        ...current,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        display_name: profile.display_name ?? "",
+        gender: profile.gender ?? "",
+        phone_number: profile.phone_number ?? "",
+        current_password: "",
+        new_password: "",
+        confirm_new_password: "",
+      }));
+      window.localStorage.setItem("docontrol_user_first_name", profile.first_name);
+      window.localStorage.setItem("docontrol_user_last_name", profile.last_name);
+      if (profile.display_name) {
+        window.localStorage.setItem("docontrol_user_display_name", profile.display_name);
+      } else {
+        window.localStorage.removeItem("docontrol_user_display_name");
+      }
+      if (profile.gender) {
+        window.localStorage.setItem("docontrol_user_gender", profile.gender);
+      } else {
+        window.localStorage.removeItem("docontrol_user_gender");
+      }
+      if (profile.phone_number) {
+        window.localStorage.setItem("docontrol_user_phone_number", profile.phone_number);
+      } else {
+        window.localStorage.removeItem("docontrol_user_phone_number");
+      }
+      if (profile.profile_photo_url) {
+        window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
+      }
+      setMessage("Perfil actualizado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el perfil.");
+    }
+  }
+
+  async function uploadCurrentProfilePhoto() {
+    if (!profilePhotoFile) {
+      setMessage("Selecciona una foto de perfil.");
+      return;
+    }
+    setMessage("");
+    try {
+      const token = window.localStorage.getItem("docontrol_token");
+      const payload = new FormData();
+      payload.append("file", profilePhotoFile);
+      const response = await fetch(`${API_URL}/api/auth/me/photo`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: payload,
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const profile = (await response.json()) as AuthProfile;
+      setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
+      if (profile.profile_photo_url) {
+        window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
+      } else {
+        window.localStorage.removeItem("docontrol_user_profile_photo_url");
+      }
+      setProfilePhotoFile(null);
+      setMessage("Foto de perfil actualizada.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo subir la foto de perfil.");
+    }
+  }
+
+  async function toggleEmailDelivery(enabled: boolean) {
+    setMessage("");
+    try {
+      const updated = await apiPatch<ClinicSetting>("/api/clinic-settings", {
+        email_delivery_enabled: enabled,
+      });
+      setClinicSetting(updated);
+      setMessage(enabled ? "Envío de correos habilitado." : "Envío de correos deshabilitado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la configuración de correos.");
     }
   }
 
@@ -1629,6 +1852,9 @@ export function ClinicalConsole() {
   const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
   const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
   const currentUserDisplay = useMemo(() => {
+    if (currentUserDisplayName?.trim()) {
+      return currentUserDisplayName.trim();
+    }
     const fullName = `${currentUserFirstName} ${currentUserLastName}`.trim();
     if (!fullName) {
       return currentUserEmail;
@@ -1640,7 +1866,7 @@ export function ClinicalConsole() {
       return `Recepción ${fullName}`;
     }
     return fullName;
-  }, [currentRoles, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
+  }, [currentRoles, currentUserDisplayName, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
   const paginatedActiveDoctors = useMemo(
     () => activeDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
     [activeDoctorPage, activeDoctors, teamPageSize],
@@ -3169,8 +3395,110 @@ export function ClinicalConsole() {
 
         {gestionSubtab === "resumen" ? (
           <>
+            <article className={`card section-card ${isAdmin ? "" : "span-three"}`}>
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Perfil</p>
+                  <h2>Mi perfil</h2>
+                </div>
+              </div>
+              <form className="form-card compact-form" onSubmit={updateCurrentProfile}>
+                <div className="profile-card-layout">
+                  <div className="profile-photo-panel">
+                    {currentUserProfilePhotoUrl ? (
+                      <img className="profile-photo-preview" src={currentUserProfilePhotoUrl} alt={currentUserDisplay} />
+                    ) : (
+                      <div className="profile-photo-placeholder">{currentUserDisplay.slice(0, 1).toUpperCase()}</div>
+                    )}
+                    <label>
+                      <span>Foto de perfil</span>
+                      <input type="file" accept="image/*" onChange={(event) => setProfilePhotoFile(event.target.files?.[0] ?? null)} />
+                    </label>
+                    <button type="button" className="secondary-button" onClick={uploadCurrentProfilePhoto}>
+                      Subir foto
+                    </button>
+                  </div>
+                  <div className="two-column-grid">
+                    <label>
+                      <span>Nombres</span>
+                      <input value={profileForm.first_name} onChange={(event) => setProfileForm((current) => ({ ...current, first_name: event.target.value }))} />
+                    </label>
+                    <label>
+                      <span>Apellidos</span>
+                      <input value={profileForm.last_name} onChange={(event) => setProfileForm((current) => ({ ...current, last_name: event.target.value }))} />
+                    </label>
+                    <label>
+                      <span>Nombre visible</span>
+                      <input
+                        value={profileForm.display_name}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))}
+                        placeholder="Cómo deseas aparecer"
+                      />
+                    </label>
+                    <label>
+                      <span>Género</span>
+                      <select value={profileForm.gender} onChange={(event) => setProfileForm((current) => ({ ...current, gender: event.target.value }))}>
+                        <option value="">No especificado</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Femenino</option>
+                        <option value="other">Otro</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Correo</span>
+                      <input value={currentUserEmail} readOnly />
+                    </label>
+                    <label>
+                      <span>Teléfono</span>
+                      <input
+                        value={profileForm.phone_number}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))}
+                        placeholder="50258420737"
+                      />
+                    </label>
+                    <label>
+                      <span>Contraseña actual</span>
+                      <input
+                        type="password"
+                        value={profileForm.current_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, current_password: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>Nueva contraseña</span>
+                      <input
+                        type="password"
+                        value={profileForm.new_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, new_password: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>Confirmar nueva contraseña</span>
+                      <input
+                        type="password"
+                        value={profileForm.confirm_new_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, confirm_new_password: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                </div>
+                <p className="empty-state">
+                  El teléfono debe ser único entre usuarios. Si cambias contraseña, debes indicar la actual.
+                </p>
+                <div className="row-actions">
+                  <button type="submit">Guardar perfil</button>
+                </div>
+              </form>
+            </article>
+
             {isAdmin ? (
-              <article className="card section-card span-three">
+              <article className="card section-card">
+                <div className="subsection-header">
+                  <div>
+                    <p className="eyebrow">Administración</p>
+                    <h2>Resumen del equipo</h2>
+                  </div>
+                </div>
                 <div className="summary-grid">
                   <div className="metric-card">
                     <strong>{activeDoctors.length}</strong>
@@ -3486,6 +3814,64 @@ export function ClinicalConsole() {
 
         {gestionSubtab === "correos" && isAdmin ? (
           <>
+            <article className="card section-card span-three">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Correos</p>
+                  <h2>Estado de envío</h2>
+                </div>
+              </div>
+              <div className="summary-grid">
+                <div className="metric-card">
+                  <small>Configuración de clínica</small>
+                  <strong>{clinicSetting?.email_delivery_enabled ? "Habilitada" : "Deshabilitada"}</strong>
+                  <span>Este switch lo controla administración desde la app.</span>
+                </div>
+                <div className="metric-card">
+                  <small>Entorno</small>
+                  <strong>{clinicSetting?.email_delivery_available ? "Disponible" : "Bloqueado"}</strong>
+                  <span>Depende del `.env` y de la API key configurada en el servidor.</span>
+                </div>
+                <div className="metric-card">
+                  <small>Estado efectivo</small>
+                  <strong>{clinicSetting?.email_delivery_active ? "Enviando" : "Pausado"}</strong>
+                  <span>Solo se envía correo real cuando clínica y entorno están habilitados.</span>
+                </div>
+              </div>
+              <div className="detail-panel compact-panel">
+                <strong>Procesos que usan correo</strong>
+                <span>Bienvenida al crear doctor con acceso</span>
+                <span>Bienvenida al crear recepcionista</span>
+                <span>Recuperación de contraseña</span>
+                <span>Invitación de administrador</span>
+                <span>Correo de prueba desde este panel</span>
+                <span>Reenvío manual de dispatches fallidos o ya enviados</span>
+              </div>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className={clinicSetting?.email_delivery_enabled ? "secondary-button" : undefined}
+                  onClick={() => toggleEmailDelivery(true)}
+                  disabled={clinicSetting?.email_delivery_enabled}
+                >
+                  Habilitar correos
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => toggleEmailDelivery(false)}
+                  disabled={!clinicSetting?.email_delivery_enabled}
+                >
+                  Deshabilitar correos
+                </button>
+              </div>
+              {!clinicSetting?.email_delivery_available ? (
+                <p className="empty-state">
+                  El entorno actual tiene bloqueado el envío real. Aunque habilites la clínica, los dispatches quedarán pausados o skipped hasta que el servidor reactive `EMAIL_DELIVERY_ENABLED=true`.
+                </p>
+              ) : null}
+            </article>
+
             <article className="card section-card">
               <div className="subsection-header">
                 <div>

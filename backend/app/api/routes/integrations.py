@@ -16,6 +16,7 @@ from app.schemas.integration import (
     DoctorMatchResponse,
     DoctorScheduleAppointmentRead,
     DoctorVerificationRead,
+    IntegrationUserVerificationRead,
     IntegrationEncounterCreateRequest,
     IntegrationEncounterCreateResponse,
     IntegrationPatientCreateRequest,
@@ -90,6 +91,15 @@ def verify_doctor(
         return IntegrationService(db).verify_doctor(doctor_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/users/verify", response_model=IntegrationUserVerificationRead)
+def verify_user_by_phone(
+    phone: str = Query(...),
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> IntegrationUserVerificationRead:
+    return IntegrationService(db).verify_user_by_phone(phone)
 
 
 @router.post("/doctors/match", response_model=DoctorMatchResponse)

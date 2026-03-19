@@ -51,6 +51,8 @@ class ClinicSettingHttpSmokeTests(unittest.TestCase):
         self.assertEqual(get_status, 200)
         self.assertIsInstance(get_body, dict)
         self.assertIn("allow_multi_doctor_visibility", get_body)
+        self.assertIn("email_delivery_enabled", get_body)
+        self.assertIn("email_delivery_active", get_body)
 
         flipped_value = not get_body["allow_multi_doctor_visibility"]
         patch_status, patch_body = request_json(
@@ -70,3 +72,26 @@ class ClinicSettingHttpSmokeTests(unittest.TestCase):
         )
         self.assertEqual(restore_status, 200)
         self.assertEqual(restore_body["allow_multi_doctor_visibility"], get_body["allow_multi_doctor_visibility"])
+
+    def test_admin_can_toggle_email_delivery(self) -> None:
+        get_status, get_body = request_json("/clinic-settings", token=self.admin_token)
+        self.assertEqual(get_status, 200)
+        original_value = get_body["email_delivery_enabled"]
+
+        patch_status, patch_body = request_json(
+            "/clinic-settings",
+            method="PATCH",
+            token=self.admin_token,
+            payload={"email_delivery_enabled": not original_value},
+        )
+        self.assertEqual(patch_status, 200)
+        self.assertEqual(patch_body["email_delivery_enabled"], (not original_value))
+
+        restore_status, restore_body = request_json(
+            "/clinic-settings",
+            method="PATCH",
+            token=self.admin_token,
+            payload={"email_delivery_enabled": original_value},
+        )
+        self.assertEqual(restore_status, 200)
+        self.assertEqual(restore_body["email_delivery_enabled"], original_value)

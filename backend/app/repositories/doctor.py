@@ -108,3 +108,14 @@ class DoctorRepository:
         for clinic in clinics:
             doctor.clinics.append(clinic)
         self.db.flush()
+
+    def phone_number_in_use(self, phone_number: str, *, exclude_linked_user_id: int | None = None) -> bool:
+        statement = (
+            select(DoctorPhoneNumber.id)
+            .select_from(DoctorPhoneNumber)
+            .join(Doctor, Doctor.id == DoctorPhoneNumber.doctor_id)
+            .where(DoctorPhoneNumber.phone_number == phone_number)
+        )
+        if exclude_linked_user_id is not None:
+            statement = statement.where(or_(Doctor.linked_user_id.is_(None), Doctor.linked_user_id != exclude_linked_user_id))
+        return self.db.scalar(statement.limit(1)) is not None

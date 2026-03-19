@@ -187,13 +187,30 @@ export type LoginResponse = {
   user_email: string;
   first_name: string;
   last_name: string;
+  display_name?: string | null;
   gender?: string | null;
+  phone_number?: string | null;
+  profile_photo_url?: string | null;
+  roles: string[];
+};
+
+export type AuthProfile = {
+  user_email: string;
+  first_name: string;
+  last_name: string;
+  display_name?: string | null;
+  gender?: string | null;
+  phone_number?: string | null;
+  profile_photo_url?: string | null;
   roles: string[];
 };
 
 export type ClinicSetting = {
   id: number;
   allow_multi_doctor_visibility: boolean;
+  email_delivery_enabled: boolean;
+  email_delivery_available: boolean;
+  email_delivery_active: boolean;
   created_at: string;
   updated_at: string;
 };

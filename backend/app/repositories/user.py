@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.doctor import Doctor
 from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
 
 
@@ -11,7 +12,10 @@ class UserRepository:
     def get_by_email(self, email: str) -> User | None:
         statement = (
             select(User)
-            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.doctor_profile).selectinload(Doctor.phone_numbers),
+            )
             .where(User.email == email)
         )
         return self.db.scalar(statement)
@@ -22,7 +26,7 @@ class UserRepository:
             .options(
                 selectinload(User.roles).selectinload(UserRole.role),
                 selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
-                selectinload(User.doctor_profile),
+                selectinload(User.doctor_profile).selectinload(Doctor.phone_numbers),
             )
             .where(User.phone_number == phone_number)
         )
@@ -34,7 +38,7 @@ class UserRepository:
             .options(
                 selectinload(User.roles).selectinload(UserRole.role),
                 selectinload(User.receptionist_assignments).selectinload(ReceptionistDoctorAssignment.doctor),
-                selectinload(User.doctor_profile),
+                selectinload(User.doctor_profile).selectinload(Doctor.phone_numbers),
             )
             .where(User.id == user_id)
         )

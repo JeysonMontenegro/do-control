@@ -20,6 +20,7 @@ from app.schemas.integration import (
     DoctorMatchResponse,
     DoctorScheduleAppointmentRead,
     DoctorVerificationRead,
+    IntegrationUserVerificationRead,
     IntegrationEncounterCreateRequest,
     IntegrationEncounterCreateResponse,
     IntegrationPatientCreateRequest,
@@ -47,6 +48,27 @@ from app.services.patient import PatientService
 
 
 class IntegrationService:
+    ROLE_PERMISSION_MAP = {
+        "admin": [
+            "manage_doctors",
+            "manage_staff",
+            "manage_patients",
+            "manage_appointments",
+            "view_services",
+            "manage_settings",
+        ],
+        "doctor": [
+            "manage_patients",
+            "manage_appointments",
+            "manage_encounters",
+            "send_reminders",
+        ],
+        "receptionist": [
+            "manage_patients",
+            "manage_appointments",
+        ],
+    }
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.patient_service = PatientService(db)
@@ -57,6 +79,39 @@ class IntegrationService:
         self.doctor_service = DoctorService(db)
         self.encounter_service = EncounterService(db)
         self.user_repository = UserRepository(db)
+
+    @staticmethod
+    def _primary_role(role_names: set[str]) -> str | None:
+        for role_name in ("admin", "doctor", "receptionist"):
+            if role_name in role_names:
+                return role_name
+        return next(iter(sorted(role_names)), None)
+
+    def verify_user_by_phone(self, phone_number: str) -> IntegrationUserVerificationRead:
+        user = self.user_repository.get_by_phone_number(phone_number)
+        if user is None or not user.is_active:
+            return IntegrationUserVerificationRead(
+                is_valid=False,
+                phone_number=phone_number,
+                permissions=[],
+            )
+
+        role_names = {user_role.role.name for user_role in user.roles}
+        primary_role = self._primary_role(role_names)
+        permissions: set[str] = set()
+        for role_name in role_names:
+            permissions.update(self.ROLE_PERMISSION_MAP.get(role_name, []))
+
+        return IntegrationUserVerificationRead(
+            is_valid=True,
+            user_id=user.id,
+            role=primary_role,
+            roles=sorted(role_names),
+            user_name=f"{user.first_name} {user.last_name}".strip(),
+            phone_number=user.phone_number,
+            is_active=user.is_active,
+            permissions=sorted(permissions),
+        )
 
     def verify_doctor(self, doctor_id: int) -> DoctorVerificationRead:
         doctor = self.doctor_service.get_doctor(doctor_id)

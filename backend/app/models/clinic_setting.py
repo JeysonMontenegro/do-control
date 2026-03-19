@@ -10,3 +10,4 @@ class ClinicSetting(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     allow_multi_doctor_visibility: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    email_delivery_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")

@@ -13,8 +13,10 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
+    display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(30), nullable=True)
     phone_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    profile_photo_storage_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")

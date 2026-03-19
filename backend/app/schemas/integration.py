@@ -49,6 +49,17 @@ class DoctorVerificationRead(BaseModel):
     primary_phone: str | None
 
 
+class IntegrationUserVerificationRead(BaseModel):
+    is_valid: bool
+    user_id: int | None = None
+    role: str | None = None
+    roles: list[str] = []
+    user_name: str | None = None
+    phone_number: str | None = None
+    is_active: bool = False
+    permissions: list[str] = []
+
+
 class IntegrationPatientCreateRequest(BaseModel):
     full_name: str | None = None
     first_name: str | None = None
