@@ -211,6 +211,12 @@ export type ClinicSetting = {
   email_delivery_enabled: boolean;
   email_delivery_available: boolean;
   email_delivery_active: boolean;
+  welcome_doctor_email_enabled: boolean;
+  welcome_receptionist_email_enabled: boolean;
+  password_reset_email_enabled: boolean;
+  admin_invite_email_enabled: boolean;
+  manual_test_email_enabled: boolean;
+  manual_resend_email_enabled: boolean;
   created_at: string;
   updated_at: string;
 };

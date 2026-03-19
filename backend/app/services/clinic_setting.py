@@ -20,6 +20,12 @@ class ClinicSettingService:
             email_delivery_enabled=setting.email_delivery_enabled,
             email_delivery_available=env_enabled,
             email_delivery_active=env_enabled and setting.email_delivery_enabled,
+            welcome_doctor_email_enabled=setting.welcome_doctor_email_enabled,
+            welcome_receptionist_email_enabled=setting.welcome_receptionist_email_enabled,
+            password_reset_email_enabled=setting.password_reset_email_enabled,
+            admin_invite_email_enabled=setting.admin_invite_email_enabled,
+            manual_test_email_enabled=setting.manual_test_email_enabled,
+            manual_resend_email_enabled=setting.manual_resend_email_enabled,
             created_at=setting.created_at,
             updated_at=setting.updated_at,
         )
@@ -40,6 +46,12 @@ class ClinicSettingService:
         before = {
             "allow_multi_doctor_visibility": setting.allow_multi_doctor_visibility,
             "email_delivery_enabled": setting.email_delivery_enabled,
+            "welcome_doctor_email_enabled": setting.welcome_doctor_email_enabled,
+            "welcome_receptionist_email_enabled": setting.welcome_receptionist_email_enabled,
+            "password_reset_email_enabled": setting.password_reset_email_enabled,
+            "admin_invite_email_enabled": setting.admin_invite_email_enabled,
+            "manual_test_email_enabled": setting.manual_test_email_enabled,
+            "manual_resend_email_enabled": setting.manual_resend_email_enabled,
         }
         updates = payload.model_dump(exclude_unset=True)
         for field, value in updates.items():
@@ -54,6 +66,12 @@ class ClinicSettingService:
             after_data={
                 "allow_multi_doctor_visibility": setting.allow_multi_doctor_visibility,
                 "email_delivery_enabled": setting.email_delivery_enabled,
+                "welcome_doctor_email_enabled": setting.welcome_doctor_email_enabled,
+                "welcome_receptionist_email_enabled": setting.welcome_receptionist_email_enabled,
+                "password_reset_email_enabled": setting.password_reset_email_enabled,
+                "admin_invite_email_enabled": setting.admin_invite_email_enabled,
+                "manual_test_email_enabled": setting.manual_test_email_enabled,
+                "manual_resend_email_enabled": setting.manual_resend_email_enabled,
             },
         )
         self.db.commit()

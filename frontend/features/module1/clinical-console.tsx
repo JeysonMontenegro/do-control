@@ -806,6 +806,19 @@ export function ClinicalConsole() {
     }
   }
 
+  async function toggleEmailProcessSetting(field: keyof ClinicSetting, enabled: boolean) {
+    setMessage("");
+    try {
+      const updated = await apiPatch<ClinicSetting>("/api/clinic-settings", {
+        [field]: enabled,
+      });
+      setClinicSetting(updated);
+      setMessage(enabled ? "Proceso de correo habilitado." : "Proceso de correo deshabilitado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el proceso de correo.");
+    }
+  }
+
   async function submitPatientUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPatientId) {
@@ -3840,12 +3853,7 @@ export function ClinicalConsole() {
               </div>
               <div className="detail-panel compact-panel">
                 <strong>Procesos que usan correo</strong>
-                <span>Bienvenida al crear doctor con acceso</span>
-                <span>Bienvenida al crear recepcionista</span>
-                <span>Recuperación de contraseña</span>
-                <span>Invitación de administrador</span>
-                <span>Correo de prueba desde este panel</span>
-                <span>Reenvío manual de dispatches fallidos o ya enviados</span>
+                <span>Configura cada proceso por separado abajo.</span>
               </div>
               <div className="row-actions">
                 <button
@@ -3870,6 +3878,73 @@ export function ClinicalConsole() {
                   El entorno actual tiene bloqueado el envío real. Aunque habilites la clínica, los dispatches quedarán pausados o skipped hasta que el servidor reactive `EMAIL_DELIVERY_ENABLED=true`.
                 </p>
               ) : null}
+            </article>
+
+            <article className="card section-card span-three">
+              <div className="subsection-header">
+                <div>
+                  <p className="eyebrow">Correos</p>
+                  <h2>Procesos habilitados</h2>
+                </div>
+              </div>
+              <div className="table-list">
+                {[
+                  {
+                    key: "welcome_doctor_email_enabled" as const,
+                    title: "Bienvenida a doctor",
+                    description: "Se usa al crear un doctor con usuario de acceso.",
+                  },
+                  {
+                    key: "welcome_receptionist_email_enabled" as const,
+                    title: "Bienvenida a recepción",
+                    description: "Se usa al crear una recepcionista con acceso.",
+                  },
+                  {
+                    key: "password_reset_email_enabled" as const,
+                    title: "Recuperación de contraseña",
+                    description: "Se usa cuando un usuario solicita reset de password.",
+                  },
+                  {
+                    key: "admin_invite_email_enabled" as const,
+                    title: "Invitación de administrador",
+                    description: "Se usa cuando se invita a un nuevo admin por correo.",
+                  },
+                  {
+                    key: "manual_test_email_enabled" as const,
+                    title: "Correo de prueba",
+                    description: "Se usa desde este panel para verificar plantillas y entrega.",
+                  },
+                  {
+                    key: "manual_resend_email_enabled" as const,
+                    title: "Reenvío manual",
+                    description: "Se usa al reenviar dispatches desde el historial.",
+                  },
+                ].map((item) => (
+                  <div className="simple-list-item" key={`email-process-${item.key}`}>
+                    <strong>{item.title}</strong>
+                    <span>{item.description}</span>
+                    <span>{clinicSetting?.[item.key] ? "Habilitado" : "Deshabilitado"}</span>
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className={clinicSetting?.[item.key] ? "secondary-button" : undefined}
+                        onClick={() => toggleEmailProcessSetting(item.key, true)}
+                        disabled={clinicSetting?.[item.key]}
+                      >
+                        Habilitar
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => toggleEmailProcessSetting(item.key, false)}
+                        disabled={!clinicSetting?.[item.key]}
+                      >
+                        Deshabilitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </article>
 
             <article className="card section-card">

@@ -42,10 +42,26 @@ class EmailService:
             or normalized.endswith("@localhost")
         )
 
+    def _clinic_setting(self):
+        return self.clinic_setting_repository.get_singleton()
+
+    def _process_enabled(self, process_key: str) -> bool:
+        clinic_setting = self._clinic_setting()
+        if clinic_setting is None:
+            return True
+        return {
+            "welcome_doctor": clinic_setting.welcome_doctor_email_enabled,
+            "welcome_receptionist": clinic_setting.welcome_receptionist_email_enabled,
+            "password_reset": clinic_setting.password_reset_email_enabled,
+            "admin_invite": clinic_setting.admin_invite_email_enabled,
+            "manual_test": clinic_setting.manual_test_email_enabled,
+            "manual_resend": clinic_setting.manual_resend_email_enabled,
+        }.get(process_key, True)
+
     def _send_with_brevo(self, *, to_email: str, to_name: str | None, subject: str, html_body: str, text_body: str | None) -> str | None:
         if self._is_non_production_recipient(to_email):
             return None
-        clinic_setting = self.clinic_setting_repository.get_singleton()
+        clinic_setting = self._clinic_setting()
         clinic_enabled = clinic_setting.email_delivery_enabled if clinic_setting is not None else True
         if not settings.email_delivery_enabled or not clinic_enabled or not settings.brevo_api_key:
             return None
@@ -82,6 +98,7 @@ class EmailService:
         template_id: int | None = None,
         user_id: int | None = None,
         recipient_name: str | None = None,
+        process_key: str | None = None,
     ) -> EmailDispatch:
         dispatch = self.dispatch_repository.create(
             EmailDispatch(
@@ -97,16 +114,21 @@ class EmailService:
             )
         )
         try:
-            provider_message_id = self._send_with_brevo(
-                to_email=to_email,
-                to_name=recipient_name,
-                subject=subject,
-                html_body=html_body,
-                text_body=text_body,
-            )
-            dispatch.status = "sent" if provider_message_id else "skipped"
+            if process_key and not self._process_enabled(process_key):
+                provider_message_id = None
+                dispatch.status = "skipped"
+                dispatch.error_message = f"Email process '{process_key}' is disabled by clinic settings."
+            else:
+                provider_message_id = self._send_with_brevo(
+                    to_email=to_email,
+                    to_name=recipient_name,
+                    subject=subject,
+                    html_body=html_body,
+                    text_body=text_body,
+                )
+                dispatch.status = "sent" if provider_message_id else "skipped"
+                dispatch.error_message = None
             dispatch.provider_message_id = provider_message_id
-            dispatch.error_message = None
         except error.HTTPError as exc:
             dispatch.status = "failed"
             dispatch.error_message = exc.read().decode("utf-8")
@@ -155,6 +177,7 @@ class EmailService:
             template_id=template_id,
             user_id=user.id,
             recipient_name=f"{user.first_name} {user.last_name}".strip(),
+            process_key="welcome_doctor" if any(user_role.role.name == "doctor" for user_role in user.roles) else "welcome_receptionist",
         )
 
     def _create_action_token(self, user: User, *, action_type: str, expires_in_minutes: int) -> str:
@@ -198,6 +221,7 @@ class EmailService:
             template_id=template_id,
             user_id=user.id,
             recipient_name=f"{user.first_name} {user.last_name}".strip(),
+            process_key="password_reset",
         )
 
     def send_admin_invite_email(self, payload: AdminInviteRequest) -> EmailDispatch:
@@ -255,6 +279,7 @@ class EmailService:
             template_id=template_id,
             user_id=user.id,
             recipient_name=f"{user.first_name} {user.last_name}".strip(),
+            process_key="admin_invite",
         )
 
     def request_password_reset(self, email: str) -> None:
@@ -300,6 +325,7 @@ class EmailService:
             template_key=dispatch.template_key,
             template_id=dispatch.template_id,
             user_id=dispatch.user_id,
+            process_key="manual_resend",
         )
 
     def send_test_email(self, *, recipient_email: str, template_key: str) -> EmailDispatch:
@@ -325,4 +351,5 @@ class EmailService:
             template_key=template_key,
             template_id=template_id,
             recipient_name="Usuario de prueba",
+            process_key="manual_test",
         )
