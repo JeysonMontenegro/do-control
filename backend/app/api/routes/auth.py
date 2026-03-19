@@ -7,6 +7,7 @@ from app.schemas.auth import AuthProfileRead, AuthProfileUpdate, LoginRequest, L
 from app.schemas.auth_email import AdminInviteRequest, AuthEmailActionRead, PasswordResetConfirmRequest, PasswordResetRequest
 from app.services.auth import AuthService
 from app.services.email_service import EmailService
+from app.services.recaptcha import RecaptchaService
 from app.services.errors import ValidationError
 
 router = APIRouter()
@@ -15,6 +16,7 @@ router = APIRouter()
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db_session)) -> LoginResponse:
     try:
+        RecaptchaService().verify_login_token(payload.recaptcha_token)
         return AuthService(db).login(payload.email, payload.password)
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc

@@ -61,6 +61,15 @@ import type {
   ReminderRule,
 } from "@/features/module1/types";
 
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (callback: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
+
 type LoadState = {
   doctors: Doctor[];
   patients: Patient[];
@@ -120,6 +129,7 @@ const createDoctorAdminForm = (): DoctorAdminForm => ({
 });
 
 export function ClinicalConsole() {
+  const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
   const [data, setData] = useState<LoadState>(initialLoadState);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -578,12 +588,29 @@ export function ClinicalConsole() {
     event.preventDefault();
     setMessage("");
     try {
+      let recaptchaToken: string | null = null;
+      if (recaptchaSiteKey) {
+        if (!window.grecaptcha) {
+          throw new Error("reCAPTCHA no está listo todavía. Intenta de nuevo.");
+        }
+        recaptchaToken = await new Promise<string>((resolve, reject) => {
+          window.grecaptcha?.ready(() => {
+            window.grecaptcha
+              ?.execute(recaptchaSiteKey, { action: "login" })
+              .then(resolve)
+              .catch(() => reject(new Error("No se pudo validar reCAPTCHA.")));
+          });
+        });
+      }
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({
+          ...loginForm,
+          recaptcha_token: recaptchaToken,
+        }),
       });
       if (!response.ok) {
         throw new Error(await response.text());
