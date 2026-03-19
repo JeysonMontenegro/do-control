@@ -6,7 +6,7 @@ export const consoleTabs: Array<{ id: ConsoleTab; label: string }> = [
   { id: "pacientes", label: "Pacientes" },
   { id: "consultas", label: "Consultas" },
   { id: "mensajes", label: "Mensajes" },
-  { id: "pendientes", label: "Pendientes" },
+  { id: "pendientes", label: "Seguimiento" },
   { id: "gestion", label: "Configuración" },
 ];
 

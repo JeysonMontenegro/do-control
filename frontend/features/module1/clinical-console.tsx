@@ -79,6 +79,7 @@ type LoadState = {
 
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
 type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "doctores" | "recepcion";
+type MessagesSubtab = "paciente" | "citas" | "operacion";
 type DoctorRosterTab = "activos" | "inactivos";
 type DoctorClinicForm = {
   clinic_name: string;
@@ -144,6 +145,7 @@ export function ClinicalConsole() {
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
+  const [messagesSubtab, setMessagesSubtab] = useState<MessagesSubtab>("paciente");
   const [doctorRosterTab, setDoctorRosterTab] = useState<DoctorRosterTab>("activos");
   const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
@@ -504,6 +506,27 @@ export function ClinicalConsole() {
 
     refreshProfile();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    setProfileForm((current) => ({
+      ...current,
+      first_name: currentUserFirstName,
+      last_name: currentUserLastName,
+      display_name: currentUserDisplayName ?? "",
+      gender: currentUserGender ?? "",
+      phone_number: currentUserPhoneNumber ?? "",
+    }));
+  }, [
+    currentUserDisplayName,
+    currentUserFirstName,
+    currentUserGender,
+    currentUserLastName,
+    currentUserPhoneNumber,
+    isAuthenticated,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -1892,20 +1915,16 @@ export function ClinicalConsole() {
   const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
   const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
   const currentUserDisplay = useMemo(() => {
-    if (currentUserDisplayName?.trim()) {
-      return currentUserDisplayName.trim();
-    }
     const fullName = `${currentUserFirstName} ${currentUserLastName}`.trim();
-    if (!fullName) {
-      return currentUserEmail;
-    }
+    const alias = currentUserDisplayName?.trim() || "";
+    const baseName = fullName || alias || currentUserEmail;
     if (currentRoles.includes("doctor")) {
-      return `${currentUserGender === "female" ? "Dra." : "Dr."} ${fullName}`;
+      return `${currentUserGender === "female" ? "Dra." : "Dr."} ${baseName}`;
     }
     if (currentRoles.includes("receptionist")) {
-      return `Recepción ${fullName}`;
+      return `Recepción ${baseName}`;
     }
-    return fullName;
+    return baseName;
   }, [currentRoles, currentUserDisplayName, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
   const paginatedActiveDoctors = useMemo(
     () => activeDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
@@ -3070,122 +3089,164 @@ export function ClinicalConsole() {
 
   const renderMensajesTab = () => (
     <section className="tab-layout">
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Paciente</p>
-            <h2>Filtro de comunicaciones</h2>
-          </div>
-        </div>
-        <label>
-          <span>Paciente seleccionado</span>
-          <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
-            <option value="">Seleccionar paciente</option>
-            {data.patients.map((patient) => (
-              <option key={`message-patient-${patient.id}`} value={patient.id}>
-                {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="empty-state">
-          Esta vista muestra las comunicaciones del paciente seleccionado, no una conversación global de todos los pacientes.
-        </p>
-      </article>
-      <article className="card section-card span-two">
+      <article className="card section-card span-three">
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Mensajes</p>
-            <h2>Timeline del paciente</h2>
+            <h2>Centro de comunicaciones</h2>
           </div>
         </div>
-        {selectedSummary ? (
-          <>
-            <div className="detail-panel compact-panel">
-              <strong>
-                {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
-              </strong>
-              <span>{selectedSummary.patient.medical_record_number}</span>
-              <span>{selectedSummary.patient.primary_phone}</span>
+        <div className="chip-row">
+          <button
+            type="button"
+            className={`filter-chip ${messagesSubtab === "paciente" ? "filter-chip-active" : ""}`}
+            onClick={() => setMessagesSubtab("paciente")}
+          >
+            Paciente
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${messagesSubtab === "citas" ? "filter-chip-active" : ""}`}
+            onClick={() => setMessagesSubtab("citas")}
+          >
+            Citas
+          </button>
+          {canViewGlobalCommunications ? (
+            <button
+              type="button"
+              className={`filter-chip ${messagesSubtab === "operacion" ? "filter-chip-active" : ""}`}
+              onClick={() => setMessagesSubtab("operacion")}
+            >
+              Operación
+            </button>
+          ) : null}
+        </div>
+        <p className="empty-state">
+          Organiza las comunicaciones por paciente, por citas relacionadas o como seguimiento operativo global.
+        </p>
+      </article>
+      {messagesSubtab === "paciente" ? (
+        <>
+          <article className="card section-card">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Paciente</p>
+                <h2>Filtro de comunicaciones</h2>
+              </div>
             </div>
+            <label>
+              <span>Paciente seleccionado</span>
+              <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
+                <option value="">Seleccionar paciente</option>
+                {data.patients.map((patient) => (
+                  <option key={`message-patient-${patient.id}`} value={patient.id}>
+                    {patient.first_name} {patient.last_name} · {patient.medical_record_number}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="empty-state">
+              Esta vista muestra el histórico del paciente seleccionado.
+            </p>
+          </article>
+          <article className="card section-card span-two">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Mensajes</p>
+                <h2>Timeline del paciente</h2>
+              </div>
+            </div>
+            {selectedSummary ? (
+              <>
+                <div className="detail-panel compact-panel">
+                  <strong>
+                    {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
+                  </strong>
+                  <span>{selectedSummary.patient.medical_record_number}</span>
+                  <span>{selectedSummary.patient.primary_phone}</span>
+                </div>
+                <div className="table-list">
+                  {selectedPatientDispatches.length ? (
+                    selectedPatientDispatches.map((dispatch) => (
+                      <div className="timeline-item" key={`patient-dispatch-${dispatch.id}`}>
+                        <div className="row-actions">
+                          <strong>{communicationKindLabel(dispatch)}</strong>
+                          <span className={`badge ${
+                            dispatch.status === "failed"
+                              ? "badge-danger"
+                              : dispatch.status === "delivered"
+                                ? "badge-success"
+                                : dispatch.status === "pending"
+                                  ? "badge-warn"
+                                  : "badge-neutral"
+                          }`}>
+                            {dispatchStatusLabel(dispatch.status)}
+                          </span>
+                        </div>
+                        <span>
+                          {dispatch.template_title ?? "Mensaje clínico"}
+                          {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
+                        </span>
+                        <span>
+                          {dispatch.appointment_scheduled_start
+                            ? `Cita: ${formatDateTime(dispatch.appointment_scheduled_start)}`
+                            : formatDateTime(dispatch.created_at)}
+                        </span>
+                        <div className="message-preview">{dispatch.rendered_message ?? "Sin texto generado."}</div>
+                        {dispatch.error_message ? <span>Error: {dispatch.error_message}</span> : null}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="empty-state">Este paciente todavía no tiene comunicaciones registradas.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su timeline de comunicaciones.</p>
+            )}
+          </article>
+        </>
+      ) : null}
+      {messagesSubtab === "citas" ? (
+        <article className="card section-card span-three">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Citas</p>
+              <h2>Eventos de cita</h2>
+            </div>
+          </div>
+          {selectedSummary ? (
             <div className="table-list">
-              {selectedPatientDispatches.length ? (
-                selectedPatientDispatches.map((dispatch) => (
-                  <div className="timeline-item" key={`patient-dispatch-${dispatch.id}`}>
-                    <div className="row-actions">
-                      <strong>{communicationKindLabel(dispatch)}</strong>
-                      <span className={`badge ${
-                        dispatch.status === "failed"
-                          ? "badge-danger"
-                          : dispatch.status === "delivered"
-                            ? "badge-success"
-                            : dispatch.status === "pending"
-                              ? "badge-warn"
-                              : "badge-neutral"
-                      }`}>
-                        {dispatchStatusLabel(dispatch.status)}
-                      </span>
-                    </div>
-                    <span>
-                      {dispatch.template_title ?? "Mensaje clínico"}
-                      {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
-                    </span>
-                    <span>
-                      {dispatch.appointment_scheduled_start
-                        ? `Cita: ${formatDateTime(dispatch.appointment_scheduled_start)}`
-                        : formatDateTime(dispatch.created_at)}
-                    </span>
-                    <div className="message-preview">{dispatch.rendered_message ?? "Sin texto generado."}</div>
-                    {dispatch.error_message ? <span>Error: {dispatch.error_message}</span> : null}
-                  </div>
-                ))
+              {selectedSummary.appointments.length ? (
+                selectedSummary.appointments.map((appointment) => {
+                  const relatedDispatches = selectedPatientDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
+                  return (
+                    <button
+                      type="button"
+                      className="simple-list-item"
+                      key={`message-appointment-${appointment.id}`}
+                      onClick={() => {
+                        setActiveTab("agenda");
+                        toggleAppointmentHistory(appointment.id);
+                      }}
+                    >
+                      <strong>{formatDateTime(appointment.scheduled_start)}</strong>
+                      <span>{appointmentTypeLabel(appointment.appointment_type)}</span>
+                      <span>{confirmationLabel(appointment.confirmation_status)}</span>
+                      <span>{relatedDispatches.length ? `${relatedDispatches.length} mensajes ligados` : "Sin mensajes ligados"}</span>
+                    </button>
+                  );
+                })
               ) : (
-                <p className="empty-state">Este paciente todavía no tiene comunicaciones registradas.</p>
+                <p className="empty-state">Este paciente no tiene citas registradas.</p>
               )}
             </div>
-          </>
-        ) : (
-          <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su timeline de comunicaciones.</p>
-        )}
-      </article>
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Citas</p>
-            <h2>Eventos de cita</h2>
-          </div>
-        </div>
-        {selectedSummary ? (
-          <div className="table-list">
-            {selectedSummary.appointments.length ? (
-              selectedSummary.appointments.map((appointment) => {
-                const relatedDispatches = selectedPatientDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
-                return (
-                  <button
-                    type="button"
-                    className="simple-list-item"
-                    key={`message-appointment-${appointment.id}`}
-                    onClick={() => {
-                      setActiveTab("agenda");
-                      toggleAppointmentHistory(appointment.id);
-                    }}
-                  >
-                    <strong>{formatDateTime(appointment.scheduled_start)}</strong>
-                    <span>{appointmentTypeLabel(appointment.appointment_type)}</span>
-                    <span>{confirmationLabel(appointment.confirmation_status)}</span>
-                    <span>{relatedDispatches.length ? `${relatedDispatches.length} mensajes ligados` : "Sin mensajes ligados"}</span>
-                  </button>
-                );
-              })
-            ) : (
-              <p className="empty-state">Este paciente no tiene citas registradas.</p>
-            )}
-          </div>
-        ) : (
-          <p className="empty-state">Selecciona un paciente para relacionar mensajes con sus citas.</p>
-        )}
-      </article>
-      {canViewGlobalCommunications ? (
+          ) : (
+            <p className="empty-state">Selecciona un paciente para relacionar mensajes con sus citas.</p>
+          )}
+        </article>
+      ) : null}
+      {messagesSubtab === "operacion" && canViewGlobalCommunications ? (
         <article className="card section-card span-three">
           <div className="subsection-header">
             <div>
@@ -3310,55 +3371,142 @@ export function ClinicalConsole() {
       );
     });
 
+    const sortedReviewItems = [...appointmentReviewItems].sort(
+      (left, right) => new Date(left.scheduled_start).getTime() - new Date(right.scheduled_start).getTime(),
+    );
+    const reviewGroups = [
+      {
+        key: "reschedule_request",
+        title: "Solicitudes de reagendar",
+        description: "Pacientes que pidieron cambiar día u hora y necesitan una nueva propuesta.",
+        items: sortedReviewItems.filter((item) => item.review_reason === "reschedule_request"),
+      },
+      {
+        key: "patient_resolution",
+        title: "Pacientes por identificar",
+        description: "Casos donde todavía hay que confirmar a qué paciente corresponde la solicitud.",
+        items: sortedReviewItems.filter((item) => item.review_reason === "patient_resolution"),
+      },
+      {
+        key: "doctor_resolution",
+        title: "Doctor por resolver",
+        description: "Solicitudes donde falta definir el doctor correcto antes de crear o vincular la cita.",
+        items: sortedReviewItems.filter((item) => item.review_reason === "doctor_resolution"),
+      },
+      {
+        key: "validation_rejected",
+        title: "Casos rechazados por validación",
+        description: "Mensajes que no pasaron las reglas automáticas y necesitan revisión humana.",
+        items: sortedReviewItems.filter((item) => item.review_reason === "validation_rejected"),
+      },
+    ].filter((group) => group.items.length > 0);
+
     return (
       <section className="tab-layout">
-        <article className="card section-card">
+        <article className="card section-card span-three">
           <div className="subsection-header">
             <div>
-              <p className="eyebrow">Pendientes</p>
-              <h2>Revisión manual</h2>
+              <p className="eyebrow">Seguimiento</p>
+              <h2>Centro de seguimiento operativo</h2>
             </div>
           </div>
-          <div className="table-list">
-            {appointmentReviewItems.length ? (
-              appointmentReviewItems.map((item) => (
-                <div className="simple-list-item" key={`review-item-${item.id}`}>
-                  <strong>{item.patient_name}</strong>
-                  <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
-                  <span>{formatDateTime(item.scheduled_start)}</span>
-                  <span>{reviewReasonLabel(item.review_reason)}</span>
-                  <span>{item.review_message}</span>
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
-                      Crear cita
-                    </button>
-                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
-                      Vincular cita
-                    </button>
-                    <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "reject")}>
-                      Rechazar
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="empty-state">No hay propuestas pendientes de revisión manual.</p>
-            )}
+          <div className="summary-grid">
+            <div className="metric-card">
+              <strong>{appointmentReviewItems.length}</strong>
+              <span>Solicitudes por resolver</span>
+            </div>
+            <div className="metric-card">
+              <strong>{appointmentReviewItems.filter((item) => item.review_reason === "reschedule_request").length}</strong>
+              <span>Solicitudes de reagendar</span>
+            </div>
+            <div className="metric-card">
+              <strong>{appointmentReviewItems.filter((item) => item.review_reason !== "reschedule_request").length}</strong>
+              <span>Casos por validar</span>
+            </div>
+            <div className="metric-card">
+              <strong>{attentionAppointments.length}</strong>
+              <span>Citas con seguimiento hoy</span>
+            </div>
+          </div>
+          <div className="detail-panel">
+            <strong>Qué ves aquí</strong>
+            <span>Esta bandeja reúne solicitudes que no se resolvieron automáticamente y citas que siguen abiertas por confirmar o con problemas de comunicación.</span>
           </div>
         </article>
         <article className="card section-card span-two">
           <div className="subsection-header">
             <div>
-              <p className="eyebrow">Atención del día</p>
-              <h2>Citas que requieren seguimiento</h2>
+              <p className="eyebrow">Solicitudes</p>
+              <h2>Casos que requieren decisión</h2>
             </div>
+          </div>
+          <div className="stack-block">
+            {reviewGroups.length ? (
+              reviewGroups.map((group) => (
+                <section className="review-queue-group" key={group.key}>
+                  <div className="review-queue-group-header">
+                    <div>
+                      <strong>{group.title}</strong>
+                      <span>{group.description}</span>
+                    </div>
+                    <span className="context-pill">{group.items.length} caso{group.items.length === 1 ? "" : "s"}</span>
+                  </div>
+                  <div className="table-list">
+                    {group.items.map((item) => (
+                      <div className="review-queue-item" key={`review-item-${item.id}`}>
+                        <div className="review-queue-head">
+                          <div>
+                            <strong>{item.patient_name}</strong>
+                            <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
+                          </div>
+                          <div className="inline-badges">
+                            <span className="badge badge-neutral">{reviewReasonLabel(item.review_reason)}</span>
+                            <span className="badge badge-neutral">{item.source === "appoint-me" ? "WhatsApp" : item.source}</span>
+                          </div>
+                        </div>
+                        <div className="review-meta-grid">
+                          <span><strong>Fecha solicitada:</strong> {formatDateTime(item.scheduled_start)}</span>
+                          <span><strong>Contacto:</strong> {item.phone_number || "Sin teléfono"}</span>
+                        </div>
+                        <p className="review-message">{item.review_message}</p>
+                        <div className="row-actions">
+                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
+                            Crear cita
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
+                            Vincular cita
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "reject")}>
+                            Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <p className="empty-state">No hay solicitudes pendientes de revisión manual.</p>
+            )}
+          </div>
+        </article>
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Agenda sensible</p>
+              <h2>Citas que necesitan seguimiento</h2>
+            </div>
+          </div>
+          <div className="detail-panel compact-panel">
+            <strong>Qué revisar primero</strong>
+            <span>Empieza por citas sin confirmar, mensajes fallidos y citas que ya tienen una solicitud de revisión ligada.</span>
           </div>
           <div className="table-list">
             {attentionAppointments.length ? (
               attentionAppointments.map((appointment) => (
                 <button
                   type="button"
-                  className="simple-list-item"
+                  className="simple-list-item review-followup-item"
                   key={`attention-appointment-${appointment.id}`}
                   onClick={() => {
                     setActiveTab("agenda");
@@ -3368,11 +3516,12 @@ export function ClinicalConsole() {
                   <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
                   <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
                   <span>{formatDateTime(appointment.scheduled_start)}</span>
+                  <span>{confirmationLabel(appointment.confirmation_status)}</span>
                   {renderAppointmentBadges(appointment)}
                 </button>
               ))
             ) : (
-              <p className="empty-state">No hay citas marcadas con atención especial.</p>
+              <p className="empty-state">No hay citas marcadas con seguimiento especial.</p>
             )}
           </div>
         </article>
@@ -4662,7 +4811,7 @@ export function ClinicalConsole() {
         <div className="modal-card">
           <div className="subsection-header">
             <div>
-              <p className="eyebrow">Pendientes</p>
+              <p className="eyebrow">Seguimiento</p>
               <h2>{actionLabel}</h2>
             </div>
             <button type="button" className="secondary-button" onClick={closeReviewResolutionModal}>
@@ -4989,7 +5138,7 @@ export function ClinicalConsole() {
               </div>
               <div className="sidebar-stat">
                 <strong>{appointmentReviewItems.length}</strong>
-                <span>Pendientes</span>
+                <span>Seguimiento</span>
               </div>
             </div>
             <button type="button" className="secondary-button sidebar-logout" onClick={logout}>
