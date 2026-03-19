@@ -2290,21 +2290,21 @@ export function ClinicalConsole() {
             ) : null}
             {canManageAppointments ? (
               <div className="row-actions">
-                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
+                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
                   Confirmar
                 </button>
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="success-button"
                   onClick={() => sendAppointmentReminderNow(focusedAppointment.id)}
                   disabled={focusedAppointment.status === "cancelled" || focusedAppointment.confirmation_status === "cancelled"}
                 >
                   Enviar recordatorio ahora
                 </button>
-                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
+                <button type="button" className="danger-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
                   Cancelar
                 </button>
-                <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
+                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
                   Completar
                 </button>
               </div>
@@ -3072,7 +3072,7 @@ export function ClinicalConsole() {
               <span>{encounter.chief_complaint}</span>
               {encounter.status !== "closed" && canManageEncounters ? (
                 <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => closeEncounter(encounter.id)}>
+                  <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
                     Cerrar
                   </button>
                 </div>
@@ -3298,10 +3298,10 @@ export function ClinicalConsole() {
             </div>
             {isAdmin ? (
               <div className="row-actions">
-                <button type="button" className="secondary-button" onClick={generateDispatchesNow}>
+                <button type="button" className="success-button" onClick={generateDispatchesNow}>
                   Generar ahora
                 </button>
-                <button type="button" className="secondary-button" onClick={requeueVisibleFailedDispatches}>
+                <button type="button" className="success-button" onClick={requeueVisibleFailedDispatches}>
                   Reenviar fallidos
                 </button>
               </div>
@@ -3366,17 +3366,17 @@ export function ClinicalConsole() {
                     {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
                   </button>
                   {isAdmin && dispatch.status !== "delivered" ? (
-                    <button type="button" className="secondary-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
+                    <button type="button" className="success-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
                       Marcar entregado
                     </button>
                   ) : null}
                   {isAdmin && dispatch.status !== "failed" ? (
-                    <button type="button" className="secondary-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
+                    <button type="button" className="danger-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
                       Marcar fallido
                     </button>
                   ) : null}
                   {isAdmin && dispatch.status === "failed" ? (
-                    <button type="button" className="secondary-button" onClick={() => requeueDispatch(dispatch.id)}>
+                    <button type="button" className="success-button" onClick={() => requeueDispatch(dispatch.id)}>
                       Reenviar
                     </button>
                   ) : null}
@@ -3513,13 +3513,13 @@ export function ClinicalConsole() {
                         </div>
                         <p className="review-message">{item.review_message}</p>
                         <div className="row-actions">
-                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
+                          <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
                             Crear cita
                           </button>
-                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
+                          <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
                             Vincular cita
                           </button>
-                          <button type="button" className="secondary-button" onClick={() => resolveReviewItem(item.id, "reject")}>
+                          <button type="button" className="danger-button" onClick={() => resolveReviewItem(item.id, "reject")}>
                             Rechazar
                           </button>
                         </div>
@@ -3659,7 +3659,7 @@ export function ClinicalConsole() {
                   <p className="eyebrow">Sedes</p>
                   <h3>Clínicas del doctor</h3>
                 </div>
-                <button type="button" className="secondary-button" onClick={addDoctorClinic}>
+                <button type="button" className="success-button" onClick={addDoctorClinic}>
                   Agregar clínica
                 </button>
               </div>
@@ -3693,7 +3693,7 @@ export function ClinicalConsole() {
                         />
                         <span>Sede principal</span>
                       </label>
-                      <button type="button" className="secondary-button" onClick={() => removeDoctorClinic(index)}>
+                      <button type="button" className="danger-button" onClick={() => removeDoctorClinic(index)}>
                         Quitar
                       </button>
                     </div>
@@ -3775,7 +3775,7 @@ export function ClinicalConsole() {
                     ) : null}
                     <div className="row-actions">
                       <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>
+                      <button type="button" className="danger-button" onClick={() => toggleDoctorActive(doctor)}>
                         Desactivar
                       </button>
                     </div>
@@ -3812,7 +3812,7 @@ export function ClinicalConsole() {
                     ) : null}
                     <div className="row-actions">
                       <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                      <button type="button" className="secondary-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
+                      <button type="button" className="success-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
                     </div>
                   </div>
                 ))}
@@ -3879,7 +3879,7 @@ export function ClinicalConsole() {
                       <span>Foto de perfil</span>
                       <input type="file" accept="image/*" onChange={(event) => setProfilePhotoFile(event.target.files?.[0] ?? null)} />
                     </label>
-                    <button type="button" className="secondary-button" onClick={uploadCurrentProfilePhoto}>
+                    <button type="button" className="success-button" onClick={uploadCurrentProfilePhoto}>
                       Subir foto
                     </button>
                   </div>
@@ -4000,7 +4000,7 @@ export function ClinicalConsole() {
                 <div className="row-actions">
                   <button
                     type="button"
-                    className={allowMultiDoctorVisibility ? "secondary-button" : undefined}
+                    className="success-button"
                     onClick={() => toggleMultiDoctorVisibility(true)}
                     disabled={allowMultiDoctorVisibility}
                   >
@@ -4008,7 +4008,7 @@ export function ClinicalConsole() {
                   </button>
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="danger-button"
                     onClick={() => toggleMultiDoctorVisibility(false)}
                     disabled={!allowMultiDoctorVisibility}
                   >
@@ -4124,7 +4124,7 @@ export function ClinicalConsole() {
                       <div className="row-actions">
                         <button
                           type="button"
-                          className="secondary-button"
+                          className="success-button"
                           onClick={() =>
                             setTemplateForm({
                               doctor_id: template.doctor_id ? String(template.doctor_id) : "",
@@ -4138,7 +4138,11 @@ export function ClinicalConsole() {
                         >
                           Usar como base
                         </button>
-                        <button type="button" className="secondary-button" onClick={() => toggleTemplate(template)}>
+                        <button
+                          type="button"
+                          className={template.is_active ? "danger-button" : "success-button"}
+                          onClick={() => toggleTemplate(template)}
+                        >
                           {template.is_active ? "Desactivar" : "Activar"}
                         </button>
                       </div>
@@ -4159,7 +4163,7 @@ export function ClinicalConsole() {
                   <h2>Regla base de la clínica</h2>
                 </div>
                 {isAdmin ? (
-                  <button type="button" className="secondary-button" onClick={activateDefault24HourReminder}>
+                  <button type="button" className="success-button" onClick={activateDefault24HourReminder}>
                     Activar regla general 24 horas
                   </button>
                 ) : null}
@@ -4251,7 +4255,7 @@ export function ClinicalConsole() {
                       <div className="row-actions">
                         <button
                           type="button"
-                          className="secondary-button"
+                          className="success-button"
                           onClick={() =>
                             setReminderRuleForm({
                               doctor_id: rule.doctor_id ? String(rule.doctor_id) : "",
@@ -4265,7 +4269,11 @@ export function ClinicalConsole() {
                         >
                           Usar como base
                         </button>
-                        <button type="button" className="secondary-button" onClick={() => toggleReminderRule(rule)}>
+                        <button
+                          type="button"
+                          className={rule.is_active ? "danger-button" : "success-button"}
+                          onClick={() => toggleReminderRule(rule)}
+                        >
                           {rule.is_active ? "Desactivar" : "Activar"}
                         </button>
                       </div>
@@ -4473,7 +4481,7 @@ export function ClinicalConsole() {
                   />
                 </label>
                 <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={sendTestEmail}>
+                  <button type="button" className="success-button" onClick={sendTestEmail}>
                     Enviar correo de prueba
                   </button>
                 </div>
@@ -4497,7 +4505,7 @@ export function ClinicalConsole() {
                     <span>{formatDateTime(dispatch.created_at)}</span>
                     {dispatch.error_message ? <span>{dispatch.error_message}</span> : null}
                     <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => resendEmailDispatch(dispatch.id)}>
+                      <button type="button" className="success-button" onClick={() => resendEmailDispatch(dispatch.id)}>
                         Reenviar correo
                       </button>
                     </div>
@@ -4519,7 +4527,7 @@ export function ClinicalConsole() {
                 </div>
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="success-button"
                   onClick={() => {
                     resetReceptionistForm();
                     setShowReceptionistModal(true);
@@ -4554,7 +4562,11 @@ export function ClinicalConsole() {
                     <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
                     <div className="row-actions">
                       <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>Editar</button>
-                      <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(receptionist)}>
+                      <button
+                        type="button"
+                        className={receptionist.is_active ? "danger-button" : "success-button"}
+                        onClick={() => toggleReceptionistActive(receptionist)}
+                      >
                         {receptionist.is_active ? "Desactivar" : "Activar"}
                       </button>
                     </div>
@@ -4597,7 +4609,11 @@ export function ClinicalConsole() {
                     <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(selectedReceptionist)}>
                       Editar recepcionista
                     </button>
-                    <button type="button" className="secondary-button" onClick={() => toggleReceptionistActive(selectedReceptionist)}>
+                    <button
+                      type="button"
+                      className={selectedReceptionist.is_active ? "danger-button" : "success-button"}
+                      onClick={() => toggleReceptionistActive(selectedReceptionist)}
+                    >
                       {selectedReceptionist.is_active ? "Desactivar" : "Activar"}
                     </button>
                   </div>

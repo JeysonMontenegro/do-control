@@ -10,17 +10,19 @@ export const formatDateTime = (value: string | null) => {
   if (!value) {
     return "Sin fecha";
   }
-  return new Intl.DateTimeFormat("es-GT", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return `${formatDate(value)} ${formatTime(value)}`;
 };
 
 export const formatDate = (value: string | Date) =>
   new Intl.DateTimeFormat("es-GT", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(typeof value === "string" ? new Date(value) : value);
+
+export const formatWeekday = (value: string | Date) =>
+  new Intl.DateTimeFormat("es-GT", {
+    weekday: "long",
   }).format(typeof value === "string" ? new Date(value) : value);
 
 export const formatTime = (value: string | Date) =>
@@ -162,22 +164,16 @@ export const sourceLabel = (value: string) => {
 
 export const calendarRangeLabel = (view: CalendarView, anchorDate: Date) => {
   if (view === "dia") {
-    return new Intl.DateTimeFormat("es-GT", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(anchorDate);
+    return formatDate(anchorDate);
   }
   if (view === "semana") {
     const weekStart = startOfWeek(anchorDate);
     const weekEnd = addDays(weekStart, 6);
     return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
   }
-  return new Intl.DateTimeFormat("es-GT", {
-    month: "long",
-    year: "numeric",
-  }).format(anchorDate);
+  const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+  const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+  return `${formatDate(monthStart)} - ${formatDate(monthEnd)}`;
 };
 
 export const lastDispatchStatus = (dispatches: CommunicationDispatch[]) => {

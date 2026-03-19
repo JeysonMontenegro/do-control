@@ -1,6 +1,6 @@
 import type { Appointment } from "@/features/module1/types";
 import type { CalendarView } from "@/features/module1/console-config";
-import { appointmentStatusLabel, appointmentTypeLabel, formatDate, formatTime, getAppointmentEventClassName, isSameDay, startOfDay } from "@/features/module1/console-utils";
+import { appointmentStatusLabel, appointmentTypeLabel, formatDate, formatTime, formatWeekday, getAppointmentEventClassName, isSameDay, startOfDay } from "@/features/module1/console-utils";
 
 type AgendaCalendarProps = {
   calendarView: CalendarView;
@@ -114,8 +114,8 @@ export function AgendaCalendar({
           <div className="agenda-corner" />
           {agendaDays.map((day) => (
             <div key={`header-${day.toISOString()}`} className={`agenda-day-header ${isSameDay(day, new Date()) ? "agenda-day-header-today" : ""}`}>
-              <strong>{new Intl.DateTimeFormat("es-GT", { weekday: "long" }).format(day)}</strong>
-              <span>{new Intl.DateTimeFormat("es-GT", { day: "numeric", month: "short" }).format(day)}</span>
+              <strong>{formatWeekday(day)}</strong>
+              <span>{formatDate(day)}</span>
             </div>
           ))}
         </div>
@@ -165,7 +165,8 @@ export function AgendaCalendar({
           return (
             <article className="mobile-agenda-day" key={`mobile-day-${day.toISOString()}`}>
               <header className="mobile-agenda-day-header">
-                <strong>{new Intl.DateTimeFormat("es-GT", { weekday: "long", day: "numeric", month: "short" }).format(day)}</strong>
+                <strong>{formatWeekday(day)}</strong>
+                <span>{formatDate(day)}</span>
                 <span>{appointments.length ? `${appointments.length} cita${appointments.length === 1 ? "" : "s"}` : "Sin citas"}</span>
               </header>
               <div className="mobile-agenda-events">
