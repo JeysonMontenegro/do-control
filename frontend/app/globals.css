@@ -949,6 +949,69 @@ textarea {
   align-content: start;
 }
 
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.toggle-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.switch-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d8e3f2;
+  background: #f6faff;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px 6px 6px;
+  cursor: pointer;
+}
+
+.switch-track {
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #d8e3f2;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  transition: background 0.2s ease;
+}
+
+.switch-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(36, 54, 74, 0.18);
+  transition: transform 0.2s ease;
+}
+
+.switch-button-active {
+  border-color: rgba(54, 157, 91, 0.24);
+  background: #eefaf2;
+}
+
+.switch-button-active .switch-track {
+  background: #4caf6f;
+}
+
+.switch-button-active .switch-thumb {
+  transform: translateX(20px);
+}
+
+.switch-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .inline-check {
   display: inline-flex !important;
   align-items: center;
@@ -1299,8 +1362,13 @@ textarea {
   }
 
   .review-queue-group-header,
-  .review-queue-head {
+  .review-queue-head,
+  .toggle-row {
     flex-direction: column;
+  }
+
+  .switch-button {
+    align-self: flex-start;
   }
 
   .review-meta-grid {

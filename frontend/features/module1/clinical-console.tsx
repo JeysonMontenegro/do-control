@@ -163,6 +163,7 @@ export function ClinicalConsole() {
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
   const [messagesSubtab, setMessagesSubtab] = useState<MessagesSubtab>("paciente");
   const [doctorRosterTab, setDoctorRosterTab] = useState<DoctorRosterTab>("activos");
+  const [doctorDirectorySearch, setDoctorDirectorySearch] = useState("");
   const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
@@ -1922,6 +1923,27 @@ export function ClinicalConsole() {
   );
   const activeDoctors = useMemo(() => data.doctors.filter((doctor) => doctor.is_active), [data.doctors]);
   const inactiveDoctors = useMemo(() => data.doctors.filter((doctor) => !doctor.is_active), [data.doctors]);
+  const normalizedDoctorDirectorySearch = doctorDirectorySearch.trim().toLowerCase();
+  const filteredActiveDoctors = useMemo(() => {
+    if (!normalizedDoctorDirectorySearch) {
+      return activeDoctors;
+    }
+    return activeDoctors.filter((doctor) =>
+      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
+        .toLowerCase()
+        .includes(normalizedDoctorDirectorySearch),
+    );
+  }, [activeDoctors, normalizedDoctorDirectorySearch]);
+  const filteredInactiveDoctors = useMemo(() => {
+    if (!normalizedDoctorDirectorySearch) {
+      return inactiveDoctors;
+    }
+    return inactiveDoctors.filter((doctor) =>
+      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
+        .toLowerCase()
+        .includes(normalizedDoctorDirectorySearch),
+    );
+  }, [inactiveDoctors, normalizedDoctorDirectorySearch]);
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
   const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
   const teamPageSize = 6;
@@ -1948,12 +1970,12 @@ export function ClinicalConsole() {
     return baseName;
   }, [currentRoles, currentUserDisplayName, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
   const paginatedActiveDoctors = useMemo(
-    () => activeDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
-    [activeDoctorPage, activeDoctors, teamPageSize],
+    () => filteredActiveDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
+    [activeDoctorPage, filteredActiveDoctors, teamPageSize],
   );
   const paginatedInactiveDoctors = useMemo(
-    () => inactiveDoctors.slice((inactiveDoctorPage - 1) * teamPageSize, inactiveDoctorPage * teamPageSize),
-    [inactiveDoctorPage, inactiveDoctors, teamPageSize],
+    () => filteredInactiveDoctors.slice((inactiveDoctorPage - 1) * teamPageSize, inactiveDoctorPage * teamPageSize),
+    [inactiveDoctorPage, filteredInactiveDoctors, teamPageSize],
   );
   const paginatedActiveReceptionists = useMemo(
     () => activeReceptionists.slice((activeReceptionistPage - 1) * teamPageSize, activeReceptionistPage * teamPageSize),
@@ -3703,16 +3725,28 @@ export function ClinicalConsole() {
               className={`filter-chip ${doctorRosterTab === "activos" ? "filter-chip-active" : ""}`}
               onClick={() => setDoctorRosterTab("activos")}
             >
-              Activos
+              Activos ({activeDoctors.length})
             </button>
             <button
               type="button"
               className={`filter-chip ${doctorRosterTab === "inactivos" ? "filter-chip-active" : ""}`}
               onClick={() => setDoctorRosterTab("inactivos")}
             >
-              Inactivos
+              Inactivos ({inactiveDoctors.length})
             </button>
           </div>
+          <label>
+            <span>Buscar doctor</span>
+            <input
+              value={doctorDirectorySearch}
+              onChange={(event) => {
+                setDoctorDirectorySearch(event.target.value);
+                setActiveDoctorPage(1);
+                setInactiveDoctorPage(1);
+              }}
+              placeholder="Filtrar por nombre, especialidad o correo"
+            />
+          </label>
           {doctorRosterTab === "activos" ? (
             <>
               <div className="table-list">
@@ -3747,9 +3781,9 @@ export function ClinicalConsole() {
                     </div>
                   </div>
                 ))}
-                {!activeDoctors.length ? <p className="empty-state">No hay doctores activos registrados.</p> : null}
+                {!filteredActiveDoctors.length ? <p className="empty-state">No hay doctores activos para ese filtro.</p> : null}
               </div>
-              {renderPager(activeDoctorPage, activeDoctors.length, setActiveDoctorPage)}
+              {renderPager(activeDoctorPage, filteredActiveDoctors.length, setActiveDoctorPage)}
             </>
           ) : (
             <>
@@ -3782,9 +3816,9 @@ export function ClinicalConsole() {
                     </div>
                   </div>
                 ))}
-                {!inactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos registrados.</p> : null}
+                {!filteredInactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos para ese filtro.</p> : null}
               </div>
-              {renderPager(inactiveDoctorPage, inactiveDoctors.length, setInactiveDoctorPage)}
+              {renderPager(inactiveDoctorPage, filteredInactiveDoctors.length, setInactiveDoctorPage)}
             </>
           )}
         </article>
@@ -4273,22 +4307,22 @@ export function ClinicalConsole() {
                 <strong>Procesos que usan correo</strong>
                 <span>Configura cada proceso por separado abajo.</span>
               </div>
-              <div className="row-actions">
+              <div className="toggle-row">
+                <div className="toggle-copy">
+                  <strong>Envío global de correos</strong>
+                  <span>Controla si la clínica puede mandar correos reales en todos los procesos.</span>
+                </div>
                 <button
                   type="button"
-                  className={clinicSetting?.email_delivery_enabled ? "secondary-button" : undefined}
-                  onClick={() => toggleEmailDelivery(true)}
-                  disabled={clinicSetting?.email_delivery_enabled}
+                  role="switch"
+                  aria-checked={clinicSetting?.email_delivery_enabled ?? false}
+                  className={`switch-button ${(clinicSetting?.email_delivery_enabled ?? false) ? "switch-button-active" : ""}`}
+                  onClick={() => toggleEmailDelivery(!(clinicSetting?.email_delivery_enabled ?? false))}
                 >
-                  Habilitar correos
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => toggleEmailDelivery(false)}
-                  disabled={!clinicSetting?.email_delivery_enabled}
-                >
-                  Deshabilitar correos
+                  <span className="switch-track">
+                    <span className="switch-thumb" />
+                  </span>
+                  <span className="switch-label">{clinicSetting?.email_delivery_enabled ? "Encendido" : "Apagado"}</span>
                 </button>
               </div>
               {!clinicSetting?.email_delivery_available ? (
@@ -4339,25 +4373,22 @@ export function ClinicalConsole() {
                   },
                 ].map((item) => (
                   <div className="simple-list-item" key={`email-process-${item.key}`}>
-                    <strong>{item.title}</strong>
-                    <span>{item.description}</span>
-                    <span>{clinicSetting?.[item.key] ? "Habilitado" : "Deshabilitado"}</span>
-                    <div className="row-actions">
+                    <div className="toggle-row">
+                      <div className="toggle-copy">
+                        <strong>{item.title}</strong>
+                        <span>{item.description}</span>
+                      </div>
                       <button
                         type="button"
-                        className={clinicSetting?.[item.key] ? "secondary-button" : undefined}
-                        onClick={() => toggleEmailProcessSetting(item.key, true)}
-                        disabled={clinicSetting?.[item.key]}
+                        role="switch"
+                        aria-checked={clinicSetting?.[item.key] ?? false}
+                        className={`switch-button ${(clinicSetting?.[item.key] ?? false) ? "switch-button-active" : ""}`}
+                        onClick={() => toggleEmailProcessSetting(item.key, !(clinicSetting?.[item.key] ?? false))}
                       >
-                        Habilitar
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => toggleEmailProcessSetting(item.key, false)}
-                        disabled={!clinicSetting?.[item.key]}
-                      >
-                        Deshabilitar
+                        <span className="switch-track">
+                          <span className="switch-thumb" />
+                        </span>
+                        <span className="switch-label">{clinicSetting?.[item.key] ? "Encendido" : "Apagado"}</span>
                       </button>
                     </div>
                   </div>
