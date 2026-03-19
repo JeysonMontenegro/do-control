@@ -21,6 +21,8 @@ from app.schemas.communication_dispatch import CommunicationDispatchAttemptRead,
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
+APPOINTMENT_CONFIRMATION_TEMPLATE_KEY = "appointment_confirmation_doctor"
+
 
 class CommunicationDispatchService:
     MAX_RETRIES = 5
@@ -43,6 +45,26 @@ class CommunicationDispatchService:
             4: 180,
         }.get(retry_count, 720)
         return from_time + timedelta(minutes=backoff_minutes)
+
+    def _find_appointment_manual_template(self, doctor_id: int) -> CommunicationTemplate | None:
+        template = self.template_repository.find_by_key(
+            APPOINTMENT_CONFIRMATION_TEMPLATE_KEY,
+            doctor_id=doctor_id,
+        )
+        if template is not None and template.is_active:
+            return template
+
+        active_rules = [
+            rule
+            for rule in self.reminder_rule_repository.list_active()
+            if rule.trigger_type == "before_appointment" and (rule.doctor_id is None or rule.doctor_id == doctor_id)
+        ]
+        active_rules.sort(key=lambda rule: (rule.doctor_id is None, rule.minutes_before))
+        for rule in active_rules:
+            template = self.template_repository.find_by_key(rule.template_key, doctor_id=doctor_id)
+            if template is not None and template.is_active:
+                return template
+        return None
 
     def render_dispatch_message(self, dispatch: CommunicationDispatch) -> str | None:
         if dispatch.rendered_message:
@@ -295,6 +317,53 @@ class CommunicationDispatchService:
         self.db.commit()
         self.db.refresh(dispatch)
         return dispatch
+
+    def send_appointment_reminder_now(
+        self,
+        appointment_id: int,
+        *,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> CommunicationDispatchRead:
+        appointment = self.appointment_repository.get(appointment_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        if accessible_doctor_ids is not None and appointment.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot send reminders for that doctor.")
+        if appointment.status == "cancelled" or appointment.confirmation_status == "cancelled":
+            raise ValidationError("Cannot send reminders for a cancelled appointment.")
+        if appointment.patient is None:
+            raise NotFoundError("Patient not found.")
+        if not appointment.patient.primary_phone:
+            raise ValidationError("Patient does not have a primary phone number.")
+
+        template = self._find_appointment_manual_template(appointment.doctor_id)
+        if template is None:
+            raise ValidationError("No hay una plantilla activa de recordatorio para este doctor.")
+
+        dispatch = self.repository.create(
+            CommunicationDispatch(
+                patient_id=appointment.patient_id,
+                doctor_id=appointment.doctor_id,
+                appointment_id=appointment.id,
+                template_id=template.id,
+                channel=template.channel,
+                recipient_phone=appointment.patient.primary_phone,
+                status="pending",
+                retry_count=0,
+                next_attempt_at=datetime.now(timezone.utc),
+            )
+        )
+        dispatch.rendered_message = self.render_dispatch_message(dispatch)
+        create_audit_log(
+            self.db,
+            action="send_now",
+            entity_type="communication_dispatch",
+            entity_id=str(dispatch.id),
+            after_data={"appointment_id": appointment.id, "template_key": template.template_key},
+        )
+        self.db.commit()
+        self.db.refresh(dispatch)
+        return self._serialize_dispatch(dispatch)
 
     def _serialize_dispatch(self, dispatch: CommunicationDispatch) -> CommunicationDispatchRead:
         patient = self.patient_repository.get(dispatch.patient_id)

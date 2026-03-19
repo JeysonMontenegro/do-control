@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
+from app.services.doctor import DoctorService
 from app.schemas.communication_dispatch import (
     CommunicationDispatchAttemptRead,
     CommunicationDispatchBatchRequeueRead,
@@ -53,6 +54,24 @@ def get_communication_dispatch_summary(
     _current_user=Depends(require_roles("admin", "receptionist")),
 ) -> CommunicationDispatchSummaryRead:
     return CommunicationDispatchService(db).get_summary()
+
+
+@router.post("/appointments/{appointment_id}/send-now", response_model=CommunicationDispatchRead, status_code=status.HTTP_201_CREATED)
+def send_appointment_reminder_now(
+    appointment_id: int,
+    db: Session = Depends(get_db_session),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+) -> CommunicationDispatchRead:
+    try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return CommunicationDispatchService(db).send_appointment_reminder_now(
+            appointment_id,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/generate", response_model=CommunicationDispatchGenerationRead)

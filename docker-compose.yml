@@ -44,7 +44,7 @@ services:
       - /app/.next
     ports:
       - "13000:3000"
-    command: npm run dev
+    command: sh -c "npm run build && npm run start"
 
 volumes:
   postgres_data:

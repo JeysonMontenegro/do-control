@@ -1038,6 +1038,20 @@ export function ClinicalConsole() {
     setActiveDispatchStatusId(dispatchId);
   }
 
+  async function sendAppointmentReminderNow(appointmentId: number) {
+    setMessage("");
+    try {
+      await apiPost<CommunicationDispatch>(`/api/communication-dispatches/appointments/${appointmentId}/send-now`, {});
+      await loadData();
+      const dispatches = await apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?appointment_id=${appointmentId}&limit=20`);
+      setAppointmentDispatches((current) => ({ ...current, [appointmentId]: dispatches }));
+      setExpandedAppointmentId(appointmentId);
+      setMessage("Recordatorio enviado a cola para este contacto.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo enviar el recordatorio.");
+    }
+  }
+
   function closeDispatchStatusModal() {
     setActiveDispatchStatusId(null);
     setDispatchStatusForm({
@@ -1548,6 +1562,14 @@ export function ClinicalConsole() {
               <div className="row-actions">
                 <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
                   Confirmar
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => sendAppointmentReminderNow(focusedAppointment.id)}
+                  disabled={focusedAppointment.status === "cancelled" || focusedAppointment.confirmation_status === "cancelled"}
+                >
+                  Enviar recordatorio ahora
                 </button>
                 <button type="button" className="secondary-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
                   Cancelar

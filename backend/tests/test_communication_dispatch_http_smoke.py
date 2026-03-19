@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 import time
 import unittest
 from urllib import error, request
@@ -112,6 +113,60 @@ class CommunicationDispatchHttpSmokeTests(unittest.TestCase):
         self.assertEqual(matching_dispatch["patient_medical_record_number"], f"EXP-TL-{unique_suffix}")
         self.assertEqual(matching_dispatch["doctor_name"], "Demo Doctor")
         self.assertEqual(matching_dispatch["rendered_message"], f"Hola {unique_name}")
+
+    def test_doctor_can_send_appointment_reminder_now(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        patient_status, patient_body = request_json(
+            "/patients",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "medical_record_number": f"EXP-SEND-{unique_suffix}",
+                "first_name": "Recordatorio",
+                "last_name": unique_suffix,
+                "primary_phone": f"557{int(unique_suffix) % 10000000:07d}",
+                "national_id": None,
+                "tax_id": None,
+                "email": None,
+            },
+        )
+        self.assertEqual(patient_status, 201)
+
+        offset_days = 20 + (int(unique_suffix) % 5)
+        offset_minutes = (int(unique_suffix) % 600) + 60
+        base_time = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=offset_days, minutes=offset_minutes)
+        start_at = base_time.isoformat()
+        end_at = (base_time + timedelta(minutes=30)).isoformat()
+        appointment_status, appointment_body = request_json(
+            "/appointments",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "patient_id": patient_body["id"],
+                "doctor_id": 1,
+                "scheduled_start": start_at,
+                "scheduled_end": end_at,
+                "appointment_type": "follow_up",
+                "reason": "Recordatorio manual",
+                "source": "receptionist",
+                "created_by": "dispatch-smoke",
+            },
+        )
+        self.assertEqual(appointment_status, 201)
+
+        send_status, send_body = request_json(
+            f"/communication-dispatches/appointments/{appointment_body['id']}/send-now",
+            method="POST",
+            token=self.doctor_token,
+            payload={},
+        )
+        self.assertEqual(send_status, 201)
+        self.assertEqual(send_body["appointment_id"], appointment_body["id"])
+        self.assertEqual(send_body["patient_id"], patient_body["id"])
+        self.assertEqual(send_body["doctor_id"], 1)
+        self.assertEqual(send_body["status"], "pending")
+        self.assertIn(send_body["template_key"], {"appointment_24h", "appointment_2h", "appointment_confirmation_doctor"})
+        self.assertIn("Recordatorio", send_body["patient_name"])
 
 
 if __name__ == "__main__":

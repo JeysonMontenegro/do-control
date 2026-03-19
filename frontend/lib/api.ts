@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:18000";
+export const API_URL = "/api/proxy";
 
 function getToken(): string | null {
   if (typeof window === "undefined") {
