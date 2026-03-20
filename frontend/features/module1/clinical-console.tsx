@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
+import { AgendaSection } from "@/features/module1/components/agenda-section";
 import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
 import {
   createDispatchStatusForm,
@@ -13,7 +14,13 @@ import {
   createReminderRuleForm,
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
+import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
+import { LoginPanel } from "@/features/module1/components/login-panel";
+import { MessagesSection } from "@/features/module1/components/messages-section";
+import { PendingReviewSection } from "@/features/module1/components/pending-review-section";
+import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
@@ -1396,36 +1403,6 @@ export function ClinicalConsole() {
 
   const goToToday = () => setCalendarDate(startOfDay(new Date()));
 
-  const renderLogin = () => (
-    <section className="hero hero-login">
-      <div>
-        <p className="eyebrow">Do-Control</p>
-        <h1>Agenda clínica en un solo lugar</h1>
-        <p className="lede">
-          Ingresa para ver tu agenda, pacientes, consultas y seguimiento de mensajes en una vista pensada para clínica.
-        </p>
-      </div>
-      <form className="login-form" onSubmit={submitLogin}>
-        <input
-          type="email"
-          value={loginForm.email}
-          onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
-          placeholder="Correo"
-          required
-        />
-        <input
-          type="password"
-          value={loginForm.password}
-          onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-          placeholder="Contraseña"
-          required
-        />
-        <button type="submit">Entrar</button>
-      </form>
-      {message ? <p className={`message-box message-box-${getMessageTone(message)}`}>{message}</p> : null}
-    </section>
-  );
-
   const renderAppointmentBadges = (appointment: Appointment) => {
     const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
     const latestMessageStatus = lastDispatchStatus(relatedDispatches);
@@ -1434,378 +1411,53 @@ export function ClinicalConsole() {
     return <AppointmentBadges appointment={appointment} latestMessageStatus={latestMessageStatus} reviewItem={reviewItem} />;
   };
 
-  const renderFocusedAppointment = () => {
-    if (!focusedAppointment) {
-      return (
-        <article className="card section-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Detalle</p>
-              <h2>Selecciona una cita</h2>
-            </div>
-          </div>
-          <p className="empty-state">Haz clic sobre una cita del calendario para ver historial, mensajes y acciones.</p>
-        </article>
-      );
-    }
-
-    const relatedDispatches = appointmentDispatches[focusedAppointment.id] ?? [];
-    const reviewItem = reviewQueueByAppointmentId.get(focusedAppointment.id);
-
-    return (
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Detalle de cita</p>
-            <h2>{focusedAppointment.patient_name ?? `Paciente ${focusedAppointment.patient_id}`}</h2>
-          </div>
-          <span>{formatDateTime(focusedAppointment.scheduled_start)}</span>
-        </div>
-        <div className="detail-stack">
-          <div className="detail-panel">
-            <strong>{focusedAppointment.doctor_name ?? `Doctor ${focusedAppointment.doctor_id}`}</strong>
-            <span>{appointmentTypeLabel(focusedAppointment.appointment_type)}</span>
-            <span>{appointmentStatusLabel(focusedAppointment.status)}</span>
-            {renderAppointmentBadges(focusedAppointment)}
-            {reviewItem ? (
-              <div className="timeline-item">
-                <strong>{reviewReasonLabel(reviewItem.review_reason)}</strong>
-                <span>{reviewItem.review_message}</span>
-                <span>Horario solicitado: {formatDateTime(reviewItem.scheduled_start)}</span>
-              </div>
-            ) : null}
-            {canManageAppointments ? (
-              <div className="row-actions">
-                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
-                  Confirmar
-                </button>
-                <button
-                  type="button"
-                  className="success-button"
-                  onClick={() => sendAppointmentReminderNow(focusedAppointment.id)}
-                  disabled={focusedAppointment.status === "cancelled" || focusedAppointment.confirmation_status === "cancelled"}
-                >
-                  Enviar recordatorio ahora
-                </button>
-                <button type="button" className="danger-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
-                  Cancelar
-                </button>
-                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
-                  Completar
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <div className="detail-panel">
-            <strong>Historial</strong>
-            {appointmentHistory[focusedAppointment.id]?.length ? (
-              appointmentHistory[focusedAppointment.id].map((entry) => (
-                <div className="timeline-item" key={`history-${entry.id}`}>
-                  <strong>
-                    {appointmentStatusLabel(entry.old_status ?? "scheduled")} → {appointmentStatusLabel(entry.new_status)}
-                  </strong>
-                  <span>{formatDateTime(entry.created_at)}</span>
-                  <span>{entry.change_reason ?? "Sin observación"}</span>
-                </div>
-              ))
-            ) : (
-              <p className="empty-state">Sin movimientos registrados.</p>
-            )}
-          </div>
-          <div className="detail-panel">
-            <strong>Mensajes relacionados</strong>
-            {relatedDispatches.length ? (
-              relatedDispatches.map((dispatch) => (
-                <div className="timeline-item" key={`dispatch-${dispatch.id}`}>
-                  <strong>{dispatch.template_title ?? "Mensaje"}</strong>
-                  <span>{dispatchStatusLabel(dispatch.status)} · {formatDateTime(dispatch.created_at)}</span>
-                  <span>{dispatch.rendered_message ?? "Sin contenido generado."}</span>
-                  {canViewGlobalCommunications ? (
-                    <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
-                        {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
-                      </button>
-                    </div>
-                  ) : null}
-                  {expandedDispatchId === dispatch.id ? (
-                    <div className="attempt-list">
-                      {dispatchAttempts[dispatch.id]?.length ? (
-                        dispatchAttempts[dispatch.id].map((attempt) => (
-                          <div className="timeline-item" key={`attempt-${attempt.id}`}>
-                            <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
-                            <span>{formatDateTime(attempt.attempted_at)}</span>
-                            <span>{attempt.error_message ?? "Sin error"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="empty-state">Sin intentos registrados.</p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <p className="empty-state">Esta cita todavía no tiene mensajes ligados.</p>
-            )}
-          </div>
-        </div>
-      </article>
-    );
-  };
-
   const renderAgendaTab = () => (
-    <section className="tab-layout">
-      <section className="headline-strip span-three">
-        <div className="headline-card" title="Cantidad de citas mostradas según la vista del calendario y filtros activos.">
-          <strong>{filteredAppointments.length}</strong>
-          <span>Citas visibles</span>
-        </div>
-        <div className="headline-card" title="Citas que todavía están pendientes de confirmación manual o por integración.">
-          <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
-          <span>Por confirmar</span>
-        </div>
-        <div className="headline-card" title="Total de consultas clínicas registradas en el sistema.">
-          <strong>{data.encounters.length}</strong>
-          <span>Consultas</span>
-        </div>
-        <div className="headline-card" title="Archivos clínicos del paciente seleccionado actualmente.">
-          <strong>{selectedSummary?.attachments.length ?? 0}</strong>
-          <span>Archivos</span>
-        </div>
-      </section>
-      <article className="card section-card span-three">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Resumen</p>
-            <h2>Vista rápida</h2>
-          </div>
-        </div>
-        <div className="summary-grid">
-          <div className="metric-card" title="Cantidad de citas visibles dentro de la vista actual del calendario.">
-            <strong>{filteredAppointments.length}</strong>
-            <span>Citas en la vista actual</span>
-          </div>
-          <div className="metric-card" title="Citas que siguen pendientes de confirmar.">
-            <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
-            <span>Pendientes de confirmar</span>
-          </div>
-          <div className="metric-card" title="Casos enviados a revisión manual que aún requieren una decisión.">
-            <strong>{appointmentReviewItems.length}</strong>
-            <span>Casos por revisar</span>
-          </div>
-        </div>
-        <div className="calendar-legend">
-          <span className="legend-title">Colores</span>
-          <span className="legend-item">
-            <span className="legend-swatch legend-swatch-default" />
-            Cita normal
-          </span>
-          <span className="legend-item">
-            <span className="legend-swatch legend-swatch-confirmed" />
-            Cita confirmada
-          </span>
-          <span className="legend-item">
-            <span className="legend-swatch legend-swatch-ws" />
-            Cita desde WhatsApp
-          </span>
-          <span className="legend-item">
-            <span className="legend-swatch legend-swatch-cancelled" />
-            Cita cancelada
-          </span>
-        </div>
-      </article>
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Agenda</p>
-            <h2>Calendario clínico</h2>
-          </div>
-          <div className="toolbar-inline">
-            <button type="button" className="secondary-button" onClick={goToPreviousRange}>
-              Anterior
-            </button>
-            <button type="button" className="secondary-button" onClick={goToToday}>
-              Hoy
-            </button>
-            <button type="button" className="secondary-button" onClick={goToNextRange}>
-              Siguiente
-            </button>
-          </div>
-        </div>
-        <div className="toolbar-row">
-          <strong>{calendarRangeLabel(calendarView, calendarDate)}</strong>
-          <div className="chip-row">
-            {(["dia", "semana", "mes"] as CalendarView[]).map((view) => (
-              <button
-                key={view}
-                type="button"
-                className={`filter-chip ${calendarView === view ? "filter-chip-active" : ""}`}
-                onClick={() => setCalendarView(view)}
-              >
-                {view[0].toUpperCase() + view.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="toolbar-inline">
-            {isAdmin ? (
-              <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
-                <option value="">Todos los doctores</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`doctor-filter-${doctor.id}`} value={doctor.id}>
-                    {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
-            ) : canChooseAmongMultipleDoctors && availableDoctors.length > 1 ? (
-              <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
-                <option value="">Selecciona doctor</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`doctor-scope-${doctor.id}`} value={doctor.id}>
-                    {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
-            ) : !isAdmin && availableDoctors.length > 1 ? (
-              <div className="context-pill">Hay varios doctores asignados. Contacta al administrador para habilitar visibilidad.</div>
-            ) : selectedDoctor ? (
-              <div className="context-pill">Doctor: {selectedDoctor.first_name} {selectedDoctor.last_name}</div>
-            ) : null}
-            {!isAdmin && allowMultiDoctorVisibility && availableDoctors.length > 1 ? (
-              <div className="context-pill">Recepción con {availableDoctors.length} doctores asignados</div>
-            ) : null}
-            <div className="chip-row">
-              <button
-                type="button"
-                className={`filter-chip filter-chip-all ${appointmentFilter === "all" ? "filter-chip-active" : ""}`}
-                onClick={() => setAppointmentFilter("all")}
-              >
-                Todas
-              </button>
-              <button
-                type="button"
-                className={`filter-chip filter-chip-ws ${appointmentFilter === "ws" ? "filter-chip-active" : ""}`}
-                onClick={() => setAppointmentFilter("ws")}
-              >
-                WhatsApp
-              </button>
-              <button
-                type="button"
-                className={`filter-chip filter-chip-confirmed ${appointmentFilter === "confirmed" ? "filter-chip-active" : ""}`}
-                onClick={() => setAppointmentFilter("confirmed")}
-              >
-                Confirmadas
-              </button>
-              <button
-                type="button"
-                className={`filter-chip filter-chip-pending ${appointmentFilter === "pending_confirmation" ? "filter-chip-active" : ""}`}
-                onClick={() => setAppointmentFilter("pending_confirmation")}
-              >
-                Por confirmar
-              </button>
-              <button
-                type="button"
-                className={`filter-chip filter-chip-attention ${appointmentFilter === "needs_attention" ? "filter-chip-active" : ""}`}
-                onClick={() => setAppointmentFilter("needs_attention")}
-              >
-                Requieren atención
-              </button>
-            </div>
-          </div>
-        </div>
-        <AgendaCalendar
-          calendarView={calendarView}
-          calendarDate={calendarDate}
-          monthDays={monthDays}
-          agendaDays={agendaDays}
-          slotLabels={slotLabels}
-          appointmentsByDayKey={appointmentsByDayKey}
-          onSelectAppointment={toggleAppointmentHistory}
-          calendarMetrics={calendarMetrics}
-        />
-      </article>
-      <div className="agenda-side-stack">
-        {renderFocusedAppointment()}
-        <article className="card section-card">
-          {canManageAppointments ? (
-            <form className="form-card compact-form" onSubmit={submitAppointment}>
-              <h3>Nueva cita</h3>
-              <label>
-                <RequiredLabel>Paciente</RequiredLabel>
-                <select
-                  value={appointmentForm.patient_id}
-                  onChange={(event) => setAppointmentForm((current) => ({ ...current, patient_id: event.target.value }))}
-                  required
-                >
-                  <option value="">Seleccionar</option>
-                  {data.patients.map((patient) => (
-                    <option key={`appointment-patient-${patient.id}`} value={patient.id}>
-                      {patient.first_name} {patient.last_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
-                <label>
-                  <RequiredLabel>Doctor</RequiredLabel>
-                  <select
-                    value={appointmentForm.doctor_id}
-                    onChange={(event) => setAppointmentForm((current) => ({ ...current, doctor_id: event.target.value }))}
-                    required
-                  >
-                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`appointment-doctor-${doctor.id}`} value={doctor.id}>
-                        {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : !isAdmin && availableDoctors.length > 1 ? (
-                <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>
-              ) : selectedDoctor ? (
-                <label>
-                  <span>Doctor</span>
-                  <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
-                </label>
-              ) : null}
-              <DateField
-                label="Inicio"
-                value={appointmentForm.scheduled_start_date}
-                onChange={(nextValue) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: nextValue }))}
-                required
-              />
-              <label>
-                <RequiredLabel>Hora inicio</RequiredLabel>
-                <input
-                  type="time"
-                  value={appointmentForm.scheduled_start_time}
-                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: event.target.value }))}
-                  required
-                />
-              </label>
-              <DateField
-                label="Fin"
-                value={appointmentForm.scheduled_end_date}
-                onChange={(nextValue) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: nextValue }))}
-                required
-              />
-              <label>
-                <RequiredLabel>Hora fin</RequiredLabel>
-                <input
-                  type="time"
-                  value={appointmentForm.scheduled_end_time}
-                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: event.target.value }))}
-                  required
-                />
-              </label>
-              <button type="submit">Guardar cita</button>
-            </form>
-          ) : (
-            <p className="empty-state">Desde aquí puedes revisar la agenda y abrir el detalle de cada cita.</p>
-          )}
-        </article>
-      </div>
-    </section>
+    <AgendaSection
+      agendaDays={agendaDays}
+      allowMultiDoctorVisibility={allowMultiDoctorVisibility}
+      appointmentDispatches={appointmentDispatches}
+      appointmentFilter={appointmentFilter}
+      appointmentForm={appointmentForm}
+      appointmentHistory={appointmentHistory}
+      appointmentReviewItems={appointmentReviewItems}
+      appointmentsByDayKey={appointmentsByDayKey}
+      availableDoctors={availableDoctors}
+      calendarDate={calendarDate}
+      calendarMetrics={calendarMetrics}
+      calendarView={calendarView}
+      canChooseAmongMultipleDoctors={canChooseAmongMultipleDoctors}
+      canManageAppointments={canManageAppointments}
+      canViewGlobalCommunications={canViewGlobalCommunications}
+      data={{ appointments: data.appointments, encounters: data.encounters, patients: data.patients }}
+      dispatchAttempts={dispatchAttempts}
+      doctorFilter={doctorFilter}
+      expandedDispatchId={expandedDispatchId}
+      filteredAppointments={filteredAppointments}
+      focusedAppointment={focusedAppointment}
+      goToNextRange={goToNextRange}
+      goToPreviousRange={goToPreviousRange}
+      goToToday={goToToday}
+      isAdmin={isAdmin}
+      monthDays={monthDays}
+      onAppointmentDoctorChange={(value) => setAppointmentForm((current) => ({ ...current, doctor_id: value }))}
+      onAppointmentEndDateChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value }))}
+      onAppointmentEndTimeChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value }))}
+      onAppointmentFilterChange={setAppointmentFilter}
+      onAppointmentPatientChange={(value) => setAppointmentForm((current) => ({ ...current, patient_id: value }))}
+      onAppointmentStartDateChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value }))}
+      onAppointmentStartTimeChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value }))}
+      onCalendarViewChange={setCalendarView}
+      onDoctorFilterChange={setDoctorFilter}
+      onSelectAppointment={toggleAppointmentHistory}
+      openDispatchAttempts={toggleDispatchAttempts}
+      reminderNow={sendAppointmentReminderNow}
+      renderAppointmentBadges={renderAppointmentBadges}
+      selectedDoctor={selectedDoctor}
+      selectedSummary={selectedSummary}
+      slotLabels={slotLabels}
+      submitAppointment={submitAppointment}
+      updateAppointmentStatus={updateAppointmentStatus}
+    />
   );
 
   const renderPacientesTab = () => (
@@ -2335,277 +1987,30 @@ export function ClinicalConsole() {
   );
 
   const renderMensajesTab = () => (
-    <section className="tab-layout">
-      <article className="card section-card span-three">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Mensajes</p>
-            <h2>Centro de comunicaciones</h2>
-          </div>
-        </div>
-        <div className="chip-row">
-          <button
-            type="button"
-            className={`filter-chip ${messagesSubtab === "paciente" ? "filter-chip-active" : ""}`}
-            onClick={() => setMessagesSubtab("paciente")}
-          >
-            Paciente
-          </button>
-          <button
-            type="button"
-            className={`filter-chip ${messagesSubtab === "citas" ? "filter-chip-active" : ""}`}
-            onClick={() => setMessagesSubtab("citas")}
-          >
-            Citas
-          </button>
-          {canViewGlobalCommunications ? (
-            <button
-              type="button"
-              className={`filter-chip ${messagesSubtab === "operacion" ? "filter-chip-active" : ""}`}
-              onClick={() => setMessagesSubtab("operacion")}
-            >
-              Operación
-            </button>
-          ) : null}
-        </div>
-        <p className="empty-state">
-          Organiza las comunicaciones por paciente, por citas relacionadas o como seguimiento operativo global.
-        </p>
-      </article>
-      {messagesSubtab === "paciente" ? (
-        <>
-          <article className="card section-card">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">Paciente</p>
-                <h2>Filtro de comunicaciones</h2>
-              </div>
-            </div>
-            <label>
-              <span>Paciente seleccionado</span>
-              <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
-                <option value="">Seleccionar paciente</option>
-                {data.patients.map((patient) => (
-                  <option key={`message-patient-${patient.id}`} value={patient.id}>
-                    {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="empty-state">
-              Esta vista muestra el histórico del paciente seleccionado.
-            </p>
-          </article>
-          <article className="card section-card span-two">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">Mensajes</p>
-                <h2>Timeline del paciente</h2>
-              </div>
-            </div>
-            {selectedSummary ? (
-              <>
-                <div className="detail-panel compact-panel">
-                  <strong>
-                    {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
-                  </strong>
-                  <span>{selectedSummary.patient.medical_record_number}</span>
-                  <span>{selectedSummary.patient.primary_phone}</span>
-                </div>
-                <div className="table-list">
-                  {selectedPatientDispatches.length ? (
-                    selectedPatientDispatches.map((dispatch) => (
-                      <div className="timeline-item" key={`patient-dispatch-${dispatch.id}`}>
-                        <div className="row-actions">
-                          <strong>{communicationKindLabel(dispatch)}</strong>
-                          <span className={`badge ${
-                            dispatch.status === "failed"
-                              ? "badge-danger"
-                              : dispatch.status === "delivered"
-                                ? "badge-success"
-                                : dispatch.status === "pending"
-                                  ? "badge-warn"
-                                  : "badge-neutral"
-                          }`}>
-                            {dispatchStatusLabel(dispatch.status)}
-                          </span>
-                        </div>
-                        <span>
-                          {dispatch.template_title ?? "Mensaje clínico"}
-                          {dispatch.doctor_name ? ` · ${dispatch.doctor_name}` : ""}
-                        </span>
-                        <span>
-                          {dispatch.appointment_scheduled_start
-                            ? `Cita: ${formatDateTime(dispatch.appointment_scheduled_start)}`
-                            : formatDateTime(dispatch.created_at)}
-                        </span>
-                        <div className="message-preview">{dispatch.rendered_message ?? "Sin texto generado."}</div>
-                        {dispatch.error_message ? <span>Error: {dispatch.error_message}</span> : null}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty-state">Este paciente todavía no tiene comunicaciones registradas.</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su timeline de comunicaciones.</p>
-            )}
-          </article>
-        </>
-      ) : null}
-      {messagesSubtab === "citas" ? (
-        <article className="card section-card span-three">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Citas</p>
-              <h2>Eventos de cita</h2>
-            </div>
-          </div>
-          {selectedSummary ? (
-            <div className="table-list">
-              {selectedSummary.appointments.length ? (
-                selectedSummary.appointments.map((appointment) => {
-                  const relatedDispatches = selectedPatientDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
-                  return (
-                    <button
-                      type="button"
-                      className="simple-list-item"
-                      key={`message-appointment-${appointment.id}`}
-                      onClick={() => {
-                        setActiveTab("agenda");
-                        toggleAppointmentHistory(appointment.id);
-                      }}
-                    >
-                      <strong>{formatDateTime(appointment.scheduled_start)}</strong>
-                      <span>{appointmentTypeLabel(appointment.appointment_type)}</span>
-                      <span>{confirmationLabel(appointment.confirmation_status)}</span>
-                      <span>{relatedDispatches.length ? `${relatedDispatches.length} mensajes ligados` : "Sin mensajes ligados"}</span>
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="empty-state">Este paciente no tiene citas registradas.</p>
-              )}
-            </div>
-          ) : (
-            <p className="empty-state">Selecciona un paciente para relacionar mensajes con sus citas.</p>
-          )}
-        </article>
-      ) : null}
-      {messagesSubtab === "operacion" && canViewGlobalCommunications ? (
-        <article className="card section-card span-three">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Seguimiento operativo</p>
-              <h2>Comunicaciones recientes</h2>
-            </div>
-            {isAdmin ? (
-              <div className="row-actions">
-                <button type="button" className="success-button" onClick={generateDispatchesNow}>
-                  Generar ahora
-                </button>
-                <button type="button" className="success-button" onClick={requeueVisibleFailedDispatches}>
-                  Reenviar fallidos
-                </button>
-              </div>
-            ) : null}
-          </div>
-          {communicationDispatchSummary ? (
-            <div className="summary-grid">
-              <div className="metric-card">
-                <strong>{communicationDispatchSummary.total}</strong>
-                <span>Total</span>
-              </div>
-              <div className="metric-card">
-                <strong>{communicationDispatchSummary.pending}</strong>
-                <span>Pendientes</span>
-              </div>
-              <div className="metric-card">
-                <strong>{communicationDispatchSummary.failed}</strong>
-                <span>Fallidos</span>
-              </div>
-            </div>
-          ) : null}
-          <div className="toolbar-row">
-            <div className="toolbar-inline">
-              <select
-                value={dispatchFilters.status_filter}
-                onChange={(event) => setDispatchFilters((current) => ({ ...current, status_filter: event.target.value }))}
-              >
-                <option value="">Todos los estados</option>
-                <option value="pending">Pendiente</option>
-                <option value="sent">Enviado</option>
-                <option value="delivered">Entregado</option>
-                <option value="failed">Fallido</option>
-              </select>
-              <select
-                value={dispatchFilters.channel}
-                onChange={(event) => setDispatchFilters((current) => ({ ...current, channel: event.target.value }))}
-              >
-                <option value="">Todos los canales</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="sms">SMS</option>
-                <option value="email">Correo</option>
-              </select>
-            </div>
-            <input
-              className="search-input compact-input"
-              value={dispatchFilters.query}
-              onChange={(event) => setDispatchFilters((current) => ({ ...current, query: event.target.value }))}
-              placeholder="Buscar por teléfono, referencia o error"
-            />
-          </div>
-          <div className="table-list">
-            {communicationDispatches.map((dispatch) => (
-              <div className="simple-list-item" key={`dispatch-${dispatch.id}`}>
-                <strong>
-                  {dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {communicationKindLabel(dispatch)}
-                </strong>
-                <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
-                <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
-                <span>{dispatch.error_message ?? dispatch.rendered_message ?? "Sin observación."}</span>
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
-                    {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
-                  </button>
-                  {isAdmin && dispatch.status !== "delivered" ? (
-                    <button type="button" className="success-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
-                      Marcar entregado
-                    </button>
-                  ) : null}
-                  {isAdmin && dispatch.status !== "failed" ? (
-                    <button type="button" className="danger-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
-                      Marcar fallido
-                    </button>
-                  ) : null}
-                  {isAdmin && dispatch.status === "failed" ? (
-                    <button type="button" className="success-button" onClick={() => requeueDispatch(dispatch.id)}>
-                      Reenviar
-                    </button>
-                  ) : null}
-                </div>
-                {expandedDispatchId === dispatch.id ? (
-                  <div className="attempt-list">
-                    {dispatchAttempts[dispatch.id]?.length ? (
-                      dispatchAttempts[dispatch.id].map((attempt) => (
-                        <div className="timeline-item" key={`dispatch-attempt-${attempt.id}`}>
-                          <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
-                          <span>{formatDateTime(attempt.attempted_at)}</span>
-                          <span>{attempt.error_message ?? "Sin error"}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-state">Sin intentos registrados.</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </article>
-      ) : null}
-    </section>
+    <MessagesSection
+      canViewGlobalCommunications={canViewGlobalCommunications}
+      communicationDispatchSummary={communicationDispatchSummary}
+      communicationDispatches={communicationDispatches}
+      data={{ patients: data.patients }}
+      dispatchAttempts={dispatchAttempts}
+      dispatchFilters={dispatchFilters}
+      expandedDispatchId={expandedDispatchId}
+      generateDispatchesNow={generateDispatchesNow}
+      isAdmin={isAdmin}
+      messagesSubtab={messagesSubtab}
+      requeueDispatch={requeueDispatch}
+      requeueVisibleFailedDispatches={requeueVisibleFailedDispatches}
+      selectedPatientDispatches={selectedPatientDispatches}
+      selectedPatientId={selectedPatientId}
+      selectedSummary={selectedSummary}
+      setActiveTab={setActiveTab}
+      setDispatchFilters={setDispatchFilters}
+      setMessagesSubtab={setMessagesSubtab}
+      setSelectedPatientId={setSelectedPatientId}
+      toggleAppointmentHistory={toggleAppointmentHistory}
+      toggleDispatchAttempts={toggleDispatchAttempts}
+      updateDispatchStatus={updateDispatchStatus}
+    />
   );
 
   const renderPendientesTab = () => {
@@ -2649,130 +2054,17 @@ export function ClinicalConsole() {
     ].filter((group) => group.items.length > 0);
 
     return (
-      <section className="tab-layout">
-        <article className="card section-card span-three">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Seguimiento</p>
-              <h2>Centro de seguimiento operativo</h2>
-            </div>
-          </div>
-          <div className="summary-grid">
-            <div className="metric-card">
-              <strong>{appointmentReviewItems.length}</strong>
-              <span>Solicitudes por resolver</span>
-            </div>
-            <div className="metric-card">
-              <strong>{appointmentReviewItems.filter((item) => item.review_reason === "reschedule_request").length}</strong>
-              <span>Solicitudes de reagendar</span>
-            </div>
-            <div className="metric-card">
-              <strong>{appointmentReviewItems.filter((item) => item.review_reason !== "reschedule_request").length}</strong>
-              <span>Casos por validar</span>
-            </div>
-            <div className="metric-card">
-              <strong>{attentionAppointments.length}</strong>
-              <span>Citas con seguimiento hoy</span>
-            </div>
-          </div>
-          <div className="detail-panel">
-            <strong>Qué ves aquí</strong>
-            <span>Esta bandeja reúne solicitudes que no se resolvieron automáticamente y citas que siguen abiertas por confirmar o con problemas de comunicación.</span>
-          </div>
-        </article>
-        <article className="card section-card span-two">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Solicitudes</p>
-              <h2>Casos que requieren decisión</h2>
-            </div>
-          </div>
-          <div className="stack-block">
-            {reviewGroups.length ? (
-              reviewGroups.map((group) => (
-                <section className="review-queue-group" key={group.key}>
-                  <div className="review-queue-group-header">
-                    <div>
-                      <strong>{group.title}</strong>
-                      <span>{group.description}</span>
-                    </div>
-                    <span className="context-pill">{group.items.length} caso{group.items.length === 1 ? "" : "s"}</span>
-                  </div>
-                  <div className="table-list">
-                    {group.items.map((item) => (
-                      <div className="review-queue-item" key={`review-item-${item.id}`}>
-                        <div className="review-queue-head">
-                          <div>
-                            <strong>{item.patient_name}</strong>
-                            <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
-                          </div>
-                          <div className="inline-badges">
-                            <span className="badge badge-neutral">{reviewReasonLabel(item.review_reason)}</span>
-                            <span className="badge badge-neutral">{item.source === "appoint-me" ? "WhatsApp" : item.source}</span>
-                          </div>
-                        </div>
-                        <div className="review-meta-grid">
-                          <span><strong>Fecha solicitada:</strong> {formatDateTime(item.scheduled_start)}</span>
-                          <span><strong>Contacto:</strong> {item.phone_number || "Sin teléfono"}</span>
-                        </div>
-                        <p className="review-message">{item.review_message}</p>
-                        <div className="row-actions">
-                          <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
-                            Crear cita
-                          </button>
-                          <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
-                            Vincular cita
-                          </button>
-                          <button type="button" className="danger-button" onClick={() => resolveReviewItem(item.id, "reject")}>
-                            Rechazar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))
-            ) : (
-              <p className="empty-state">No hay solicitudes pendientes de revisión manual.</p>
-            )}
-          </div>
-        </article>
-        <article className="card section-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Agenda sensible</p>
-              <h2>Citas que necesitan seguimiento</h2>
-            </div>
-          </div>
-          <div className="detail-panel compact-panel">
-            <strong>Qué revisar primero</strong>
-            <span>Empieza por citas sin confirmar, mensajes fallidos y citas que ya tienen una solicitud de revisión ligada.</span>
-          </div>
-          <div className="table-list">
-            {attentionAppointments.length ? (
-              attentionAppointments.map((appointment) => (
-                <button
-                  type="button"
-                  className="simple-list-item review-followup-item"
-                  key={`attention-appointment-${appointment.id}`}
-                  onClick={() => {
-                    setActiveTab("agenda");
-                    toggleAppointmentHistory(appointment.id);
-                  }}
-                >
-                  <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                  <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
-                  <span>{formatDateTime(appointment.scheduled_start)}</span>
-                  <span>{confirmationLabel(appointment.confirmation_status)}</span>
-                  {renderAppointmentBadges(appointment)}
-                </button>
-              ))
-            ) : (
-              <p className="empty-state">No hay citas marcadas con seguimiento especial.</p>
-            )}
-          </div>
-        </article>
-      </section>
+      <PendingReviewSection
+        appointmentReviewItems={appointmentReviewItems}
+        attentionAppointments={attentionAppointments}
+        onGoToAgendaAppointment={(appointmentId) => {
+          setActiveTab("agenda");
+          toggleAppointmentHistory(appointmentId);
+        }}
+        renderAppointmentBadges={renderAppointmentBadges}
+        resolveReviewItem={resolveReviewItem}
+        reviewGroups={reviewGroups}
+      />
     );
   };
 
@@ -3062,208 +2354,31 @@ export function ClinicalConsole() {
         </article>
 
         {gestionSubtab === "resumen" ? (
-          <>
-            <article className={`card section-card ${isAdmin ? "" : "span-three"}`}>
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Perfil</p>
-                  <h2>Mi perfil</h2>
-                </div>
-              </div>
-              <form className="form-card compact-form" onSubmit={updateCurrentProfile}>
-                <div className="profile-card-layout">
-                  <div className="profile-photo-panel">
-                    {currentUserProfilePhotoUrl ? (
-                      <img className="profile-photo-preview" src={currentUserProfilePhotoUrl} alt={currentUserDisplay} />
-                    ) : (
-                      <div className="profile-photo-placeholder">{currentUserDisplay.slice(0, 1).toUpperCase()}</div>
-                    )}
-                    <label>
-                      <span>Foto de perfil</span>
-                      <input type="file" accept="image/*" onChange={(event) => setProfilePhotoFile(event.target.files?.[0] ?? null)} />
-                    </label>
-                    <button type="button" className="success-button" onClick={uploadCurrentProfilePhoto}>
-                      Subir foto
-                    </button>
-                  </div>
-                  <div className="two-column-grid">
-                    <label>
-                      <span>Nombres</span>
-                      <input value={profileForm.first_name} onChange={(event) => setProfileForm((current) => ({ ...current, first_name: event.target.value }))} />
-                    </label>
-                    <label>
-                      <span>Apellidos</span>
-                      <input value={profileForm.last_name} onChange={(event) => setProfileForm((current) => ({ ...current, last_name: event.target.value }))} />
-                    </label>
-                    <label>
-                      <span>Nombre visible</span>
-                      <input
-                        value={profileForm.display_name}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))}
-                        placeholder="Cómo deseas aparecer"
-                      />
-                    </label>
-                    <label>
-                      <span>Género</span>
-                      <select value={profileForm.gender} onChange={(event) => setProfileForm((current) => ({ ...current, gender: event.target.value }))}>
-                        <option value="">No especificado</option>
-                        <option value="male">Masculino</option>
-                        <option value="female">Femenino</option>
-                        <option value="other">Otro</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>Correo</span>
-                      <input value={currentUserEmail} readOnly />
-                    </label>
-                    <PhoneField
-                      label="Teléfono"
-                      value={profileForm.phone_number}
-                      onChange={(nextValue) => setProfileForm((current) => ({ ...current, phone_number: nextValue }))}
-                      placeholder="58420737"
-                    />
-                    <label>
-                      <span>Contraseña actual</span>
-                      <input
-                        type="password"
-                        value={profileForm.current_password}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, current_password: event.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      <span>Nueva contraseña</span>
-                      <input
-                        type="password"
-                        value={profileForm.new_password}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, new_password: event.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      <span>Confirmar nueva contraseña</span>
-                      <input
-                        type="password"
-                        value={profileForm.confirm_new_password}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, confirm_new_password: event.target.value }))}
-                      />
-                    </label>
-                  </div>
-                </div>
-                <p className="empty-state">
-                  El teléfono debe ser único entre usuarios. Si cambias contraseña, debes indicar la actual.
-                </p>
-                <div className="row-actions">
-                  <button type="submit">Guardar perfil</button>
-                </div>
-              </form>
-            </article>
-
-            {isAdmin ? (
-              <article className="card section-card">
-                <div className="subsection-header">
-                  <div>
-                    <p className="eyebrow">Administración</p>
-                    <h2>Resumen del equipo</h2>
-                  </div>
-                </div>
-                <div className="summary-grid">
-                  <div className="metric-card">
-                    <strong>{activeDoctors.length}</strong>
-                    <span>Doctores activos</span>
-                  </div>
-                  <div className="metric-card">
-                    <strong>{activeReceptionists.length}</strong>
-                    <span>Recepcionistas activas</span>
-                  </div>
-                  <div className="metric-card">
-                    <strong>{inactiveDoctors.length + inactiveReceptionists.length}</strong>
-                    <span>Usuarios inactivos</span>
-                  </div>
-                </div>
-              </article>
-            ) : null}
-
-            {isAdmin ? (
-              <article className="card section-card">
-                <div className="subsection-header">
-                  <div>
-                    <p className="eyebrow">Administración</p>
-                    <h2>Visibilidad de doctores</h2>
-                  </div>
-                </div>
-                <div className="detail-panel compact-panel">
-                  <strong>{allowMultiDoctorVisibility ? "Visibilidad habilitada" : "Visibilidad restringida"}</strong>
-                  <span>
-                    {allowMultiDoctorVisibility
-                      ? "Recepción puede ver y elegir entre varios doctores asignados."
-                      : "Recepción no verá nombres de varios doctores; deberá contactar a administración."}
-                  </span>
-                </div>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="success-button"
-                    onClick={() => toggleMultiDoctorVisibility(true)}
-                    disabled={allowMultiDoctorVisibility}
-                  >
-                    Habilitar visibilidad
-                  </button>
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => toggleMultiDoctorVisibility(false)}
-                    disabled={!allowMultiDoctorVisibility}
-                  >
-                    Ocultar nombres
-                  </button>
-                </div>
-              </article>
-            ) : null}
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Resumen</p>
-                  <h2>Seguimiento de recordatorios</h2>
-                </div>
-              </div>
-              <div className="summary-grid">
-                <div className="metric-card" title="Citas futuras con reglas activas de recordatorio.">
-                  <strong>{remindersScheduledCount}</strong>
-                  <span>Recordatorios por enviar</span>
-                </div>
-                <div className="metric-card" title="Citas futuras que ya quedaron confirmadas.">
-                  <strong>{confirmedUpcomingCount}</strong>
-                  <span>Confirmadas</span>
-                </div>
-                <div className="metric-card" title="Citas futuras que aún están pendientes de respuesta.">
-                  <strong>{unconfirmedUpcomingCount}</strong>
-                  <span>Sin confirmar</span>
-                </div>
-                <div className="metric-card" title="Citas futuras canceladas que siguen en agenda histórica.">
-                  <strong>{cancelledUpcomingCount}</strong>
-                  <span>Canceladas</span>
-                </div>
-              </div>
-              <div className="table-list">
-                {scopedUpcomingAppointments.slice(0, 6).map((appointment) => (
-                  <button
-                    type="button"
-                    className="simple-list-item"
-                    key={`gestion-upcoming-${appointment.id}`}
-                    onClick={() => {
-                      setActiveTab("agenda");
-                      toggleAppointmentHistory(appointment.id);
-                    }}
-                  >
-                    <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                    <span>{formatDateTime(appointment.scheduled_start)}</span>
-                    {renderAppointmentBadges(appointment)}
-                  </button>
-                ))}
-                {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este contexto.</p> : null}
-              </div>
-            </article>
-          </>
+          <GestionSummarySection
+            activeDoctorsCount={activeDoctors.length}
+            activeReceptionistsCount={activeReceptionists.length}
+            allowMultiDoctorVisibility={allowMultiDoctorVisibility}
+            cancelledUpcomingCount={cancelledUpcomingCount}
+            confirmedUpcomingCount={confirmedUpcomingCount}
+            currentUserDisplay={currentUserDisplay}
+            currentUserEmail={currentUserEmail}
+            currentUserProfilePhotoUrl={currentUserProfilePhotoUrl}
+            inactiveUsersCount={inactiveDoctors.length + inactiveReceptionists.length}
+            isAdmin={isAdmin}
+            onGoToAgendaAppointment={(appointmentId) => {
+              setActiveTab("agenda");
+              toggleAppointmentHistory(appointmentId);
+            }}
+            onProfilePhotoChange={setProfilePhotoFile}
+            profileForm={profileForm}
+            remindersScheduledCount={remindersScheduledCount}
+            scopedUpcomingAppointments={scopedUpcomingAppointments}
+            setProfileForm={setProfileForm}
+            toggleMultiDoctorVisibility={toggleMultiDoctorVisibility}
+            unconfirmedUpcomingCount={unconfirmedUpcomingCount}
+            updateCurrentProfile={updateCurrentProfile}
+            uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
+          />
         ) : null}
 
         {gestionSubtab === "mensajes" ? (
@@ -4073,220 +3188,6 @@ export function ClinicalConsole() {
     );
   };
 
-  const renderReviewResolutionModal = () => {
-    if (!activeReviewItem) {
-      return null;
-    }
-
-    const actionLabel =
-      reviewResolutionForm.action === "create_appointment"
-        ? "Crear cita"
-        : reviewResolutionForm.action === "link_existing"
-          ? "Vincular cita"
-          : "Rechazar pendiente";
-
-    return (
-      <div className="modal-overlay" role="dialog" aria-modal="true">
-        <div className="modal-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Seguimiento</p>
-              <h2>{actionLabel}</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={closeReviewResolutionModal}>
-              Cerrar
-            </button>
-          </div>
-          <div className="detail-panel compact-panel">
-            <strong>{activeReviewItem.patient_name}</strong>
-            <span>{activeReviewItem.doctor_name ?? activeReviewItem.doctor_phone_number ?? "Doctor pendiente"}</span>
-            <span>{formatDateTime(activeReviewItem.scheduled_start)}</span>
-            <span>{reviewReasonLabel(activeReviewItem.review_reason)}</span>
-            <span>{activeReviewItem.review_message}</span>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitReviewResolution}>
-            <label>
-              <span>Acción</span>
-              <select
-                value={reviewResolutionForm.action}
-                onChange={(event) =>
-                  setReviewResolutionForm((current) => ({
-                    ...current,
-                    action: event.target.value as ReviewResolutionAction,
-                  }))
-                }
-              >
-                <option value="create_appointment">Crear cita</option>
-                <option value="link_existing">Vincular cita existente</option>
-                <option value="reject">Rechazar</option>
-              </select>
-            </label>
-
-            {reviewResolutionForm.action === "create_appointment" ? (
-              <>
-                <label>
-                  <span>Paciente</span>
-                  <select
-                    value={reviewResolutionForm.patient_id}
-                    onChange={(event) =>
-                      setReviewResolutionForm((current) => ({ ...current, patient_id: event.target.value }))
-                    }
-                    required
-                  >
-                    <option value="">Seleccionar paciente</option>
-                    {reviewPatientOptions.map((patient) => (
-                      <option key={`review-patient-${patient.id}`} value={patient.id}>
-                        {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                      </option>
-                    ))}
-                    {!reviewPatientOptions.length
-                      ? data.patients.map((patient) => (
-                          <option key={`review-patient-fallback-${patient.id}`} value={patient.id}>
-                            {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                          </option>
-                        ))
-                      : null}
-                  </select>
-                </label>
-                {activeReviewItem.doctor_id === null ? (
-                  <label>
-                    <span>Doctor</span>
-                    <select
-                      value={reviewResolutionForm.doctor_id}
-                      onChange={(event) =>
-                        setReviewResolutionForm((current) => ({ ...current, doctor_id: event.target.value }))
-                      }
-                      required
-                    >
-                      <option value="">Seleccionar doctor</option>
-                      {availableDoctors.map((doctor) => (
-                        <option key={`review-doctor-${doctor.id}`} value={doctor.id}>
-                          {doctor.first_name} {doctor.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <label>
-                    <span>Doctor resuelto</span>
-                    <input value={activeReviewItem.doctor_name ?? `Doctor ${activeReviewItem.doctor_id}`} readOnly />
-                  </label>
-                )}
-              </>
-            ) : null}
-
-            {reviewResolutionForm.action === "link_existing" ? (
-              <label>
-                <span>Cita existente</span>
-                <select
-                  value={reviewResolutionForm.appointment_id}
-                  onChange={(event) =>
-                    setReviewResolutionForm((current) => ({ ...current, appointment_id: event.target.value }))
-                  }
-                  required
-                >
-                  <option value="">Seleccionar cita</option>
-                  {reviewAppointmentOptions.map((appointment) => (
-                    <option key={`review-appointment-${appointment.id}`} value={appointment.id}>
-                      {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
-                    </option>
-                  ))}
-                  {!reviewAppointmentOptions.length
-                    ? data.appointments.map((appointment) => (
-                        <option key={`review-appointment-fallback-${appointment.id}`} value={appointment.id}>
-                          {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
-                        </option>
-                      ))
-                    : null}
-                </select>
-              </label>
-            ) : null}
-
-            <label>
-              <span>Nota operativa</span>
-              <textarea
-                value={reviewResolutionForm.note}
-                onChange={(event) => setReviewResolutionForm((current) => ({ ...current, note: event.target.value }))}
-                placeholder="Deja aquí el motivo o la resolución."
-              />
-            </label>
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={closeReviewResolutionModal}>
-                Cancelar
-              </button>
-              <button type="submit">Guardar resolución</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  const renderDispatchStatusModal = () => {
-    if (!activeDispatch) {
-      return null;
-    }
-
-    return (
-      <div className="modal-overlay" role="dialog" aria-modal="true">
-        <div className="modal-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Mensajes</p>
-              <h2>Actualizar estado del mensaje</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={closeDispatchStatusModal}>
-              Cerrar
-            </button>
-          </div>
-          <div className="detail-panel compact-panel">
-            <strong>{activeDispatch.patient_name ?? `Paciente ${activeDispatch.patient_id}`}</strong>
-            <span>{activeDispatch.doctor_name ?? "Sin doctor"}</span>
-            <span>{dispatchStatusLabel(activeDispatch.status)} actual</span>
-            <span>{activeDispatch.recipient_phone}</span>
-            <div className="message-preview">{activeDispatch.rendered_message ?? "Sin texto generado."}</div>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitDispatchStatusUpdate}>
-            <label>
-              <span>Nuevo estado</span>
-              <select
-                value={dispatchStatusForm.status}
-                onChange={(event) =>
-                  setDispatchStatusForm((current) => ({
-                    ...current,
-                    status: event.target.value as "sent" | "delivered" | "failed",
-                  }))
-                }
-              >
-                <option value="sent">Enviado</option>
-                <option value="delivered">Entregado</option>
-                <option value="failed">Fallido</option>
-              </select>
-            </label>
-            {dispatchStatusForm.status === "failed" ? (
-              <label>
-                <span>Motivo del fallo</span>
-                <textarea
-                  value={dispatchStatusForm.error_message}
-                  onChange={(event) =>
-                    setDispatchStatusForm((current) => ({ ...current, error_message: event.target.value }))
-                  }
-                  placeholder="Describe por qué falló el envío."
-                />
-              </label>
-            ) : null}
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={closeDispatchStatusModal}>
-                Cancelar
-              </button>
-              <button type="submit">Guardar estado</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   const renderReceptionistModal = () => {
     if (!showReceptionistModal || !isAdmin) {
       return null;
@@ -4383,7 +3284,13 @@ export function ClinicalConsole() {
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
-        renderLogin()
+        <LoginPanel
+          loginForm={loginForm}
+          message={message}
+          onSubmit={submitLogin}
+          setLoginForm={setLoginForm}
+          tone={getMessageTone(message)}
+        />
       ) : (
         <section className="app-shell-auth">
           <aside className="app-sidebar">
@@ -4460,8 +3367,25 @@ export function ClinicalConsole() {
             {renderActiveTab()}
           </div>
           {renderSectionActionModal()}
-          {renderReviewResolutionModal()}
-          {renderDispatchStatusModal()}
+          <ReviewResolutionModal
+            activeReviewItem={activeReviewItem}
+            allAppointments={data.appointments}
+            allPatients={data.patients}
+            availableDoctors={availableDoctors}
+            closeReviewResolutionModal={closeReviewResolutionModal}
+            reviewAppointmentOptions={reviewAppointmentOptions}
+            reviewPatientOptions={reviewPatientOptions}
+            reviewResolutionForm={reviewResolutionForm}
+            setReviewResolutionForm={setReviewResolutionForm}
+            submitReviewResolution={submitReviewResolution}
+          />
+          <DispatchStatusModal
+            activeDispatch={activeDispatch}
+            closeDispatchStatusModal={closeDispatchStatusModal}
+            dispatchStatusForm={dispatchStatusForm}
+            setDispatchStatusForm={setDispatchStatusForm}
+            submitDispatchStatusUpdate={submitDispatchStatusUpdate}
+          />
           {renderReceptionistModal()}
         </section>
       )}
