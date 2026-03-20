@@ -19,6 +19,31 @@ function getToken(): string | null {
   return window.localStorage.getItem("docontrol_token");
 }
 
+function buildAuthHeaders(): Headers {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
+}
+
+function mergeHeaders(...headersList: Array<HeadersInit | undefined>): Headers {
+  const merged = new Headers();
+
+  for (const headers of headersList) {
+    if (!headers) {
+      continue;
+    }
+    const current = new Headers(headers);
+    current.forEach((value, key) => {
+      merged.set(key, value);
+    });
+  }
+
+  return merged;
+}
+
 function clearStoredSession() {
   if (typeof window === "undefined") {
     return;
@@ -120,40 +145,42 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const token = getToken();
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    ...init,
+    headers: mergeHeaders(buildAuthHeaders(), init?.headers),
   });
 
   return parseResponse<T>(response);
+}
+
+function buildJsonRequestInit(method: "POST" | "PATCH" | "PUT" | "DELETE", payload?: unknown): RequestInit {
+  return {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  };
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  return apiRequest<T>(path);
 }
 
 export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
-  const token = getToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return parseResponse<T>(response);
+  return apiRequest<T>(path, buildJsonRequestInit("POST", payload));
 }
 
 export async function apiPatch<T>(path: string, payload: unknown): Promise<T> {
-  const token = getToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest<T>(path, buildJsonRequestInit("PATCH", payload));
+}
 
-  return parseResponse<T>(response);
+export async function apiPut<T>(path: string, payload: unknown): Promise<T> {
+  return apiRequest<T>(path, buildJsonRequestInit("PUT", payload));
+}
+
+export async function apiDelete<T>(path: string, payload?: unknown): Promise<T> {
+  return apiRequest<T>(path, buildJsonRequestInit("DELETE", payload));
 }

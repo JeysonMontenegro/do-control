@@ -5,6 +5,19 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
 import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
 import {
+  createDispatchStatusForm,
+  createEmailTemplateForm,
+  createPatientEditForm,
+  createPatientForm,
+  createReceptionistForm,
+  createReminderRuleForm,
+  createTemplateForm,
+} from "@/features/module1/clinical-console-defaults";
+import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
+import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
+import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
+import {
   CONFIRMATION_TEMPLATE_KEY,
   DEFAULT_CONFIRMATION_BODY,
   DEFAULT_CONFIRMATION_TITLE,
@@ -37,6 +50,9 @@ import {
   startOfMonthGrid,
   startOfWeek,
 } from "@/features/module1/console-utils";
+import { getMessageTone } from "@/features/module1/message-utils";
+import { DEFAULT_COUNTRY_DIAL_CODE, normalizePhoneWithDefaultCountry } from "@/features/module1/phone-utils";
+import { getFirstExamOrderId } from "@/features/module1/review-utils";
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
@@ -44,21 +60,15 @@ import type {
   AppointmentReviewItem,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
-  CommunicationDispatchBatchRequeue,
-  CommunicationDispatchAttempt,
   CommunicationDispatchSummary,
   CommunicationTemplate,
-  CommunicationTemplatePreview,
   ClinicSetting,
   Diagnosis,
   Doctor,
   EmailDispatch,
   EmailTemplate,
-  EmailTemplatePreview,
   Encounter,
   ExamOrder,
-  LoginResponse,
-  AuthProfile,
   Patient,
   PatientSummary,
   PrescriptionItem,
@@ -82,10 +92,10 @@ type LoadState = {
   encounters: Encounter[];
 };
 
-type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
 type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
 type MessagesSubtab = "paciente" | "citas" | "operacion";
 type DoctorRosterTab = "activos" | "inactivos";
+type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
 type DoctorClinicForm = {
   clinic_name: string;
   address: string;
@@ -106,174 +116,11 @@ type DoctorAdminForm = {
   clinics: DoctorClinicForm[];
 };
 
-type CountryPhoneOption = {
-  code: string;
-  label: string;
-};
-
 const initialLoadState: LoadState = {
   doctors: [],
   patients: [],
   appointments: [],
   encounters: [],
-};
-
-const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
-  { code: "+502", label: "Guatemala" },
-  { code: "+503", label: "El Salvador" },
-  { code: "+504", label: "Honduras" },
-  { code: "+505", label: "Nicaragua" },
-  { code: "+506", label: "Costa Rica" },
-  { code: "+507", label: "Panamá" },
-  { code: "+52", label: "México" },
-  { code: "+1", label: "Estados Unidos" },
-];
-
-const DEFAULT_COUNTRY_DIAL_CODE = "+502";
-
-const getPhoneCountryCode = (value: string) => {
-  const normalized = value.trim();
-  if (!normalized) {
-    return DEFAULT_COUNTRY_DIAL_CODE;
-  }
-
-  const matchingOption = COUNTRY_PHONE_OPTIONS
-    .slice()
-    .sort((left, right) => right.code.length - left.code.length)
-    .find((option) => normalized.startsWith(option.code) || normalized.startsWith(option.code.slice(1)));
-
-  return matchingOption?.code ?? DEFAULT_COUNTRY_DIAL_CODE;
-};
-
-const getPhoneLocalNumber = (value: string) => {
-  const normalized = value.trim();
-  if (!normalized) {
-    return "";
-  }
-  const countryCode = getPhoneCountryCode(normalized);
-  if (normalized.startsWith(countryCode)) {
-    return normalized.slice(countryCode.length);
-  }
-  const digitsOnlyCode = countryCode.slice(1);
-  if (normalized.startsWith(digitsOnlyCode)) {
-    return normalized.slice(digitsOnlyCode.length);
-  }
-  return normalized.startsWith("+") ? normalized.slice(1) : normalized;
-};
-
-const buildPhoneNumber = (countryCode: string, localNumber: string) => {
-  const digits = localNumber.replace(/[^\d]/g, "");
-  if (!digits) {
-    return "";
-  }
-  return `${countryCode}${digits}`;
-};
-
-const normalizePhoneWithDefaultCountry = (value: string) =>
-  buildPhoneNumber(getPhoneCountryCode(value), getPhoneLocalNumber(value));
-
-function PhoneField({
-  label,
-  value,
-  onChange,
-  required = false,
-  placeholder = "Número",
-}: {
-  label: string;
-  value: string;
-  onChange: (nextValue: string) => void;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  const countryCode = getPhoneCountryCode(value);
-  const localNumber = getPhoneLocalNumber(value);
-
-  return (
-    <label>
-      <span>
-        {label}
-        {required ? <strong className="required-mark">*</strong> : null}
-      </span>
-      <div className="phone-field-stack">
-        <select value={countryCode} onChange={(event) => onChange(buildPhoneNumber(event.target.value, localNumber))}>
-          {COUNTRY_PHONE_OPTIONS.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.label} {option.code}
-            </option>
-          ))}
-        </select>
-        <input
-          className="phone-local-input"
-          value={localNumber}
-          onChange={(event) => onChange(buildPhoneNumber(countryCode, event.target.value))}
-          placeholder={placeholder}
-          inputMode="numeric"
-          required={required}
-        />
-      </div>
-    </label>
-  );
-}
-
-function RequiredLabel({ children }: { children: string }) {
-  return (
-    <span>
-      {children}
-      <strong className="required-mark">*</strong>
-    </span>
-  );
-}
-
-function DateField({
-  label,
-  value,
-  onChange,
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (nextValue: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <label>
-      {required ? <RequiredLabel>{label}</RequiredLabel> : <span>{label}</span>}
-      <input
-        type="date"
-        lang="en-GB"
-        value={parseDisplayDate(value)}
-        onChange={(event) => onChange(formatEditableDate(event.target.value))}
-        required={required}
-      />
-    </label>
-  );
-}
-
-const getMessageTone = (message: string): "success" | "error" | "info" | "warning" => {
-  const normalized = message.toLowerCase();
-  if (
-    normalized.includes("no se pudo") ||
-    normalized.includes("incorrect") ||
-    normalized.includes("inválid") ||
-    normalized.includes("invalid") ||
-    normalized.includes("expiró") ||
-    normalized.includes("ya existe") ||
-    normalized.includes("ya está en uso") ||
-    normalized.includes("error") ||
-    normalized.includes("debes ") ||
-    normalized.includes("debe ") ||
-    normalized.includes("selecciona ") ||
-    normalized.includes("ingresa ")
-  ) {
-    return "error";
-  }
-  if (normalized.includes("cargando")) {
-    return "info";
-  }
-  if (normalized.includes("sin ") || normalized.includes("no hay")) {
-    return "warning";
-  }
-  return "success";
 };
 
 const emptyDoctorClinic = (): DoctorClinicForm => ({
@@ -302,15 +149,6 @@ export function ClinicalConsole() {
   const [data, setData] = useState<LoadState>(initialLoadState);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState("");
-  const [currentUserFirstName, setCurrentUserFirstName] = useState("");
-  const [currentUserLastName, setCurrentUserLastName] = useState("");
-  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
-  const [currentUserGender, setCurrentUserGender] = useState<string | null>(null);
-  const [currentUserPhoneNumber, setCurrentUserPhoneNumber] = useState<string | null>(null);
-  const [currentUserProfilePhotoUrl, setCurrentUserProfilePhotoUrl] = useState<string | null>(null);
-  const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
   const [messagesSubtab, setMessagesSubtab] = useState<MessagesSubtab>("paciente");
@@ -321,10 +159,6 @@ export function ClinicalConsole() {
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
   const [doctorFilter, setDoctorFilter] = useState("");
   const [topbarSearch, setTopbarSearch] = useState("");
-  const [loginForm, setLoginForm] = useState({
-    email: "doctor@docontrol.local",
-    password: "Doctor123!",
-  });
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [selectedSummary, setSelectedSummary] = useState<PatientSummary | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
@@ -347,72 +181,17 @@ export function ClinicalConsole() {
   const [expandedEncounterId, setExpandedEncounterId] = useState<number | null>(null);
   const [appointmentReviewItems, setAppointmentReviewItems] = useState<AppointmentReviewItem[]>([]);
   const [appointmentFilter, setAppointmentFilter] = useState<"all" | "ws" | "confirmed" | "pending_confirmation" | "needs_attention">("all");
-  const [dispatchAttempts, setDispatchAttempts] = useState<Record<number, CommunicationDispatchAttempt[]>>({});
-  const [expandedDispatchId, setExpandedDispatchId] = useState<number | null>(null);
-  const [templatePreview, setTemplatePreview] = useState<CommunicationTemplatePreview | null>(null);
-  const [emailTemplatePreview, setEmailTemplatePreview] = useState<EmailTemplatePreview | null>(null);
   const [dispatchFilters, setDispatchFilters] = useState({
     status_filter: "",
     channel: "",
     query: "",
   });
-  const [reminderRuleForm, setReminderRuleForm] = useState({
-    doctor_id: "",
-    channel: "whatsapp",
-    trigger_type: "before_appointment",
-    minutes_before: "1440",
-    template_key: CONFIRMATION_TEMPLATE_KEY,
-    is_active: true,
-  });
-  const [templateForm, setTemplateForm] = useState({
-    doctor_id: "",
-    channel: "whatsapp",
-    template_key: CONFIRMATION_TEMPLATE_KEY,
-    title: DEFAULT_CONFIRMATION_TITLE,
-    body: DEFAULT_CONFIRMATION_BODY,
-    is_active: true,
-  });
-  const [emailTemplateForm, setEmailTemplateForm] = useState({
-    template_key: "welcome_email",
-    title: "Bienvenida",
-    subject: "Bienvenido a {app_name}",
-    html_body: "<p>Hola {recipient_name},</p>",
-    text_body: "Hola {recipient_name}",
-    is_active: true,
-  });
+  const [reminderRuleForm, setReminderRuleForm] = useState(createReminderRuleForm);
+  const [templateForm, setTemplateForm] = useState(createTemplateForm);
+  const [emailTemplateForm, setEmailTemplateForm] = useState(createEmailTemplateForm);
   const [testEmailRecipient, setTestEmailRecipient] = useState("");
-  const [profileForm, setProfileForm] = useState({
-    first_name: "",
-    last_name: "",
-    display_name: "",
-    gender: "",
-    phone_number: "",
-    current_password: "",
-    new_password: "",
-    confirm_new_password: "",
-  });
-  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
-  const [patientForm, setPatientForm] = useState({
-    medical_record_number: "",
-    first_name: "",
-    last_name: "",
-    primary_phone: "",
-    national_id: "",
-    tax_id: "",
-    email: "",
-    doctor_id: "",
-  });
-  const [patientEditForm, setPatientEditForm] = useState({
-    first_name: "",
-    last_name: "",
-    primary_phone: "",
-    national_id: "",
-    tax_id: "",
-    email: "",
-    address: "",
-    notes: "",
-    is_active: true,
-  });
+  const [patientForm, setPatientForm] = useState(() => createPatientForm());
+  const [patientEditForm, setPatientEditForm] = useState(createPatientEditForm);
   const [appointmentForm, setAppointmentForm] = useState({
     patient_id: "",
     doctor_id: "",
@@ -448,42 +227,61 @@ export function ClinicalConsole() {
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
   const [activeDoctorPage, setActiveDoctorPage] = useState(1);
   const [inactiveDoctorPage, setInactiveDoctorPage] = useState(1);
-  const [receptionistForm, setReceptionistForm] = useState({
-    first_name: "",
-    last_name: "",
-    gender: "female",
-    phone_number: "",
-    email: "",
-    password: "",
-    doctor_ids: [] as number[],
-  });
+  const [receptionistForm, setReceptionistForm] = useState(createReceptionistForm);
   const [editingReceptionistId, setEditingReceptionistId] = useState<number | null>(null);
   const [showReceptionistModal, setShowReceptionistModal] = useState(false);
   const [selectedReceptionistId, setSelectedReceptionistId] = useState<number | null>(null);
   const [receptionistDoctorSearch, setReceptionistDoctorSearch] = useState("");
   const [activeReceptionistPage, setActiveReceptionistPage] = useState(1);
   const [inactiveReceptionistPage, setInactiveReceptionistPage] = useState(1);
-  const [activeReviewItemId, setActiveReviewItemId] = useState<number | null>(null);
-  const [activeDispatchStatusId, setActiveDispatchStatusId] = useState<number | null>(null);
-  const [reviewResolutionForm, setReviewResolutionForm] = useState<{
-    action: ReviewResolutionAction;
-    patient_id: string;
-    doctor_id: string;
-    appointment_id: string;
-    note: string;
-  }>({
-    action: "create_appointment",
-    patient_id: "",
-    doctor_id: "",
-    appointment_id: "",
-    note: "",
+
+  const {
+    currentRoles,
+    currentUserDisplayName,
+    currentUserEmail,
+    currentUserFirstName,
+    currentUserGender,
+    currentUserLastName,
+    currentUserPhoneNumber,
+    currentUserProfilePhotoUrl,
+    isAuthenticated,
+    loginForm,
+    logout,
+    profileForm,
+    profilePhotoFile,
+    setLoginForm,
+    setProfileForm,
+    setProfilePhotoFile,
+    submitLogin,
+    updateCurrentProfile,
+    uploadCurrentProfilePhoto,
+  } = useClinicalSession({
+    recaptchaSiteKey,
+    setMessage,
+    onLogout: () => {
+      setData(initialLoadState);
+      setSelectedSummary(null);
+      setSelectedPatientDispatches([]);
+    },
   });
-  const [dispatchStatusForm, setDispatchStatusForm] = useState<{
-    status: "sent" | "delivered" | "failed";
-    error_message: string;
-  }>({
-    status: "delivered",
-    error_message: "Actualización manual",
+
+  const {
+    activeReviewItem,
+    closeReviewResolutionModal,
+    resolveReviewItem,
+    reviewAppointmentOptions,
+    reviewPatientOptions,
+    reviewResolutionForm,
+    setReviewResolutionForm,
+    submitReviewResolution,
+  } = useReviewQueue({
+    appointmentReviewItems,
+    appointments: data.appointments,
+    currentUserEmail,
+    patients: data.patients,
+    selectedPatientId,
+    setMessage,
+    onResolved: loadData,
   });
 
   const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
@@ -584,126 +382,10 @@ export function ClinicalConsole() {
   }
 
   useEffect(() => {
-    const token = window.localStorage.getItem("docontrol_token");
-    const email = window.localStorage.getItem("docontrol_user_email");
-    const firstName = window.localStorage.getItem("docontrol_user_first_name");
-    const lastName = window.localStorage.getItem("docontrol_user_last_name");
-    const displayName = window.localStorage.getItem("docontrol_user_display_name");
-    const gender = window.localStorage.getItem("docontrol_user_gender");
-    const phoneNumber = window.localStorage.getItem("docontrol_user_phone_number");
-    const profilePhotoUrl = window.localStorage.getItem("docontrol_user_profile_photo_url");
-    const roles = window.localStorage.getItem("docontrol_roles");
-    if (token) {
-      setIsAuthenticated(true);
-    }
-    if (email) {
-      setCurrentUserEmail(email);
-    }
-    if (firstName) {
-      setCurrentUserFirstName(firstName);
-    }
-    if (lastName) {
-      setCurrentUserLastName(lastName);
-    }
-    if (displayName) {
-      setCurrentUserDisplayName(displayName);
-    }
-    if (gender) {
-      setCurrentUserGender(gender);
-    }
-    if (phoneNumber) {
-      setCurrentUserPhoneNumber(phoneNumber);
-    }
-    if (profilePhotoUrl) {
-      setCurrentUserProfilePhotoUrl(profilePhotoUrl);
-    }
-    if (roles) {
-      try {
-        setCurrentRoles(JSON.parse(roles) as string[]);
-      } catch {
-        setCurrentRoles([]);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
     if (isAuthenticated) {
       loadData();
     }
   }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    async function refreshProfile() {
-      try {
-        const profile = await apiGet<AuthProfile>("/api/auth/me");
-        setCurrentUserEmail(profile.user_email);
-        setCurrentUserFirstName(profile.first_name);
-        setCurrentUserLastName(profile.last_name);
-        setCurrentUserDisplayName(profile.display_name ?? null);
-        setCurrentUserGender(profile.gender ?? null);
-        setCurrentUserPhoneNumber(profile.phone_number ?? null);
-        setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
-        setCurrentRoles(profile.roles);
-        window.localStorage.setItem("docontrol_user_email", profile.user_email);
-        window.localStorage.setItem("docontrol_user_first_name", profile.first_name);
-        window.localStorage.setItem("docontrol_user_last_name", profile.last_name);
-        if (profile.display_name) {
-          window.localStorage.setItem("docontrol_user_display_name", profile.display_name);
-        } else {
-          window.localStorage.removeItem("docontrol_user_display_name");
-        }
-        if (profile.gender) {
-          window.localStorage.setItem("docontrol_user_gender", profile.gender);
-        } else {
-          window.localStorage.removeItem("docontrol_user_gender");
-        }
-        if (profile.phone_number) {
-          window.localStorage.setItem("docontrol_user_phone_number", profile.phone_number);
-        } else {
-          window.localStorage.removeItem("docontrol_user_phone_number");
-        }
-        if (profile.profile_photo_url) {
-          window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
-        } else {
-          window.localStorage.removeItem("docontrol_user_profile_photo_url");
-        }
-      } catch {
-        // Leave the locally restored session state in place if profile refresh fails.
-      }
-    }
-
-    refreshProfile();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-    const defaultPhone =
-      (currentRoles.includes("admin") || currentRoles.includes("doctor")) && !currentUserPhoneNumber
-        ? DEFAULT_COUNTRY_DIAL_CODE
-        : currentUserPhoneNumber ?? "";
-    setProfileForm((current) => ({
-      ...current,
-      first_name: currentUserFirstName,
-      last_name: currentUserLastName,
-      display_name: currentUserDisplayName ?? "",
-      gender: currentUserGender ?? "",
-      phone_number: defaultPhone,
-    }));
-  }, [
-    currentUserDisplayName,
-    currentUserFirstName,
-    currentUserGender,
-    currentUserLastName,
-    currentUserPhoneNumber,
-    currentRoles,
-    isAuthenticated,
-  ]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -752,17 +434,7 @@ export function ClinicalConsole() {
 
   useEffect(() => {
     if (!selectedSummary) {
-      setPatientEditForm({
-        first_name: "",
-        last_name: "",
-        primary_phone: "",
-        national_id: "",
-        tax_id: "",
-        email: "",
-        address: "",
-        notes: "",
-        is_active: true,
-      });
+      setPatientEditForm(createPatientEditForm());
       return;
     }
 
@@ -803,123 +475,6 @@ export function ClinicalConsole() {
     loadPatientDispatches();
   }, [isAuthenticated, selectedPatientId, canViewPatientTimeline]);
 
-  async function submitLogin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      let recaptchaToken: string | null = null;
-      if (recaptchaSiteKey) {
-        if (!window.grecaptcha) {
-          throw new Error("reCAPTCHA no está listo todavía. Intenta de nuevo.");
-        }
-        recaptchaToken = await new Promise<string>((resolve, reject) => {
-          window.grecaptcha?.ready(() => {
-            window.grecaptcha
-              ?.execute(recaptchaSiteKey, { action: "login" })
-              .then(resolve)
-              .catch(() => reject(new Error("No se pudo validar reCAPTCHA.")));
-          });
-        });
-      }
-      const response = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...loginForm,
-          recaptcha_token: recaptchaToken,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const payload = (await response.json()) as LoginResponse;
-      window.localStorage.setItem("docontrol_token", payload.access_token);
-      window.localStorage.setItem("docontrol_user_email", payload.user_email);
-      window.localStorage.setItem("docontrol_user_first_name", payload.first_name);
-      window.localStorage.setItem("docontrol_user_last_name", payload.last_name);
-      if (payload.display_name) {
-        window.localStorage.setItem("docontrol_user_display_name", payload.display_name);
-      } else {
-        window.localStorage.removeItem("docontrol_user_display_name");
-      }
-      if (payload.gender) {
-        window.localStorage.setItem("docontrol_user_gender", payload.gender);
-      } else {
-        window.localStorage.removeItem("docontrol_user_gender");
-      }
-      if (payload.phone_number) {
-        window.localStorage.setItem("docontrol_user_phone_number", payload.phone_number);
-      } else {
-        window.localStorage.removeItem("docontrol_user_phone_number");
-      }
-      if (payload.profile_photo_url) {
-        window.localStorage.setItem("docontrol_user_profile_photo_url", payload.profile_photo_url);
-      } else {
-        window.localStorage.removeItem("docontrol_user_profile_photo_url");
-      }
-      window.localStorage.setItem("docontrol_roles", JSON.stringify(payload.roles));
-      setIsAuthenticated(true);
-      setCurrentUserEmail(payload.user_email);
-      setCurrentUserFirstName(payload.first_name);
-      setCurrentUserLastName(payload.last_name);
-      setCurrentUserDisplayName(payload.display_name ?? null);
-      setCurrentUserGender(payload.gender ?? null);
-      setCurrentUserPhoneNumber(payload.phone_number ?? null);
-      setCurrentUserProfilePhotoUrl(payload.profile_photo_url ?? null);
-      setProfileForm({
-        first_name: payload.first_name,
-        last_name: payload.last_name,
-        display_name: payload.display_name ?? "",
-        gender: payload.gender ?? "",
-        phone_number: payload.phone_number ?? "",
-        current_password: "",
-        new_password: "",
-        confirm_new_password: "",
-      });
-      setCurrentRoles(payload.roles);
-      setMessage(`Sesión iniciada como ${payload.first_name} ${payload.last_name}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo iniciar sesión.");
-    }
-  }
-
-  function logout() {
-    window.localStorage.removeItem("docontrol_token");
-    window.localStorage.removeItem("docontrol_user_email");
-    window.localStorage.removeItem("docontrol_user_first_name");
-    window.localStorage.removeItem("docontrol_user_last_name");
-    window.localStorage.removeItem("docontrol_user_display_name");
-    window.localStorage.removeItem("docontrol_user_gender");
-    window.localStorage.removeItem("docontrol_user_phone_number");
-    window.localStorage.removeItem("docontrol_user_profile_photo_url");
-    window.localStorage.removeItem("docontrol_roles");
-    setIsAuthenticated(false);
-    setCurrentUserEmail("");
-    setCurrentUserFirstName("");
-    setCurrentUserLastName("");
-    setCurrentUserDisplayName(null);
-    setCurrentUserGender(null);
-    setCurrentUserPhoneNumber(null);
-    setCurrentUserProfilePhotoUrl(null);
-    setProfileForm({
-      first_name: "",
-      last_name: "",
-      display_name: "",
-      gender: "",
-      phone_number: "",
-      current_password: "",
-      new_password: "",
-      confirm_new_password: "",
-    });
-    setProfilePhotoFile(null);
-    setCurrentRoles([]);
-    setData(initialLoadState);
-    setSelectedSummary(null);
-    setSelectedPatientDispatches([]);
-    setMessage("Sesión cerrada.");
-  }
 
   async function submitPatient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -930,112 +485,12 @@ export function ClinicalConsole() {
         national_id: patientForm.national_id || null,
         doctor_id: patientForm.doctor_id ? Number(patientForm.doctor_id) : scopedDoctorId,
       });
-      setPatientForm({
-        medical_record_number: "",
-        first_name: "",
-        last_name: "",
-        primary_phone: "",
-        national_id: "",
-        tax_id: "",
-        email: "",
-        doctor_id: hasSingleDoctorContext ? String(availableDoctors[0]?.id ?? "") : "",
-      });
+      setPatientForm(createPatientForm(hasSingleDoctorContext ? String(availableDoctors[0]?.id ?? "") : ""));
       setActiveSectionAction(null);
       await loadData();
       setMessage("Paciente creado.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear el paciente.");
-    }
-  }
-
-  async function updateCurrentProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      if (profileForm.new_password && profileForm.new_password !== profileForm.confirm_new_password) {
-        throw new Error("La nueva contraseña y su confirmación no coinciden.");
-      }
-      const profile = await apiPatch<AuthProfile>("/api/auth/me", {
-        first_name: profileForm.first_name.trim(),
-        last_name: profileForm.last_name.trim(),
-        display_name: profileForm.display_name.trim() || null,
-        gender: profileForm.gender || null,
-        phone_number: profileForm.phone_number.trim() ? normalizePhoneWithDefaultCountry(profileForm.phone_number) : null,
-        current_password: profileForm.current_password || null,
-        new_password: profileForm.new_password || null,
-      });
-      setCurrentUserFirstName(profile.first_name);
-      setCurrentUserLastName(profile.last_name);
-      setCurrentUserDisplayName(profile.display_name ?? null);
-      setCurrentUserGender(profile.gender ?? null);
-      setCurrentUserPhoneNumber(profile.phone_number ?? null);
-      setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
-      setProfileForm((current) => ({
-        ...current,
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        display_name: profile.display_name ?? "",
-        gender: profile.gender ?? "",
-        phone_number: profile.phone_number ?? "",
-        current_password: "",
-        new_password: "",
-        confirm_new_password: "",
-      }));
-      window.localStorage.setItem("docontrol_user_first_name", profile.first_name);
-      window.localStorage.setItem("docontrol_user_last_name", profile.last_name);
-      if (profile.display_name) {
-        window.localStorage.setItem("docontrol_user_display_name", profile.display_name);
-      } else {
-        window.localStorage.removeItem("docontrol_user_display_name");
-      }
-      if (profile.gender) {
-        window.localStorage.setItem("docontrol_user_gender", profile.gender);
-      } else {
-        window.localStorage.removeItem("docontrol_user_gender");
-      }
-      if (profile.phone_number) {
-        window.localStorage.setItem("docontrol_user_phone_number", profile.phone_number);
-      } else {
-        window.localStorage.removeItem("docontrol_user_phone_number");
-      }
-      if (profile.profile_photo_url) {
-        window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
-      }
-      setMessage("Perfil actualizado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el perfil.");
-    }
-  }
-
-  async function uploadCurrentProfilePhoto() {
-    if (!profilePhotoFile) {
-      setMessage("Selecciona una foto de perfil.");
-      return;
-    }
-    setMessage("");
-    try {
-      const token = window.localStorage.getItem("docontrol_token");
-      const payload = new FormData();
-      payload.append("file", profilePhotoFile);
-      const response = await fetch(`${API_URL}/api/auth/me/photo`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: payload,
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const profile = (await response.json()) as AuthProfile;
-      setCurrentUserProfilePhotoUrl(profile.profile_photo_url ?? null);
-      if (profile.profile_photo_url) {
-        window.localStorage.setItem("docontrol_user_profile_photo_url", profile.profile_photo_url);
-      } else {
-        window.localStorage.removeItem("docontrol_user_profile_photo_url");
-      }
-      setProfilePhotoFile(null);
-      setMessage("Foto de perfil actualizada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo subir la foto de perfil.");
     }
   }
 
@@ -1317,14 +772,7 @@ export function ClinicalConsole() {
         template_key: reminderRuleForm.template_key,
         is_active: reminderRuleForm.is_active,
       });
-      setReminderRuleForm({
-        doctor_id: "",
-        channel: "whatsapp",
-        trigger_type: "before_appointment",
-        minutes_before: "1440",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        is_active: true,
-      });
+      setReminderRuleForm(createReminderRuleForm());
       await loadData();
       setMessage("Regla de recordatorio creada.");
     } catch (error) {
@@ -1438,7 +886,7 @@ export function ClinicalConsole() {
       if (editingReceptionistId) {
         await apiPatch<Receptionist>(`/api/receptionists/${editingReceptionistId}`, payload);
       } else {
-        await apiPost<Receptionist>("/api/receptionists", payload);
+      await apiPost<Receptionist>("/api/receptionists", payload);
       }
       setSelectedReceptionistId(editingReceptionistId);
       resetReceptionistForm();
@@ -1556,12 +1004,12 @@ export function ClinicalConsole() {
     setSelectedReceptionistId(receptionist.id);
     setEditingReceptionistId(receptionist.id);
     setReceptionistForm({
+      ...createReceptionistForm(),
       first_name: receptionist.first_name,
       last_name: receptionist.last_name,
       gender: receptionist.gender ?? "other",
       phone_number: receptionist.phone_number ?? "",
       email: receptionist.email,
-      password: "",
       doctor_ids: receptionist.assigned_doctors.map((doctor) => doctor.id),
     });
     setReceptionistDoctorSearch("");
@@ -1570,15 +1018,7 @@ export function ClinicalConsole() {
 
   function resetReceptionistForm() {
     setEditingReceptionistId(null);
-    setReceptionistForm({
-      first_name: "",
-      last_name: "",
-      gender: "female",
-      phone_number: "",
-      email: "",
-      password: "",
-      doctor_ids: [],
-    });
+    setReceptionistForm(createReceptionistForm());
     setReceptionistDoctorSearch("");
     setShowReceptionistModal(false);
   }
@@ -1593,429 +1033,6 @@ export function ClinicalConsole() {
       setMessage(`Regla ${rule.is_active ? "desactivada" : "activada"}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo actualizar la regla.");
-    }
-  }
-
-  async function submitTemplate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await apiPost<CommunicationTemplate>("/api/communication-templates", {
-        doctor_id: templateForm.doctor_id ? Number(templateForm.doctor_id) : null,
-        channel: templateForm.channel,
-        template_key: templateForm.template_key,
-        title: templateForm.title,
-        body: templateForm.body,
-        is_active: templateForm.is_active,
-      });
-      setTemplateForm({
-        doctor_id: "",
-        channel: "whatsapp",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        title: DEFAULT_CONFIRMATION_TITLE,
-        body: DEFAULT_CONFIRMATION_BODY,
-        is_active: true,
-      });
-      setTemplatePreview(null);
-      await loadData();
-      setMessage("Plantilla creada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo crear la plantilla.");
-    }
-  }
-
-  async function saveConfirmationTemplate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      const payload = {
-        doctor_id: currentRoles.includes("doctor") ? (selectedDoctor?.id ?? null) : templateForm.doctor_id ? Number(templateForm.doctor_id) : null,
-        channel: "whatsapp",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        title: templateForm.title || "Confirmación de cita",
-        body: templateForm.body,
-        is_active: true,
-      };
-
-      if (confirmationTemplate) {
-        await apiPatch<CommunicationTemplate>(`/api/communication-templates/${confirmationTemplate.id}`, payload);
-        setMessage("Mensaje de confirmación actualizado.");
-      } else {
-        await apiPost<CommunicationTemplate>("/api/communication-templates", payload);
-        setMessage("Mensaje de confirmación guardado.");
-      }
-
-      await loadData();
-      setTemplatePreview(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo guardar el mensaje de confirmación.");
-    }
-  }
-
-  async function toggleTemplate(template: CommunicationTemplate) {
-    setMessage("");
-    try {
-      await apiPatch<CommunicationTemplate>(`/api/communication-templates/${template.id}`, {
-        is_active: !template.is_active,
-      });
-      await loadData();
-      setMessage(`Plantilla ${template.is_active ? "desactivada" : "activada"}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la plantilla.");
-    }
-  }
-
-  async function saveEmailTemplate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      const existingTemplate = emailTemplates.find((template) => template.template_key === emailTemplateForm.template_key);
-      const payload = {
-        title: emailTemplateForm.title,
-        subject: emailTemplateForm.subject,
-        html_body: emailTemplateForm.html_body,
-        text_body: emailTemplateForm.text_body || null,
-        is_active: emailTemplateForm.is_active,
-      };
-      if (existingTemplate) {
-        await apiPatch<EmailTemplate>(`/api/email-templates/${existingTemplate.id}`, payload);
-        setMessage("Plantilla de correo actualizada.");
-      } else {
-        await apiPost<EmailTemplate>("/api/email-templates", {
-          template_key: emailTemplateForm.template_key,
-          ...payload,
-        });
-        setMessage("Plantilla de correo creada.");
-      }
-      await loadData();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo guardar la plantilla de correo.");
-    }
-  }
-
-  async function previewEmailTemplate() {
-    setMessage("");
-    try {
-      const preview = await apiPost<EmailTemplatePreview>("/api/email-templates/preview", {
-        subject: emailTemplateForm.subject,
-        html_body: emailTemplateForm.html_body,
-        text_body: emailTemplateForm.text_body || null,
-        variables: {
-          app_name: "do-control",
-          recipient_name: selectedSummary ? `${selectedSummary.patient.first_name} ${selectedSummary.patient.last_name}` : "Paciente Demo",
-          first_name: selectedSummary?.patient.first_name ?? "Paciente",
-          last_name: selectedSummary?.patient.last_name ?? "Demo",
-          email: selectedSummary?.patient.email ?? currentUserEmail ?? "usuario@demo.com",
-          temporary_password: "Temp123456",
-          reset_link: `${API_URL}/reset-password-demo`,
-          invite_link: `${API_URL}/activate-admin-demo`,
-          expires_in_minutes: "60",
-        },
-      });
-      setEmailTemplatePreview(preview);
-      setMessage("Vista previa de correo generada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa del correo.");
-    }
-  }
-
-  async function resendEmailDispatch(dispatchId: number) {
-    setMessage("");
-    try {
-      await apiPost<EmailDispatch>(`/api/email-dispatches/${dispatchId}/resend`, {});
-      await loadData();
-      setMessage("Correo reenviado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el correo.");
-    }
-  }
-
-  async function sendTestEmail() {
-    if (!testEmailRecipient.trim()) {
-      setMessage("Ingresa un correo de prueba.");
-      return;
-    }
-    setMessage("");
-    try {
-      await apiPost<EmailDispatch>("/api/email-dispatches/test", {
-        recipient_email: testEmailRecipient.trim(),
-        template_key: emailTemplateForm.template_key,
-      });
-      await loadData();
-      setMessage("Correo de prueba enviado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo enviar el correo de prueba.");
-    }
-  }
-
-  async function previewTemplate() {
-    setMessage("");
-    try {
-      const firstExamOrderId =
-        selectedSummary?.encounters.flatMap((encounter) => encounter.exam_orders ?? []).find((exam) => exam.id)?.id ??
-        null;
-      const preview = await apiPost<CommunicationTemplatePreview>("/api/communication-templates/preview", {
-        doctor_id: templateForm.doctor_id ? Number(templateForm.doctor_id) : appointmentForm.doctor_id ? Number(appointmentForm.doctor_id) : null,
-        channel: templateForm.channel,
-        template_key: templateForm.template_key || "preview",
-        title: templateForm.title || "Vista previa",
-        body: templateForm.body,
-        patient_id: selectedPatientId ? Number(selectedPatientId) : null,
-        appointment_id: selectedSummary?.appointments[0]?.id ?? null,
-        exam_order_id: firstExamOrderId,
-      });
-      setTemplatePreview(preview);
-      setMessage("Vista previa generada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa.");
-    }
-  }
-
-  async function previewConfirmationTemplate() {
-    setMessage("");
-    try {
-      const firstExamOrderId =
-        selectedSummary?.encounters.flatMap((encounter) => encounter.exam_orders ?? []).find((exam) => exam.id)?.id ??
-        null;
-      const preview = await apiPost<CommunicationTemplatePreview>("/api/communication-templates/preview", {
-        doctor_id: currentRoles.includes("doctor") ? (selectedDoctor?.id ?? null) : templateForm.doctor_id ? Number(templateForm.doctor_id) : null,
-        channel: "whatsapp",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        title: templateForm.title || "Confirmación de cita",
-        body: templateForm.body,
-        patient_id: selectedPatientId ? Number(selectedPatientId) : null,
-        appointment_id: selectedSummary?.appointments[0]?.id ?? null,
-        exam_order_id: firstExamOrderId,
-      });
-      setTemplatePreview(preview);
-      setMessage("Vista previa generada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo generar la vista previa.");
-    }
-  }
-
-  async function generateDispatchesNow() {
-    setMessage("");
-    try {
-      const result = await apiPost<CommunicationDispatchGeneration>("/api/communication-dispatches/generate", {});
-      await loadData();
-      setMessage(`Se generaron ${result.created_count} mensajes.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudieron generar los mensajes.");
-    }
-  }
-
-  async function requeueDispatch(dispatchId: number) {
-    setMessage("");
-    try {
-      await apiPost<CommunicationDispatch>(`/api/communication-dispatches/${dispatchId}/requeue`, {});
-      await loadData();
-      setMessage(`Mensaje ${dispatchId} reenviado a cola.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el mensaje.");
-    }
-  }
-
-  async function requeueVisibleFailedDispatches() {
-    setMessage("");
-    try {
-      const failedDispatchIds = communicationDispatches.filter((dispatch) => dispatch.status === "failed").map((dispatch) => dispatch.id);
-      if (!failedDispatchIds.length) {
-        setMessage("No hay mensajes fallidos en la vista actual.");
-        return;
-      }
-      const result = await apiPost<CommunicationDispatchBatchRequeue>("/api/communication-dispatches/requeue-batch", {
-        dispatch_ids: failedDispatchIds,
-      });
-      await loadData();
-      setMessage(`Se reenviaron ${result.requeued_count} mensajes fallidos.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo reenviar el lote.");
-    }
-  }
-
-  async function toggleDispatchAttempts(dispatchId: number) {
-    if (expandedDispatchId === dispatchId) {
-      setExpandedDispatchId(null);
-      return;
-    }
-
-    setMessage("");
-    try {
-      if (!dispatchAttempts[dispatchId]) {
-        const attempts = await apiGet<CommunicationDispatchAttempt[]>(`/api/communication-dispatches/${dispatchId}/attempts`);
-        setDispatchAttempts((current) => ({ ...current, [dispatchId]: attempts }));
-      }
-      setExpandedDispatchId(dispatchId);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudieron cargar los intentos.");
-    }
-  }
-
-  async function updateDispatchStatus(dispatchId: number, status: "sent" | "delivered" | "failed") {
-    setDispatchStatusForm({
-      status,
-      error_message: "Actualización manual",
-    });
-    setActiveDispatchStatusId(dispatchId);
-  }
-
-  async function sendAppointmentReminderNow(appointmentId: number) {
-    setMessage("");
-    try {
-      await apiPost<CommunicationDispatch>(`/api/communication-dispatches/appointments/${appointmentId}/send-now`, {});
-      await loadData();
-      const dispatches = await apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?appointment_id=${appointmentId}&limit=20`);
-      setAppointmentDispatches((current) => ({ ...current, [appointmentId]: dispatches }));
-      setExpandedAppointmentId(appointmentId);
-      setMessage("Recordatorio enviado a cola para este contacto.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo enviar el recordatorio.");
-    }
-  }
-
-  function closeDispatchStatusModal() {
-    setActiveDispatchStatusId(null);
-    setDispatchStatusForm({
-      status: "delivered",
-      error_message: "Actualización manual",
-    });
-  }
-
-  async function submitDispatchStatusUpdate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!activeDispatch) {
-      return;
-    }
-
-    setMessage("");
-    try {
-      const payload: Record<string, string> = { status: dispatchStatusForm.status };
-      if (dispatchStatusForm.status === "failed") {
-        if (!dispatchStatusForm.error_message.trim()) {
-          setMessage("Debes indicar el motivo del fallo.");
-          return;
-        }
-        payload.error_message = dispatchStatusForm.error_message.trim();
-      }
-      await apiPatch<CommunicationDispatch>(`/api/communication-dispatches/${activeDispatch.id}`, payload);
-      closeDispatchStatusModal();
-      await loadData();
-      setMessage(`Mensaje ${activeDispatch.id} actualizado.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el mensaje.");
-    }
-  }
-
-  async function resolveReviewItem(
-    itemId: number,
-    action: ReviewResolutionAction,
-  ) {
-    const item = appointmentReviewItems.find((entry) => entry.id === itemId);
-    if (!item) {
-      setMessage("No se encontró el pendiente seleccionado.");
-      return;
-    }
-
-    const normalizedRequestedName = item.patient_name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    const matchingPatients = data.patients.filter((patient) => {
-      const patientName = `${patient.first_name} ${patient.last_name}`
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-      return (
-        patient.primary_phone === item.phone_number ||
-        patientName.includes(normalizedRequestedName) ||
-        normalizedRequestedName.includes(patientName)
-      );
-    });
-    const suggestedPatientId =
-      matchingPatients[0]?.id ??
-      (selectedPatientId ? Number(selectedPatientId) : null);
-    const suggestedAppointmentId =
-      item.existing_appointment_id ??
-      data.appointments.find(
-        (appointment) =>
-          (item.doctor_id === null || appointment.doctor_id === item.doctor_id) &&
-          (appointment.patient_name ?? "").toLowerCase().includes(item.patient_name.toLowerCase()),
-      )?.id ??
-      null;
-
-    setReviewResolutionForm({
-      action,
-      patient_id: action === "create_appointment" && suggestedPatientId ? String(suggestedPatientId) : "",
-      doctor_id: item.doctor_id ? String(item.doctor_id) : "",
-      appointment_id: action === "link_existing" && suggestedAppointmentId ? String(suggestedAppointmentId) : "",
-      note:
-        action === "reject"
-          ? "Rechazado manualmente"
-          : item.review_reason === "reschedule_request"
-            ? "Solicitud de reagendar atendida manualmente."
-            : "",
-    });
-    setActiveReviewItemId(itemId);
-  }
-
-  function closeReviewResolutionModal() {
-    setActiveReviewItemId(null);
-    setReviewResolutionForm({
-      action: "create_appointment",
-      patient_id: "",
-      doctor_id: "",
-      appointment_id: "",
-      note: "",
-    });
-  }
-
-  async function submitReviewResolution(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!activeReviewItem) {
-      return;
-    }
-
-    setMessage("");
-    try {
-      const payload: Record<string, string | number> = {
-        action: reviewResolutionForm.action,
-        changed_by: currentUserEmail || "frontend-user",
-      };
-
-      if (reviewResolutionForm.action === "create_appointment") {
-        if (!reviewResolutionForm.patient_id) {
-          setMessage("Selecciona un paciente para crear la cita.");
-          return;
-        }
-        payload.patient_id = Number(reviewResolutionForm.patient_id);
-        if (!activeReviewItem.doctor_id) {
-          if (!reviewResolutionForm.doctor_id) {
-            setMessage("Selecciona el doctor para esta resolución.");
-            return;
-          }
-          payload.doctor_id = Number(reviewResolutionForm.doctor_id);
-        }
-      }
-
-      if (reviewResolutionForm.action === "link_existing") {
-        if (!reviewResolutionForm.appointment_id) {
-          setMessage("Selecciona una cita existente para vincular.");
-          return;
-        }
-        payload.appointment_id = Number(reviewResolutionForm.appointment_id);
-      }
-
-      if (reviewResolutionForm.note.trim()) {
-        payload.note = reviewResolutionForm.note.trim();
-      }
-
-      await apiPost(`/api/appointment-review-items/${activeReviewItem.id}/resolve`, payload);
-      closeReviewResolutionModal();
-      await loadData();
-      setMessage("Pendiente actualizado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo resolver el pendiente.");
     }
   }
 
@@ -2121,14 +1138,6 @@ export function ClinicalConsole() {
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
   const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
   const teamPageSize = 6;
-  const activeReviewItem = useMemo(
-    () => appointmentReviewItems.find((item) => item.id === activeReviewItemId) ?? null,
-    [activeReviewItemId, appointmentReviewItems],
-  );
-  const activeDispatch = useMemo(
-    () => communicationDispatches.find((dispatch) => dispatch.id === activeDispatchStatusId) ?? null,
-    [activeDispatchStatusId, communicationDispatches],
-  );
   const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
   const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
   const currentUserDisplay = useMemo(() => {
@@ -2172,48 +1181,6 @@ export function ClinicalConsole() {
       `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""}`.toLowerCase().includes(search),
     );
   }, [data.doctors, receptionistDoctorSearch]);
-  const reviewPatientOptions = useMemo(() => {
-    if (!activeReviewItem) {
-      return [];
-    }
-    const normalizedRequestedName = activeReviewItem.patient_name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-    return data.patients.filter((patient) => {
-      const patientName = `${patient.first_name} ${patient.last_name}`
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-      return (
-        patient.primary_phone === activeReviewItem.phone_number ||
-        patientName.includes(normalizedRequestedName) ||
-        normalizedRequestedName.includes(patientName)
-      );
-    });
-  }, [activeReviewItem, data.patients]);
-  const reviewAppointmentOptions = useMemo(() => {
-    if (!activeReviewItem) {
-      return [];
-    }
-    return data.appointments.filter((appointment) => {
-      if (activeReviewItem.doctor_id !== null && appointment.doctor_id !== activeReviewItem.doctor_id) {
-        return false;
-      }
-      if (
-        activeReviewItem.existing_appointment_id !== null &&
-        appointment.id === activeReviewItem.existing_appointment_id
-      ) {
-        return true;
-      }
-      const patientName = (appointment.patient_name ?? "").toLowerCase();
-      return (
-        patientName.includes(activeReviewItem.patient_name.toLowerCase()) ||
-        formatDateTime(appointment.scheduled_start) === formatDateTime(activeReviewItem.scheduled_start)
-      );
-    });
-  }, [activeReviewItem, data.appointments]);
-
   const selectedDoctor = useMemo(
     () =>
       activeDoctors.find(
@@ -2284,6 +1251,51 @@ export function ClinicalConsole() {
       null,
     [communicationTemplates, scopedDoctorId],
   );
+
+  const {
+    activeDispatch,
+    closeDispatchStatusModal,
+    dispatchAttempts,
+    dispatchStatusForm,
+    emailTemplatePreview,
+    expandedDispatchId,
+    generateDispatchesNow,
+    previewConfirmationTemplate,
+    previewEmailTemplate,
+    previewTemplate,
+    requeueDispatch,
+    requeueVisibleFailedDispatches,
+    resendEmailDispatch,
+    saveConfirmationTemplate,
+    saveEmailTemplate,
+    sendAppointmentReminderNow,
+    sendTestEmail,
+    submitDispatchStatusUpdate,
+    submitTemplate,
+    templatePreview,
+    toggleDispatchAttempts,
+    toggleTemplate,
+    updateDispatchStatus,
+    setDispatchStatusForm,
+  } = useCommunicationsConsole({
+    appointmentDispatches,
+    communicationDispatches,
+    communicationTemplates,
+    confirmationTemplate,
+    currentRoles,
+    currentUserEmail,
+    emailTemplateForm,
+    emailTemplates,
+    loadData,
+    selectedDoctor,
+    selectedPatientId,
+    selectedSummary,
+    setAppointmentDispatches,
+    setClinicSetting,
+    setExpandedAppointmentId,
+    setMessage,
+    templateForm,
+  });
 
   const sortedPatientEncounters = useMemo(() => {
     if (!selectedSummary) {
@@ -4670,7 +3682,7 @@ export function ClinicalConsole() {
                   />
                 </label>
                 <div className="row-actions">
-                  <button type="button" className="success-button" onClick={sendTestEmail}>
+                  <button type="button" className="success-button" onClick={() => sendTestEmail(testEmailRecipient)}>
                     Enviar correo de prueba
                   </button>
                 </div>
