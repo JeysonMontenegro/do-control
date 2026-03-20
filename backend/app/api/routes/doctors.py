@@ -38,8 +38,11 @@ def create_doctor(
     db: Session = Depends(get_db_session),
     _current_user=Depends(require_roles("admin")),
 ) -> DoctorRead:
-    service = DoctorService(db)
-    return service.serialize_doctor(service.create_doctor(payload))
+    try:
+        service = DoctorService(db)
+        return service.serialize_doctor(service.create_doctor(payload))
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.patch("/{doctor_id}", response_model=DoctorRead)

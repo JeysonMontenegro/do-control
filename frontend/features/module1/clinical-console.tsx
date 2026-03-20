@@ -101,6 +101,11 @@ type DoctorAdminForm = {
   clinics: DoctorClinicForm[];
 };
 
+type CountryPhoneOption = {
+  code: string;
+  label: string;
+};
+
 const initialLoadState: LoadState = {
   doctors: [],
   patients: [],
@@ -108,20 +113,137 @@ const initialLoadState: LoadState = {
   encounters: [],
 };
 
+const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
+  { code: "+502", label: "Guatemala" },
+  { code: "+503", label: "El Salvador" },
+  { code: "+504", label: "Honduras" },
+  { code: "+505", label: "Nicaragua" },
+  { code: "+506", label: "Costa Rica" },
+  { code: "+507", label: "Panamá" },
+  { code: "+52", label: "México" },
+  { code: "+1", label: "Estados Unidos" },
+];
+
 const DEFAULT_COUNTRY_DIAL_CODE = "+502";
 
-const normalizePhoneWithDefaultCountry = (value: string) => {
+const getPhoneCountryCode = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return DEFAULT_COUNTRY_DIAL_CODE;
+  }
+
+  const matchingOption = COUNTRY_PHONE_OPTIONS
+    .slice()
+    .sort((left, right) => right.code.length - left.code.length)
+    .find((option) => normalized.startsWith(option.code) || normalized.startsWith(option.code.slice(1)));
+
+  return matchingOption?.code ?? DEFAULT_COUNTRY_DIAL_CODE;
+};
+
+const getPhoneLocalNumber = (value: string) => {
   const normalized = value.trim();
   if (!normalized) {
     return "";
   }
-  if (normalized.startsWith("+")) {
-    return normalized;
+  const countryCode = getPhoneCountryCode(normalized);
+  if (normalized.startsWith(countryCode)) {
+    return normalized.slice(countryCode.length);
   }
-  if (normalized.startsWith("502")) {
-    return `+${normalized}`;
+  const digitsOnlyCode = countryCode.slice(1);
+  if (normalized.startsWith(digitsOnlyCode)) {
+    return normalized.slice(digitsOnlyCode.length);
   }
-  return `${DEFAULT_COUNTRY_DIAL_CODE}${normalized}`;
+  return normalized.startsWith("+") ? normalized.slice(1) : normalized;
+};
+
+const buildPhoneNumber = (countryCode: string, localNumber: string) => {
+  const digits = localNumber.replace(/[^\d]/g, "");
+  if (!digits) {
+    return "";
+  }
+  return `${countryCode}${digits}`;
+};
+
+const normalizePhoneWithDefaultCountry = (value: string) =>
+  buildPhoneNumber(getPhoneCountryCode(value), getPhoneLocalNumber(value));
+
+function PhoneField({
+  label,
+  value,
+  onChange,
+  required = false,
+  placeholder = "Número",
+}: {
+  label: string;
+  value: string;
+  onChange: (nextValue: string) => void;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  const countryCode = getPhoneCountryCode(value);
+  const localNumber = getPhoneLocalNumber(value);
+
+  return (
+    <label>
+      <span>
+        {label}
+        {required ? <strong className="required-mark">*</strong> : null}
+      </span>
+      <div className="phone-field-stack">
+        <select value={countryCode} onChange={(event) => onChange(buildPhoneNumber(event.target.value, localNumber))}>
+          {COUNTRY_PHONE_OPTIONS.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.label} {option.code}
+            </option>
+          ))}
+        </select>
+        <input
+          className="phone-local-input"
+          value={localNumber}
+          onChange={(event) => onChange(buildPhoneNumber(countryCode, event.target.value))}
+          placeholder={placeholder}
+          inputMode="numeric"
+          required={required}
+        />
+      </div>
+    </label>
+  );
+}
+
+function RequiredLabel({ children }: { children: string }) {
+  return (
+    <span>
+      {children}
+      <strong className="required-mark">*</strong>
+    </span>
+  );
+}
+
+const getMessageTone = (message: string): "success" | "error" | "info" | "warning" => {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("no se pudo") ||
+    normalized.includes("incorrect") ||
+    normalized.includes("inválid") ||
+    normalized.includes("invalid") ||
+    normalized.includes("expiró") ||
+    normalized.includes("ya existe") ||
+    normalized.includes("ya está en uso") ||
+    normalized.includes("error") ||
+    normalized.includes("debes ") ||
+    normalized.includes("debe ") ||
+    normalized.includes("selecciona ") ||
+    normalized.includes("ingresa ")
+  ) {
+    return "error";
+  }
+  if (normalized.includes("cargando")) {
+    return "info";
+  }
+  if (normalized.includes("sin ") || normalized.includes("no hay")) {
+    return "warning";
+  }
+  return "success";
 };
 
 const emptyDoctorClinic = (): DoctorClinicForm => ({
@@ -2236,7 +2358,7 @@ export function ClinicalConsole() {
         />
         <button type="submit">Entrar</button>
       </form>
-      {message ? <p className="message-box">{message}</p> : null}
+      {message ? <p className={`message-box message-box-${getMessageTone(message)}`}>{message}</p> : null}
     </section>
   );
 
@@ -2544,7 +2666,7 @@ export function ClinicalConsole() {
             <form className="form-card compact-form" onSubmit={submitAppointment}>
               <h3>Nueva cita</h3>
               <label>
-                <span>Paciente</span>
+                <RequiredLabel>Paciente</RequiredLabel>
                 <select
                   value={appointmentForm.patient_id}
                   onChange={(event) => setAppointmentForm((current) => ({ ...current, patient_id: event.target.value }))}
@@ -2560,7 +2682,7 @@ export function ClinicalConsole() {
               </label>
               {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
-                  <span>Doctor</span>
+                  <RequiredLabel>Doctor</RequiredLabel>
                   <select
                     value={appointmentForm.doctor_id}
                     onChange={(event) => setAppointmentForm((current) => ({ ...current, doctor_id: event.target.value }))}
@@ -2583,7 +2705,7 @@ export function ClinicalConsole() {
                 </label>
               ) : null}
               <label>
-                <span>Inicio</span>
+                <RequiredLabel>Inicio</RequiredLabel>
                 <input
                   type="datetime-local"
                   value={appointmentForm.scheduled_start}
@@ -2592,7 +2714,7 @@ export function ClinicalConsole() {
                 />
               </label>
               <label>
-                <span>Fin</span>
+                <RequiredLabel>Fin</RequiredLabel>
                 <input
                   type="datetime-local"
                   value={appointmentForm.scheduled_end}
@@ -2874,7 +2996,7 @@ export function ClinicalConsole() {
           <form className="form-card" onSubmit={submitEncounter}>
             <div className="two-column-grid">
               <label>
-                <span>Paciente</span>
+                <RequiredLabel>Paciente</RequiredLabel>
                 <select
                   value={encounterForm.patient_id}
                   onChange={(event) => setEncounterForm((current) => ({ ...current, patient_id: event.target.value }))}
@@ -2890,7 +3012,7 @@ export function ClinicalConsole() {
               </label>
               {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
-                  <span>Doctor</span>
+                  <RequiredLabel>Doctor</RequiredLabel>
                   <select
                     value={encounterForm.doctor_id}
                     onChange={(event) => setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))}
@@ -2927,7 +3049,7 @@ export function ClinicalConsole() {
                 </select>
               </label>
               <label>
-                <span>Fecha</span>
+                <RequiredLabel>Fecha</RequiredLabel>
                 <input
                   type="datetime-local"
                   value={encounterForm.encounter_date}
@@ -2937,7 +3059,7 @@ export function ClinicalConsole() {
               </label>
             </div>
             <label>
-              <span>Motivo de consulta</span>
+              <RequiredLabel>Motivo de consulta</RequiredLabel>
               <textarea
                 value={encounterForm.chief_complaint}
                 onChange={(event) => setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))}
@@ -3609,11 +3731,11 @@ export function ClinicalConsole() {
           <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
             <div className="two-column-grid">
               <label>
-                <span>Nombres</span>
+                <RequiredLabel>Nombres</RequiredLabel>
                 <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
               </label>
               <label>
-                <span>Apellidos</span>
+                <RequiredLabel>Apellidos</RequiredLabel>
                 <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
               </label>
               <label>
@@ -3628,14 +3750,12 @@ export function ClinicalConsole() {
                 <span>Fecha de nacimiento</span>
                 <input type="date" value={doctorAdminForm.date_of_birth} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
               </label>
-              <label>
-                <span>Teléfono principal</span>
-                <input
-                  value={doctorAdminForm.primary_phone}
-                  onChange={(event) => setDoctorAdminForm((current) => ({ ...current, primary_phone: event.target.value }))}
-                  placeholder="+502"
-                />
-              </label>
+              <PhoneField
+                label="Teléfono principal"
+                value={doctorAdminForm.primary_phone}
+                onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, primary_phone: nextValue }))}
+                placeholder="58420737"
+              />
               <label>
                 <span>Especialidad</span>
                 <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
@@ -3913,14 +4033,12 @@ export function ClinicalConsole() {
                       <span>Correo</span>
                       <input value={currentUserEmail} readOnly />
                     </label>
-                    <label>
-                      <span>Teléfono</span>
-                      <input
-                        value={profileForm.phone_number}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))}
-                        placeholder="+50258420737"
-                      />
-                    </label>
+                    <PhoneField
+                      label="Teléfono"
+                      value={profileForm.phone_number}
+                      onChange={(nextValue) => setProfileForm((current) => ({ ...current, phone_number: nextValue }))}
+                      placeholder="58420737"
+                    />
                     <label>
                       <span>Contraseña actual</span>
                       <input
@@ -4696,7 +4814,7 @@ export function ClinicalConsole() {
             <form className="form-card" onSubmit={submitPatient}>
               <div className="three-column-grid">
                 <label>
-                  <span>Doctor responsable</span>
+                  <RequiredLabel>Doctor responsable</RequiredLabel>
                   <select
                     value={patientForm.doctor_id}
                     onChange={(event) => setPatientForm((current) => ({ ...current, doctor_id: event.target.value }))}
@@ -4719,7 +4837,7 @@ export function ClinicalConsole() {
                   />
                 </label>
                 <label>
-                  <span>Nombres</span>
+                  <RequiredLabel>Nombres</RequiredLabel>
                   <input
                     value={patientForm.first_name}
                     onChange={(event) => setPatientForm((current) => ({ ...current, first_name: event.target.value }))}
@@ -4727,21 +4845,20 @@ export function ClinicalConsole() {
                   />
                 </label>
                 <label>
-                  <span>Apellidos</span>
+                  <RequiredLabel>Apellidos</RequiredLabel>
                   <input
                     value={patientForm.last_name}
                     onChange={(event) => setPatientForm((current) => ({ ...current, last_name: event.target.value }))}
                     required
                   />
                 </label>
-                <label>
-                  <span>Teléfono</span>
-                  <input
-                    value={patientForm.primary_phone}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, primary_phone: event.target.value }))}
-                    required
-                  />
-                </label>
+                <PhoneField
+                  label="Teléfono"
+                  value={patientForm.primary_phone}
+                  onChange={(nextValue) => setPatientForm((current) => ({ ...current, primary_phone: nextValue }))}
+                  required
+                  placeholder="58420737"
+                />
                 <label>
                   <span>DPI</span>
                   <input
@@ -4792,7 +4909,7 @@ export function ClinicalConsole() {
           <form className="form-card compact-form" onSubmit={submitPatientUpdate}>
             <div className="three-column-grid">
               <label>
-                <span>Nombres</span>
+                <RequiredLabel>Nombres</RequiredLabel>
                 <input
                   value={patientEditForm.first_name}
                   onChange={(event) => setPatientEditForm((current) => ({ ...current, first_name: event.target.value }))}
@@ -4800,21 +4917,20 @@ export function ClinicalConsole() {
                 />
               </label>
               <label>
-                <span>Apellidos</span>
+                <RequiredLabel>Apellidos</RequiredLabel>
                 <input
                   value={patientEditForm.last_name}
                   onChange={(event) => setPatientEditForm((current) => ({ ...current, last_name: event.target.value }))}
                   required
                 />
               </label>
-              <label>
-                <span>Teléfono</span>
-                <input
-                  value={patientEditForm.primary_phone}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, primary_phone: event.target.value }))}
-                  required
-                />
-              </label>
+              <PhoneField
+                label="Teléfono"
+                value={patientEditForm.primary_phone}
+                onChange={(nextValue) => setPatientEditForm((current) => ({ ...current, primary_phone: nextValue }))}
+                required
+                placeholder="58420737"
+              />
               <label>
                 <span>DPI</span>
                 <input
@@ -5108,11 +5224,11 @@ export function ClinicalConsole() {
           <form className="form-card compact-form" onSubmit={submitReceptionist}>
             <div className="two-column-grid">
               <label>
-                <span>Nombres</span>
+                <RequiredLabel>Nombres</RequiredLabel>
                 <input value={receptionistForm.first_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, first_name: event.target.value }))} required />
               </label>
               <label>
-                <span>Apellidos</span>
+                <RequiredLabel>Apellidos</RequiredLabel>
                 <input value={receptionistForm.last_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, last_name: event.target.value }))} required />
               </label>
               <label>
@@ -5123,12 +5239,14 @@ export function ClinicalConsole() {
                   <option value="other">Otro</option>
                 </select>
               </label>
+              <PhoneField
+                label="Teléfono"
+                value={receptionistForm.phone_number}
+                onChange={(nextValue) => setReceptionistForm((current) => ({ ...current, phone_number: nextValue }))}
+                placeholder="58420737"
+              />
               <label>
-                <span>Teléfono</span>
-                <input value={receptionistForm.phone_number} onChange={(event) => setReceptionistForm((current) => ({ ...current, phone_number: event.target.value }))} />
-              </label>
-              <label>
-                <span>Correo</span>
+                <RequiredLabel>Correo</RequiredLabel>
                 <input type="email" value={receptionistForm.email} onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))} required disabled={editingReceptionistId !== null} />
               </label>
               <label>
@@ -5253,8 +5371,8 @@ export function ClinicalConsole() {
               </div>
             </header>
 
-            {message ? <p className="message-box">{message}</p> : null}
-            {loading ? <p className="message-box">Cargando información clínica...</p> : null}
+            {message ? <p className={`message-box message-box-${getMessageTone(message)}`}>{message}</p> : null}
+            {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}
 
             {renderActiveTab()}
           </div>

@@ -183,10 +183,30 @@ select.compact-input:hover {
   max-width: 320px;
 }
 
+.phone-field-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.phone-field-stack select,
+.phone-field-stack input {
+  width: 100%;
+}
+
+.phone-local-input {
+  min-width: 0;
+}
+
 .form-card label {
   display: grid;
   gap: 6px;
   color: var(--muted);
+}
+
+.required-mark {
+  margin-left: 4px;
+  color: var(--danger);
+  font-size: 0.92em;
 }
 
 .form-card textarea {
@@ -242,6 +262,32 @@ select.compact-input:hover {
   padding: 10px 14px;
   border-radius: 14px;
   background: #f7fbff;
+  border: 1px solid #dbe6f6;
+  color: var(--text);
+}
+
+.message-box-success {
+  background: #eaf6f2;
+  border-color: rgba(31, 122, 100, 0.22);
+  color: #165847;
+}
+
+.message-box-error {
+  background: #fff2ef;
+  border-color: rgba(207, 94, 78, 0.22);
+  color: #9f3f31;
+}
+
+.message-box-warning {
+  background: #fff6e6;
+  border-color: rgba(240, 164, 58, 0.24);
+  color: #956109;
+}
+
+.message-box-info {
+  background: #f3f8ff;
+  border-color: rgba(43, 110, 243, 0.18);
+  color: #295293;
 }
 
 .modal-overlay {
