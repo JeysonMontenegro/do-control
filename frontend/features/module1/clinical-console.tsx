@@ -16,6 +16,7 @@ import {
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
 import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
@@ -2382,92 +2383,18 @@ export function ClinicalConsole() {
         ) : null}
 
         {gestionSubtab === "mensajes" ? (
-          <>
-            <article className="card section-card">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Mensajes</p>
-                  <h2>Mensaje de confirmación</h2>
-                </div>
-              </div>
-              <form className="form-card compact-form" onSubmit={saveConfirmationTemplate}>
-                <label>
-                  <span>Título interno</span>
-                  <input
-                    value={templateForm.title}
-                    onChange={(event) => setTemplateForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder={DEFAULT_CONFIRMATION_TITLE}
-                  />
-                </label>
-                <label>
-                  <span>Mensaje</span>
-                  <textarea
-                    value={templateForm.body}
-                    onChange={(event) => setTemplateForm((current) => ({ ...current, body: event.target.value }))}
-                    placeholder={DEFAULT_CONFIRMATION_BODY}
-                    required
-                  />
-                </label>
-                <p className="empty-state">
-                  Variables disponibles: {"{patient_name}"}, {"{doctor_name}"}, {"{appointment_date}"} y {"{appointment_time}"}.
-                </p>
-                {templatePreview ? <div className="message-preview">{templatePreview.rendered_message}</div> : null}
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={previewConfirmationTemplate}>
-                    Vista previa
-                  </button>
-                  <button type="submit">Guardar mensaje</button>
-                </div>
-              </form>
-            </article>
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Mensajes</p>
-                  <h2>Plantillas activas</h2>
-                </div>
-              </div>
-              <div className="table-list">
-                {communicationTemplates
-                  .filter((template) => scopedDoctorId === null || template.doctor_id === null || template.doctor_id === scopedDoctorId)
-                  .map((template) => (
-                    <div className="simple-list-item" key={`template-${template.id}`}>
-                      <strong>{template.title}</strong>
-                      <span>{template.template_key === CONFIRMATION_TEMPLATE_KEY ? "Mensaje de confirmación" : "Mensaje automático"}</span>
-                      <span>{template.is_active ? "Activo" : "Inactivo"}</span>
-                      <div className="message-preview">{template.body}</div>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="success-button"
-                          onClick={() =>
-                            setTemplateForm({
-                              doctor_id: template.doctor_id ? String(template.doctor_id) : "",
-                              channel: template.channel,
-                              template_key: template.template_key,
-                              title: template.title,
-                              body: template.body,
-                              is_active: template.is_active,
-                            })
-                          }
-                        >
-                          Usar como base
-                        </button>
-                        <button
-                          type="button"
-                          className={template.is_active ? "danger-button" : "success-button"}
-                          onClick={() => toggleTemplate(template)}
-                        >
-                          {template.is_active ? "Desactivar" : "Activar"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                {!communicationTemplates.length ? <p className="empty-state">Todavía no hay mensajes configurados.</p> : null}
-              </div>
-            </article>
-          </>
+          <GestionMessagesSection
+            communicationTemplates={communicationTemplates}
+            confirmationBodyPlaceholder={DEFAULT_CONFIRMATION_BODY}
+            confirmationTitlePlaceholder={DEFAULT_CONFIRMATION_TITLE}
+            previewConfirmationTemplate={previewConfirmationTemplate}
+            saveConfirmationTemplate={saveConfirmationTemplate}
+            scopedDoctorId={scopedDoctorId}
+            setTemplateForm={setTemplateForm}
+            templateForm={templateForm}
+            templatePreview={templatePreview}
+            toggleTemplate={toggleTemplate}
+          />
         ) : null}
 
         {gestionSubtab === "recordatorios" ? (
