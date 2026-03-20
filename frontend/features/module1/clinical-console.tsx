@@ -15,6 +15,8 @@ import {
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
+import { DoctorsSection, type DoctorAdminForm } from "@/features/module1/components/doctors-section";
+import { EncountersSection } from "@/features/module1/components/encounters-section";
 import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
@@ -23,8 +25,10 @@ import { GestionRemindersSection } from "@/features/module1/components/gestion-r
 import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
-import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
+import { PatientActionModal } from "@/features/module1/components/patient-action-modal";
+import { PatientsSection } from "@/features/module1/components/patients-section";
 import { PendingReviewSection } from "@/features/module1/components/pending-review-section";
+import { ReceptionistModal } from "@/features/module1/components/receptionist-modal";
 import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
@@ -106,7 +110,6 @@ type LoadState = {
 
 type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
 type MessagesSubtab = "paciente" | "citas" | "operacion";
-type DoctorRosterTab = "activos" | "inactivos";
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
 type DoctorClinicForm = {
   clinic_name: string;
@@ -115,18 +118,7 @@ type DoctorClinicForm = {
   notes: string;
   is_primary: boolean;
 };
-type DoctorAdminForm = {
-  first_name: string;
-  last_name: string;
-  gender: string;
-  date_of_birth: string;
-  specialty: string;
-  license_number: string;
-  primary_phone: string;
-  user_email: string;
-  user_password: string;
-  clinics: DoctorClinicForm[];
-};
+type DoctorRosterTab = "activos" | "inactivos";
 
 const initialLoadState: LoadState = {
   doctors: [],
@@ -1466,358 +1458,58 @@ export function ClinicalConsole() {
   );
 
   const renderPacientesTab = () => (
-    <section className="tab-layout patients-layout">
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Pacientes</p>
-            <h2>Listado</h2>
-          </div>
-          <div className="section-tools-panel">
-            {canManagePatients ? (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setActiveSectionAction("patient_create")}
-              >
-                Agregar paciente
-              </button>
-            ) : null}
-            <input
-              className="search-input"
-              placeholder="Buscar por nombre, teléfono, DPI o expediente"
-              value={patientSearch}
-              onChange={(event) => setPatientSearch(event.target.value)}
-            />
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Expediente</th>
-                <th>Paciente</th>
-                <th>{isAdmin ? "Doctor(es)" : "Doctor"}</th>
-                <th>Teléfono</th>
-                <th>Creado</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.patients.map((patient) => (
-                <tr
-                  key={`patient-${patient.id}`}
-                  className={selectedPatientId === String(patient.id) ? "table-row-active" : ""}
-                  onClick={() => setSelectedPatientId(String(patient.id))}
-                >
-                  <td>{patient.medical_record_number}</td>
-                  <td>
-                    {patient.first_name} {patient.last_name}
-                  </td>
-                  <td>
-                    {patient.assigned_doctors?.length
-                      ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
-                      : "Sin asignación"}
-                  </td>
-                  <td>{patient.primary_phone}</td>
-                  <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
-                  <td>{patient.is_active ? "Activo" : "Inactivo"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!data.patients.length ? <p className="empty-state">No hay pacientes en la vista actual.</p> : null}
-        </div>
-      </article>
-      <PatientSummarySection
-        canManagePatients={canManagePatients}
-        expandedEncounterId={expandedEncounterId}
-        onEditPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
-        onGoToAgendaAppointment={(appointmentId) => {
-          setActiveTab("agenda");
-          toggleAppointmentHistory(appointmentId);
-        }}
-        onOpenAttachment={openAttachment}
-        selectedSummary={selectedSummary}
-        setExpandedEncounterId={setExpandedEncounterId}
-        sortedPatientEncounters={sortedPatientEncounters}
-      />
-    </section>
+    <PatientsSection
+      canManagePatients={canManagePatients}
+      expandedEncounterId={expandedEncounterId}
+      isAdmin={isAdmin}
+      onEditPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
+      onGoToAgendaAppointment={(appointmentId) => {
+        setActiveTab("agenda");
+        toggleAppointmentHistory(appointmentId);
+      }}
+      onOpenAttachment={openAttachment}
+      onPatientSearchChange={setPatientSearch}
+      onSelectPatient={setSelectedPatientId}
+      onShowCreatePatient={() => setActiveSectionAction("patient_create")}
+      patientSearch={patientSearch}
+      patients={data.patients}
+      selectedPatientId={selectedPatientId}
+      selectedSummary={selectedSummary}
+      setExpandedEncounterId={setExpandedEncounterId}
+      sortedPatientEncounters={sortedPatientEncounters}
+    />
   );
 
   const renderConsultasTab = () => (
-    <section className="tab-layout">
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Consultas</p>
-            <h2>Registro clínico</h2>
-          </div>
-        </div>
-        {canManageEncounters ? (
-          <form className="form-card" onSubmit={submitEncounter}>
-            <div className="two-column-grid">
-              <label>
-                <RequiredLabel>Paciente</RequiredLabel>
-                <select
-                  value={encounterForm.patient_id}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, patient_id: event.target.value }))}
-                  required
-                >
-                  <option value="">Seleccionar</option>
-                  {data.patients.map((patient) => (
-                    <option key={`encounter-patient-${patient.id}`} value={patient.id}>
-                      {patient.first_name} {patient.last_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
-                <label>
-                  <RequiredLabel>Doctor</RequiredLabel>
-                  <select
-                    value={encounterForm.doctor_id}
-                    onChange={(event) => setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))}
-                    required
-                  >
-                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`encounter-doctor-${doctor.id}`} value={doctor.id}>
-                        {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : !isAdmin && availableDoctors.length > 1 ? (
-                <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>
-              ) : selectedDoctor ? (
-                <label>
-                  <span>Doctor</span>
-                  <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
-                </label>
-              ) : null}
-              <label>
-                <span>Cita relacionada</span>
-                <select
-                  value={encounterForm.appointment_id}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, appointment_id: event.target.value }))}
-                >
-                  <option value="">Sin cita</option>
-                  {data.appointments.map((appointment) => (
-                    <option key={`encounter-appointment-${appointment.id}`} value={appointment.id}>
-                      {appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · {formatDateTime(appointment.scheduled_start)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <DateField
-                label="Fecha"
-                value={encounterForm.encounter_date}
-                onChange={(nextValue) => setEncounterForm((current) => ({ ...current, encounter_date: nextValue }))}
-                required
-              />
-              <label>
-                <RequiredLabel>Hora</RequiredLabel>
-                <input
-                  type="time"
-                  value={encounterForm.encounter_time}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, encounter_time: event.target.value }))}
-                  required
-                />
-              </label>
-            </div>
-            <label>
-              <RequiredLabel>Motivo de consulta</RequiredLabel>
-              <textarea
-                value={encounterForm.chief_complaint}
-                onChange={(event) => setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))}
-                required
-              />
-            </label>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Diagnósticos</h3>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setDiagnoses((current) => [...current, { diagnosis_text: "", diagnosis_code: null, is_primary: false, notes: null }])}
-                >
-                  Agregar
-                </button>
-              </div>
-              {diagnoses.map((diagnosis, index) => (
-                <div className="stacked-fields" key={`diagnosis-${index}`}>
-                  <input
-                    placeholder="Diagnóstico"
-                    value={diagnosis.diagnosis_text}
-                    onChange={(event) =>
-                      setDiagnoses((current) =>
-                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_text: event.target.value } : item)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Código"
-                    value={diagnosis.diagnosis_code ?? ""}
-                    onChange={(event) =>
-                      setDiagnoses((current) =>
-                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_code: event.target.value } : item)),
-                      )
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Receta</h3>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    setPrescriptionItems((current) => [
-                      ...current,
-                      { medication_name: "", dosage: null, frequency: null, duration: null, instructions: null },
-                    ])
-                  }
-                >
-                  Agregar
-                </button>
-              </div>
-              {prescriptionItems.map((item, index) => (
-                <div className="stacked-fields" key={`medication-${index}`}>
-                  <input
-                    placeholder="Medicamento"
-                    value={item.medication_name}
-                    onChange={(event) =>
-                      setPrescriptionItems((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, medication_name: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Dosis"
-                    value={item.dosage ?? ""}
-                    onChange={(event) =>
-                      setPrescriptionItems((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, dosage: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Órdenes de examen</h3>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setExamOrders((current) => [...current, { exam_name: "", exam_category: null, instructions: null }])}
-                >
-                  Agregar
-                </button>
-              </div>
-              {examOrders.map((item, index) => (
-                <div className="stacked-fields" key={`exam-${index}`}>
-                  <input
-                    placeholder="Examen"
-                    value={item.exam_name}
-                    onChange={(event) =>
-                      setExamOrders((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_name: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Categoría"
-                    value={item.exam_category ?? ""}
-                    onChange={(event) =>
-                      setExamOrders((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_category: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <button type="submit">Guardar consulta</button>
-          </form>
-        ) : (
-          <p className="empty-state">Tu perfil puede revisar consultas, pero no registrar nuevas.</p>
-        )}
-      </article>
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Historial</p>
-            <h2>Consultas recientes</h2>
-          </div>
-        </div>
-        <div className="table-list">
-          {data.encounters.map((encounter) => (
-            <div className="simple-list-item" key={`encounter-${encounter.id}`}>
-              <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
-              <span>{formatDateTime(encounter.encounter_date)}</span>
-              <span>{encounter.chief_complaint}</span>
-              {encounter.status !== "closed" && canManageEncounters ? (
-                <div className="row-actions">
-                  <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
-                    Cerrar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-        {selectedSummary ? (
-          <form className="form-card compact-form" onSubmit={submitAttachment}>
-            <h3>Adjuntar documento</h3>
-            <label>
-              <span>Tipo</span>
-              <select value={attachmentType} onChange={(event) => setAttachmentType(event.target.value)}>
-                <option value="lab_result">Resultado de laboratorio</option>
-                <option value="ultrasound">Ultrasonido</option>
-                <option value="image">Imagen</option>
-                <option value="clinical_document">Documento clínico</option>
-              </select>
-            </label>
-            <label>
-              <span>Consulta</span>
-              <select value={attachmentEncounterId} onChange={(event) => setAttachmentEncounterId(event.target.value)}>
-                <option value="">Sin consulta</option>
-                {selectedSummary.encounters.map((encounter) => (
-                  <option key={`attachment-encounter-${encounter.id}`} value={encounter.id}>
-                    {encounterTypeLabel(encounter.encounter_type)} · {formatDateTime(encounter.encounter_date)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Archivo</span>
-              <input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} required />
-            </label>
-            <button type="submit">Adjuntar</button>
-            <div className="table-list">
-              {selectedSummary.attachments.map((attachment) => (
-                <div className="simple-list-item" key={`attachment-${attachment.id}`}>
-                  <strong>{attachment.file_name}</strong>
-                  <span>{attachment.file_type}</span>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => openAttachment(attachment.id)}
-                    disabled={downloadingAttachmentId === attachment.id}
-                  >
-                    {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </form>
-        ) : null}
-      </article>
-    </section>
+    <EncountersSection
+      appointments={data.appointments}
+      attachmentEncounterId={attachmentEncounterId}
+      attachmentType={attachmentType}
+      availableDoctors={availableDoctors}
+      canChooseAmongMultipleDoctors={canChooseAmongMultipleDoctors}
+      canManageEncounters={canManageEncounters}
+      closeEncounter={closeEncounter}
+      diagnoses={diagnoses}
+      downloadingAttachmentId={downloadingAttachmentId}
+      encounters={data.encounters}
+      encounterForm={encounterForm}
+      examOrders={examOrders}
+      isAdmin={isAdmin}
+      openAttachment={openAttachment}
+      patients={data.patients}
+      prescriptionItems={prescriptionItems}
+      selectedDoctor={selectedDoctor}
+      selectedSummary={selectedSummary}
+      setAttachmentEncounterId={setAttachmentEncounterId}
+      setAttachmentFile={setAttachmentFile}
+      setAttachmentType={setAttachmentType}
+      setDiagnoses={setDiagnoses}
+      setEncounterForm={setEncounterForm}
+      setExamOrders={setExamOrders}
+      setPrescriptionItems={setPrescriptionItems}
+      submitAttachment={submitAttachment}
+      submitEncounter={submitEncounter}
+    />
   );
 
   const renderMensajesTab = () => (
@@ -1928,230 +1620,35 @@ export function ClinicalConsole() {
     }
 
     return (
-      <section className="tab-layout">
-        <article className="card section-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
-            </div>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
-            <div className="two-column-grid">
-              <label>
-                <RequiredLabel>Nombres</RequiredLabel>
-                <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
-              </label>
-              <label>
-                <RequiredLabel>Apellidos</RequiredLabel>
-                <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
-              </label>
-              <label>
-                <span>Género</span>
-                <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
-                  <option value="male">Masculino</option>
-                  <option value="female">Femenino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </label>
-              <DateField
-                label="Fecha de nacimiento"
-                value={doctorAdminForm.date_of_birth}
-                onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: nextValue }))}
-              />
-              <PhoneField
-                label="Teléfono principal"
-                value={doctorAdminForm.primary_phone}
-                onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, primary_phone: nextValue }))}
-                placeholder="58420737"
-              />
-              <label>
-                <span>Especialidad</span>
-                <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
-              </label>
-              <label>
-                <span>Colegiado</span>
-                <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
-              </label>
-              <label>
-                <span>Correo de acceso</span>
-                <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
-              </label>
-              <label>
-                <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-                <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
-              </label>
-            </div>
-            <div className="stack-block">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Sedes</p>
-                  <h3>Clínicas del doctor</h3>
-                </div>
-                <button type="button" className="success-button" onClick={addDoctorClinic}>
-                  Agregar clínica
-                </button>
-              </div>
-              <div className="table-list">
-                {doctorAdminForm.clinics.map((clinic, index) => (
-                  <div className="simple-list-item" key={`doctor-clinic-form-${index}`}>
-                    <div className="two-column-grid">
-                      <label>
-                        <span>Nombre de clínica</span>
-                        <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>Teléfono</span>
-                        <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>Dirección</span>
-                        <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
-                      </label>
-                      <label>
-                        <span>Notas</span>
-                        <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
-                      </label>
-                    </div>
-                    <div className="row-actions">
-                      <label className="inline-check">
-                        <input
-                          type="checkbox"
-                          checked={clinic.is_primary}
-                          onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
-                        />
-                        <span>Sede principal</span>
-                      </label>
-                      <button type="button" className="danger-button" onClick={() => removeDoctorClinic(index)}>
-                        Quitar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="row-actions">
-              {editingDoctorId ? (
-                <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
-                  Cancelar edición
-                </button>
-              ) : null}
-              <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
-            </div>
-          </form>
-        </article>
-
-        <article className="card section-card span-two">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>Listado de doctores</h2>
-            </div>
-          </div>
-          <div className="chip-row">
-            <button
-              type="button"
-              className={`filter-chip ${doctorRosterTab === "activos" ? "filter-chip-active" : ""}`}
-              onClick={() => setDoctorRosterTab("activos")}
-            >
-              Activos ({activeDoctors.length})
-            </button>
-            <button
-              type="button"
-              className={`filter-chip ${doctorRosterTab === "inactivos" ? "filter-chip-active" : ""}`}
-              onClick={() => setDoctorRosterTab("inactivos")}
-            >
-              Inactivos ({inactiveDoctors.length})
-            </button>
-          </div>
-          <label>
-            <span>Buscar doctor</span>
-            <input
-              value={doctorDirectorySearch}
-              onChange={(event) => {
-                setDoctorDirectorySearch(event.target.value);
-                setActiveDoctorPage(1);
-                setInactiveDoctorPage(1);
-              }}
-              placeholder="Filtrar por nombre, especialidad o correo"
-            />
-          </label>
-          {doctorRosterTab === "activos" ? (
-            <>
-              <div className="table-list">
-                {paginatedActiveDoctors.map((doctor) => (
-                  <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
-                    <strong>{doctor.first_name} {doctor.last_name}</strong>
-                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                    <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
-                    <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
-                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                    <span>
-                      {doctor.clinics?.length
-                        ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                        : "Sin clínicas registradas"}
-                    </span>
-                    {doctor.clinics?.length ? (
-                      <div className="detail-stack">
-                        {doctor.clinics.map((clinic) => (
-                          <span key={`doctor-clinic-${doctor.id}-${clinic.id}`}>
-                            {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                            {clinic.address ? ` · ${clinic.address}` : ""}
-                            {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                      <button type="button" className="danger-button" onClick={() => toggleDoctorActive(doctor)}>
-                        Desactivar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {!filteredActiveDoctors.length ? <p className="empty-state">No hay doctores activos para ese filtro.</p> : null}
-              </div>
-              {renderPager(activeDoctorPage, filteredActiveDoctors.length, setActiveDoctorPage)}
-            </>
-          ) : (
-            <>
-              <div className="table-list">
-                {paginatedInactiveDoctors.map((doctor) => (
-                  <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
-                    <strong>{doctor.first_name} {doctor.last_name}</strong>
-                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                    <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
-                    <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                    <span>
-                      {doctor.clinics?.length
-                        ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                        : "Sin clínicas registradas"}
-                    </span>
-                    {doctor.clinics?.length ? (
-                      <div className="detail-stack">
-                        {doctor.clinics.map((clinic) => (
-                          <span key={`doctor-clinic-inactive-${doctor.id}-${clinic.id}`}>
-                            {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                            {clinic.address ? ` · ${clinic.address}` : ""}
-                            {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                      <button type="button" className="success-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
-                    </div>
-                  </div>
-                ))}
-                {!filteredInactiveDoctors.length ? <p className="empty-state">No hay doctores inactivos para ese filtro.</p> : null}
-              </div>
-              {renderPager(inactiveDoctorPage, filteredInactiveDoctors.length, setInactiveDoctorPage)}
-            </>
-          )}
-        </article>
-      </section>
+      <DoctorsSection
+        activeDoctors={activeDoctors}
+        activePager={renderPager(activeDoctorPage, filteredActiveDoctors.length, setActiveDoctorPage)}
+        addDoctorClinic={addDoctorClinic}
+        doctorAdminForm={doctorAdminForm}
+        doctorDirectorySearch={doctorDirectorySearch}
+        doctorRosterTab={doctorRosterTab}
+        editingDoctorId={editingDoctorId}
+        filteredActiveDoctorsCount={filteredActiveDoctors.length}
+        filteredInactiveDoctorsCount={filteredInactiveDoctors.length}
+        inactiveDoctors={inactiveDoctors}
+        inactivePager={renderPager(inactiveDoctorPage, filteredInactiveDoctors.length, setInactiveDoctorPage)}
+        isAdmin={isAdmin}
+        onDoctorDirectorySearchChange={(value) => {
+          setDoctorDirectorySearch(value);
+          setActiveDoctorPage(1);
+          setInactiveDoctorPage(1);
+        }}
+        paginatedActiveDoctors={paginatedActiveDoctors}
+        paginatedInactiveDoctors={paginatedInactiveDoctors}
+        removeDoctorClinic={removeDoctorClinic}
+        resetDoctorAdminForm={resetDoctorAdminForm}
+        setDoctorAdminForm={setDoctorAdminForm}
+        setDoctorRosterTab={setDoctorRosterTab}
+        startDoctorEdit={startDoctorEdit}
+        submitDoctorAdmin={submitDoctorAdmin}
+        toggleDoctorActive={toggleDoctorActive}
+        updateDoctorClinic={updateDoctorClinic}
+      />
     );
   };
 
@@ -2311,296 +1808,6 @@ export function ClinicalConsole() {
     return canViewGestion ? renderGestionTab() : renderAgendaTab();
   };
 
-  const renderSectionActionModal = () => {
-    if (!activeSectionAction) {
-      return null;
-    }
-
-    if (activeSectionAction === "patient_create") {
-      return (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-card">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">Registro manual</p>
-                <h2>Agregar paciente</h2>
-              </div>
-              <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
-                Cerrar
-              </button>
-            </div>
-            <form className="form-card" onSubmit={submitPatient}>
-              <div className="three-column-grid">
-                <label>
-                  <RequiredLabel>Doctor responsable</RequiredLabel>
-                  <select
-                    value={patientForm.doctor_id}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, doctor_id: event.target.value }))}
-                    required
-                  >
-                    <option value="">Selecciona doctor</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`patient-create-doctor-${doctor.id}`} value={doctor.id}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Expediente</span>
-                  <input
-                    value={patientForm.medical_record_number}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, medical_record_number: event.target.value }))}
-                    placeholder="Automático si lo dejas vacío"
-                  />
-                </label>
-                <label>
-                  <RequiredLabel>Nombres</RequiredLabel>
-                  <input
-                    value={patientForm.first_name}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, first_name: event.target.value }))}
-                    required
-                  />
-                </label>
-                <label>
-                  <RequiredLabel>Apellidos</RequiredLabel>
-                  <input
-                    value={patientForm.last_name}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, last_name: event.target.value }))}
-                    required
-                  />
-                </label>
-                <PhoneField
-                  label="Teléfono"
-                  value={patientForm.primary_phone}
-                  onChange={(nextValue) => setPatientForm((current) => ({ ...current, primary_phone: nextValue }))}
-                  required
-                  placeholder="58420737"
-                />
-                <label>
-                  <span>DPI</span>
-                  <input
-                    value={patientForm.national_id}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, national_id: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  <span>NIT</span>
-                  <input
-                    value={patientForm.tax_id}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, tax_id: event.target.value }))}
-                  />
-                </label>
-                <label className="span-two">
-                  <span>Correo</span>
-                  <input
-                    type="email"
-                    value={patientForm.email}
-                    onChange={(event) => setPatientForm((current) => ({ ...current, email: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="row-actions">
-                <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
-                  Cancelar
-                </button>
-                <button type="submit">Guardar paciente</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="modal-overlay" role="dialog" aria-modal="true">
-        <div className="modal-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Ficha del paciente</p>
-              <h2>Editar paciente</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
-              Cerrar
-            </button>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitPatientUpdate}>
-            <div className="three-column-grid">
-              <label>
-                <RequiredLabel>Nombres</RequiredLabel>
-                <input
-                  value={patientEditForm.first_name}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, first_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <RequiredLabel>Apellidos</RequiredLabel>
-                <input
-                  value={patientEditForm.last_name}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, last_name: event.target.value }))}
-                  required
-                />
-              </label>
-              <PhoneField
-                label="Teléfono"
-                value={patientEditForm.primary_phone}
-                onChange={(nextValue) => setPatientEditForm((current) => ({ ...current, primary_phone: nextValue }))}
-                required
-                placeholder="58420737"
-              />
-              <label>
-                <span>DPI</span>
-                <input
-                  value={patientEditForm.national_id}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, national_id: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>NIT</span>
-                <input
-                  value={patientEditForm.tax_id}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, tax_id: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Correo</span>
-                <input
-                  type="email"
-                  value={patientEditForm.email}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, email: event.target.value }))}
-                />
-              </label>
-              <label className="span-two">
-                <span>Dirección</span>
-                <input
-                  value={patientEditForm.address}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, address: event.target.value }))}
-                />
-              </label>
-              <label className="span-two">
-                <span>Notas</span>
-                <textarea
-                  value={patientEditForm.notes}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, notes: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Estado</span>
-                <select
-                  value={patientEditForm.is_active ? "active" : "inactive"}
-                  onChange={(event) => setPatientEditForm((current) => ({ ...current, is_active: event.target.value === "active" }))}
-                >
-                  <option value="active">Activo</option>
-                  <option value="inactive">Inactivo</option>
-                </select>
-              </label>
-            </div>
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
-                Cancelar
-              </button>
-              <button type="submit">Guardar cambios</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  const renderReceptionistModal = () => {
-    if (!showReceptionistModal || !isAdmin) {
-      return null;
-    }
-
-    return (
-      <div className="modal-overlay" role="dialog" aria-modal="true">
-        <div className="modal-card">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Equipo clínico</p>
-              <h2>{editingReceptionistId ? "Editar recepcionista" : "Registrar recepcionista"}</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
-              Cerrar
-            </button>
-          </div>
-          <form className="form-card compact-form" onSubmit={submitReceptionist}>
-            <div className="two-column-grid">
-              <label>
-                <RequiredLabel>Nombres</RequiredLabel>
-                <input value={receptionistForm.first_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, first_name: event.target.value }))} required />
-              </label>
-              <label>
-                <RequiredLabel>Apellidos</RequiredLabel>
-                <input value={receptionistForm.last_name} onChange={(event) => setReceptionistForm((current) => ({ ...current, last_name: event.target.value }))} required />
-              </label>
-              <label>
-                <span>Género</span>
-                <select value={receptionistForm.gender} onChange={(event) => setReceptionistForm((current) => ({ ...current, gender: event.target.value }))}>
-                  <option value="female">Femenino</option>
-                  <option value="male">Masculino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </label>
-              <PhoneField
-                label="Teléfono"
-                value={receptionistForm.phone_number}
-                onChange={(nextValue) => setReceptionistForm((current) => ({ ...current, phone_number: nextValue }))}
-                placeholder="58420737"
-              />
-              <label>
-                <RequiredLabel>Correo</RequiredLabel>
-                <input type="email" value={receptionistForm.email} onChange={(event) => setReceptionistForm((current) => ({ ...current, email: event.target.value }))} required disabled={editingReceptionistId !== null} />
-              </label>
-              <label>
-                <span>{editingReceptionistId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-                <input type="password" value={receptionistForm.password} onChange={(event) => setReceptionistForm((current) => ({ ...current, password: event.target.value }))} required={editingReceptionistId === null} />
-              </label>
-            </div>
-            <div className="subsection">
-              <strong>Doctores asignados</strong>
-              <input
-                className="search-input"
-                placeholder="Filtrar doctores por nombre o especialidad"
-                value={receptionistDoctorSearch}
-                onChange={(event) => setReceptionistDoctorSearch(event.target.value)}
-              />
-              <div className="table-list">
-                {filteredDoctorOptions.map((doctor) => (
-                  <label key={`receptionist-doctor-${doctor.id}`} className="simple-list-item">
-                    <span>
-                      <input
-                        type="checkbox"
-                        checked={receptionistForm.doctor_ids.includes(doctor.id)}
-                        onChange={(event) =>
-                          setReceptionistForm((current) => ({
-                            ...current,
-                            doctor_ids: event.target.checked
-                              ? [...current.doctor_ids, doctor.id]
-                              : current.doctor_ids.filter((doctorId) => doctorId !== doctor.id),
-                          }))
-                        }
-                      />
-                    </span>
-                    <strong>Dr. {doctor.first_name} {doctor.last_name}</strong>
-                    <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={resetReceptionistForm}>
-                Cancelar
-              </button>
-              <button type="submit">{editingReceptionistId ? "Actualizar recepcionista" : "Registrar recepcionista"}</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -2686,7 +1893,17 @@ export function ClinicalConsole() {
 
             {renderActiveTab()}
           </div>
-          {renderSectionActionModal()}
+          <PatientActionModal
+            activeSectionAction={activeSectionAction}
+            availableDoctors={availableDoctors}
+            patientEditForm={patientEditForm}
+            patientForm={patientForm}
+            setActiveSectionAction={setActiveSectionAction}
+            setPatientEditForm={setPatientEditForm}
+            setPatientForm={setPatientForm}
+            submitPatient={submitPatient}
+            submitPatientUpdate={submitPatientUpdate}
+          />
           <ReviewResolutionModal
             activeReviewItem={activeReviewItem}
             allAppointments={data.appointments}
@@ -2706,7 +1923,18 @@ export function ClinicalConsole() {
             setDispatchStatusForm={setDispatchStatusForm}
             submitDispatchStatusUpdate={submitDispatchStatusUpdate}
           />
-          {renderReceptionistModal()}
+          <ReceptionistModal
+            editingReceptionistId={editingReceptionistId}
+            filteredDoctorOptions={filteredDoctorOptions}
+            isAdmin={isAdmin}
+            receptionistDoctorSearch={receptionistDoctorSearch}
+            receptionistForm={receptionistForm}
+            resetReceptionistForm={resetReceptionistForm}
+            setReceptionistDoctorSearch={setReceptionistDoctorSearch}
+            setReceptionistForm={setReceptionistForm}
+            showReceptionistModal={showReceptionistModal}
+            submitReceptionist={submitReceptionist}
+          />
         </section>
       )}
     </main>
