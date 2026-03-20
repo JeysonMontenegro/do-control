@@ -15,8 +15,10 @@ import {
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
+import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
+import { GestionRemindersSection } from "@/features/module1/components/gestion-reminders-section";
 import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
@@ -2398,366 +2400,40 @@ export function ClinicalConsole() {
         ) : null}
 
         {gestionSubtab === "recordatorios" ? (
-          <>
-            <article className="card section-card">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Recordatorios</p>
-                  <h2>Regla base de la clínica</h2>
-                </div>
-                {isAdmin ? (
-                  <button type="button" className="success-button" onClick={activateDefault24HourReminder}>
-                    Activar regla general 24 horas
-                  </button>
-                ) : null}
-              </div>
-              <div className="summary-grid">
-                <div className="metric-card">
-                  <small>Regla general</small>
-                  <strong>{generalReminderRule?.is_active ? "Activa" : "Pendiente"}</strong>
-                  <span>{generalReminderRule ? reminderLeadTimeLabel(generalReminderRule.minutes_before) : "Recomendada: 24 horas antes"}</span>
-                </div>
-                <div className="metric-card">
-                  <small>Citas cubiertas</small>
-                  <strong>{generalReminderRule?.is_active ? scopedUpcomingAppointments.length : 0}</strong>
-                  <span>Próximas citas que tomarán la regla base</span>
-                </div>
-                <div className="metric-card">
-                  <small>Plantilla usada</small>
-                  <strong>{generalReminderRule?.template_key === CONFIRMATION_TEMPLATE_KEY ? "Confirmación" : generalReminderRule?.template_key ?? "Pendiente"}</strong>
-                  <span>Mensaje enviado 24 horas antes</span>
-                </div>
-              </div>
-              <p className="empty-state">
-                La configuración recomendada es una sola regla general de WhatsApp, 24 horas antes de la cita. Solo crea reglas por doctor si realmente necesitas una excepción.
-              </p>
-              <form className="form-card compact-form" onSubmit={submitReminderRule}>
-                {isAdmin ? (
-                  <label>
-                    <span>Alcance</span>
-                    <select
-                      value={reminderRuleForm.doctor_id}
-                      onChange={(event) => setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))}
-                    >
-                      <option value="">General para toda la clínica</option>
-                      {data.doctors.map((doctor) => (
-                        <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
-                          Solo Dr. {doctor.first_name} {doctor.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : selectedDoctor ? (
-                  <label>
-                    <span>Doctor</span>
-                    <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
-                  </label>
-                ) : null}
-                <label>
-                  <span>Momento del recordatorio</span>
-                  <select
-                    value={reminderRuleForm.minutes_before}
-                    onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
-                  >
-                    <option value="1440">24 horas antes</option>
-                    <option value="720">12 horas antes</option>
-                    <option value="120">2 horas antes</option>
-                    <option value="60">1 hora antes</option>
-                    <option value="30">30 minutos antes</option>
-                  </select>
-                </label>
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => setReminderRuleForm((current) => ({ ...current, minutes_before: "1440", doctor_id: "" }))}>
-                    Usar 24 horas
-                  </button>
-                  <button type="submit">Guardar regla</button>
-                </div>
-              </form>
-            </article>
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Recordatorios</p>
-                  <h2>Reglas configuradas</h2>
-                </div>
-              </div>
-              <div className="table-list">
-                {reminderRules
-                  .filter((rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId)
-                  .map((rule) => (
-                    <div className="simple-list-item" key={`reminder-${rule.id}`}>
-                      <strong>{rule.doctor_id ? "Regla por doctor" : "Regla general"}</strong>
-                      <span>{reminderLeadTimeLabel(rule.minutes_before)}</span>
-                      <span>
-                        {rule.doctor_id
-                          ? `Asignada a ${doctorNameById.get(rule.doctor_id) ?? `Doctor ${rule.doctor_id}`}`
-                          : "General para toda la clínica"}
-                      </span>
-                      <span>{rule.template_key === CONFIRMATION_TEMPLATE_KEY ? "Usa mensaje de confirmación" : `Plantilla ${rule.template_key}`}</span>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="success-button"
-                          onClick={() =>
-                            setReminderRuleForm({
-                              doctor_id: rule.doctor_id ? String(rule.doctor_id) : "",
-                              channel: rule.channel,
-                              trigger_type: rule.trigger_type,
-                              minutes_before: String(rule.minutes_before),
-                              template_key: rule.template_key,
-                              is_active: rule.is_active,
-                            })
-                          }
-                        >
-                          Usar como base
-                        </button>
-                        <button
-                          type="button"
-                          className={rule.is_active ? "danger-button" : "success-button"}
-                          onClick={() => toggleReminderRule(rule)}
-                        >
-                          {rule.is_active ? "Desactivar" : "Activar"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                {!reminderRules.length ? <p className="empty-state">Todavía no hay reglas de recordatorio configuradas.</p> : null}
-              </div>
-            </article>
-          </>
+          <GestionRemindersSection
+            activateDefault24HourReminder={activateDefault24HourReminder}
+            availableDoctors={data.doctors}
+            doctorNameById={doctorNameById}
+            generalReminderRule={generalReminderRule}
+            isAdmin={isAdmin}
+            reminderRuleForm={reminderRuleForm}
+            reminderRules={reminderRules}
+            scopedDoctorId={scopedDoctorId}
+            scopedUpcomingAppointmentsCount={scopedUpcomingAppointments.length}
+            selectedDoctor={selectedDoctor}
+            setReminderRuleForm={setReminderRuleForm}
+            submitReminderRule={submitReminderRule}
+            toggleReminderRule={toggleReminderRule}
+          />
         ) : null}
 
         {gestionSubtab === "correos" && isAdmin ? (
-          <>
-            <article className="card section-card span-three">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Correos</p>
-                  <h2>Estado de envío</h2>
-                </div>
-              </div>
-              <div className="summary-grid">
-                <div className="metric-card">
-                  <small>Configuración de clínica</small>
-                  <strong>{clinicSetting?.email_delivery_enabled ? "Habilitada" : "Deshabilitada"}</strong>
-                  <span>Este switch lo controla administración desde la app.</span>
-                </div>
-                <div className="metric-card">
-                  <small>Entorno</small>
-                  <strong>{clinicSetting?.email_delivery_available ? "Disponible" : "Bloqueado"}</strong>
-                  <span>Depende del `.env` y de la API key configurada en el servidor.</span>
-                </div>
-                <div className="metric-card">
-                  <small>Estado efectivo</small>
-                  <strong>{clinicSetting?.email_delivery_active ? "Enviando" : "Pausado"}</strong>
-                  <span>Solo se envía correo real cuando clínica y entorno están habilitados.</span>
-                </div>
-              </div>
-              <div className="detail-panel compact-panel">
-                <strong>Procesos que usan correo</strong>
-                <span>Configura cada proceso por separado abajo.</span>
-              </div>
-              <div className="toggle-row">
-                <div className="toggle-copy">
-                  <strong>Envío global de correos</strong>
-                  <span>Controla si la clínica puede mandar correos reales en todos los procesos.</span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={clinicSetting?.email_delivery_enabled ?? false}
-                  className={`switch-button ${(clinicSetting?.email_delivery_enabled ?? false) ? "switch-button-active" : ""}`}
-                  onClick={() => toggleEmailDelivery(!(clinicSetting?.email_delivery_enabled ?? false))}
-                >
-                  <span className="switch-track">
-                    <span className="switch-thumb" />
-                  </span>
-                  <span className="switch-label">{clinicSetting?.email_delivery_enabled ? "Encendido" : "Apagado"}</span>
-                </button>
-              </div>
-              {!clinicSetting?.email_delivery_available ? (
-                <p className="empty-state">
-                  El entorno actual tiene bloqueado el envío real. Aunque habilites la clínica, los dispatches quedarán pausados o skipped hasta que el servidor reactive `EMAIL_DELIVERY_ENABLED=true`.
-                </p>
-              ) : null}
-            </article>
-
-            <article className="card section-card span-three">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Correos</p>
-                  <h2>Procesos habilitados</h2>
-                </div>
-              </div>
-              <div className="table-list">
-                {[
-                  {
-                    key: "welcome_doctor_email_enabled" as const,
-                    title: "Bienvenida a doctor",
-                    description: "Se usa al crear un doctor con usuario de acceso.",
-                  },
-                  {
-                    key: "welcome_receptionist_email_enabled" as const,
-                    title: "Bienvenida a recepción",
-                    description: "Se usa al crear una recepcionista con acceso.",
-                  },
-                  {
-                    key: "password_reset_email_enabled" as const,
-                    title: "Recuperación de contraseña",
-                    description: "Se usa cuando un usuario solicita reset de password.",
-                  },
-                  {
-                    key: "admin_invite_email_enabled" as const,
-                    title: "Invitación de administrador",
-                    description: "Se usa cuando se invita a un nuevo admin por correo.",
-                  },
-                  {
-                    key: "manual_test_email_enabled" as const,
-                    title: "Correo de prueba",
-                    description: "Se usa desde este panel para verificar plantillas y entrega.",
-                  },
-                  {
-                    key: "manual_resend_email_enabled" as const,
-                    title: "Reenvío manual",
-                    description: "Se usa al reenviar dispatches desde el historial.",
-                  },
-                ].map((item) => (
-                  <div className="simple-list-item" key={`email-process-${item.key}`}>
-                    <div className="toggle-row">
-                      <div className="toggle-copy">
-                        <strong>{item.title}</strong>
-                        <span>{item.description}</span>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={clinicSetting?.[item.key] ?? false}
-                        className={`switch-button ${(clinicSetting?.[item.key] ?? false) ? "switch-button-active" : ""}`}
-                        onClick={() => toggleEmailProcessSetting(item.key, !(clinicSetting?.[item.key] ?? false))}
-                      >
-                        <span className="switch-track">
-                          <span className="switch-thumb" />
-                        </span>
-                        <span className="switch-label">{clinicSetting?.[item.key] ? "Encendido" : "Apagado"}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="card section-card">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Correos</p>
-                  <h2>Plantillas transaccionales</h2>
-                </div>
-              </div>
-              <form className="form-card compact-form" onSubmit={saveEmailTemplate}>
-                <label>
-                  <span>Tipo de correo</span>
-                  <select
-                    value={emailTemplateForm.template_key}
-                    onChange={(event) => {
-                      const template = emailTemplates.find((item) => item.template_key === event.target.value);
-                      if (template) {
-                        setEmailTemplateForm({
-                          template_key: template.template_key,
-                          title: template.title,
-                          subject: template.subject,
-                          html_body: template.html_body,
-                          text_body: template.text_body ?? "",
-                          is_active: template.is_active,
-                        });
-                      } else {
-                        setEmailTemplateForm((current) => ({ ...current, template_key: event.target.value }));
-                      }
-                    }}
-                  >
-                    <option value="welcome_email">Bienvenida</option>
-                    <option value="password_reset_email">Recuperación de contraseña</option>
-                    <option value="admin_invite_email">Invitación de administrador</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Título interno</span>
-                  <input value={emailTemplateForm.title} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, title: event.target.value }))} />
-                </label>
-                <label>
-                  <span>Asunto</span>
-                  <input value={emailTemplateForm.subject} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, subject: event.target.value }))} />
-                </label>
-                <label>
-                  <span>HTML</span>
-                  <textarea value={emailTemplateForm.html_body} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, html_body: event.target.value }))} />
-                </label>
-                <label>
-                  <span>Texto plano</span>
-                  <textarea value={emailTemplateForm.text_body} onChange={(event) => setEmailTemplateForm((current) => ({ ...current, text_body: event.target.value }))} />
-                </label>
-                <p className="empty-state">
-                  Variables disponibles: {"{app_name}"}, {"{recipient_name}"}, {"{email}"}, {"{temporary_password}"}, {"{reset_link}"}, {"{invite_link}"} y {"{expires_in_minutes}"}.
-                </p>
-                {emailTemplatePreview ? (
-                  <div className="detail-stack">
-                    <strong>{emailTemplatePreview.rendered_subject}</strong>
-                    <div className="message-preview">{emailTemplatePreview.rendered_html_body}</div>
-                    {emailTemplatePreview.rendered_text_body ? <div className="message-preview">{emailTemplatePreview.rendered_text_body}</div> : null}
-                  </div>
-                ) : null}
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={previewEmailTemplate}>
-                    Vista previa
-                  </button>
-                  <button type="submit">Guardar plantilla</button>
-                </div>
-              </form>
-              <div className="form-card compact-form">
-                <label>
-                  <span>Correo de prueba</span>
-                  <input
-                    type="email"
-                    value={testEmailRecipient}
-                    onChange={(event) => setTestEmailRecipient(event.target.value)}
-                    placeholder="tu-correo@dominio.com"
-                  />
-                </label>
-                <div className="row-actions">
-                  <button type="button" className="success-button" onClick={() => sendTestEmail(testEmailRecipient)}>
-                    Enviar correo de prueba
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Correos</p>
-                  <h2>Envíos recientes</h2>
-                </div>
-              </div>
-              <div className="table-list">
-                {emailDispatches.map((dispatch) => (
-                  <div className="simple-list-item" key={`email-dispatch-${dispatch.id}`}>
-                    <strong>{dispatch.subject}</strong>
-                    <span>{dispatch.recipient_email}</span>
-                    <span>{dispatch.template_key ?? "Correo libre"}</span>
-                    <span>{dispatch.status}</span>
-                    <span>{formatDateTime(dispatch.created_at)}</span>
-                    {dispatch.error_message ? <span>{dispatch.error_message}</span> : null}
-                    <div className="row-actions">
-                      <button type="button" className="success-button" onClick={() => resendEmailDispatch(dispatch.id)}>
-                        Reenviar correo
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {!emailDispatches.length ? <p className="empty-state">Todavía no hay correos enviados.</p> : null}
-              </div>
-            </article>
-          </>
+          <GestionEmailSection
+            clinicSetting={clinicSetting}
+            emailDispatches={emailDispatches}
+            emailTemplateForm={emailTemplateForm}
+            emailTemplatePreview={emailTemplatePreview}
+            emailTemplates={emailTemplates}
+            previewEmailTemplate={previewEmailTemplate}
+            resendEmailDispatch={resendEmailDispatch}
+            saveEmailTemplate={saveEmailTemplate}
+            sendTestEmail={sendTestEmail}
+            setEmailTemplateForm={setEmailTemplateForm}
+            setTestEmailRecipient={setTestEmailRecipient}
+            testEmailRecipient={testEmailRecipient}
+            toggleEmailDelivery={toggleEmailDelivery}
+            toggleEmailProcessSetting={toggleEmailProcessSetting}
+          />
         ) : null}
 
         {gestionSubtab === "recepcion" && isAdmin ? (
