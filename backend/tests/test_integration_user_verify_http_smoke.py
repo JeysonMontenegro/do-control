@@ -96,6 +96,7 @@ class IntegrationUserVerifyHttpSmokeTests(unittest.TestCase):
             self.assertEqual(body["is_valid"], True)
             self.assertEqual(body["role"], "doctor")
             self.assertEqual(body["user_id"], create_body["linked_user_id"])
+            self.assertEqual(body["phone_number"], "50258420738")
             self.assertIn("doctor_profile", body)
             self.assertIsNotNone(body["doctor_profile"])
             self.assertEqual(body["doctor_profile"]["doctor_id"], create_body["id"])

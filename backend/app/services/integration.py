@@ -46,6 +46,7 @@ from app.services.doctor import DoctorService
 from app.services.encounter import EncounterService
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.patient import PatientService
+from app.services.phone_number import normalize_phone_number
 
 
 class IntegrationService:
@@ -103,7 +104,7 @@ class IntegrationService:
             specialty=doctor.specialty,
             license_number=doctor.license_number,
             gender=doctor.gender,
-            primary_phone=primary_phone,
+            primary_phone=normalize_phone_number(primary_phone),
         )
 
     def verify_user_by_phone(self, phone_number: str) -> IntegrationUserVerificationRead:
@@ -127,7 +128,7 @@ class IntegrationService:
             role=primary_role,
             roles=sorted(role_names),
             user_name=f"{user.first_name} {user.last_name}".strip(),
-            phone_number=user.phone_number,
+            phone_number=normalize_phone_number(user.phone_number),
             is_active=user.is_active,
             permissions=sorted(permissions),
             doctor_profile=self._build_doctor_profile(user.doctor_profile) if "doctor" in role_names else None,

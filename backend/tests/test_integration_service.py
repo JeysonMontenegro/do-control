@@ -116,7 +116,7 @@ class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):
                 id=5,
                 first_name="Steve",
                 last_name="Alay",
-                phone_number="50239925713",
+                phone_number="+502 3992-5713",
                 is_active=True,
                 roles=[SimpleNamespace(role=SimpleNamespace(name="doctor"))],
                 doctor_profile=SimpleNamespace(
@@ -127,7 +127,7 @@ class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):
                     license_number=None,
                     gender="M",
                     phone_numbers=[
-                        SimpleNamespace(phone_number="50239925713", is_primary=True, is_active=True),
+                        SimpleNamespace(phone_number="+502 3992-5713", is_primary=True, is_active=True),
                     ],
                 ),
             )
@@ -138,6 +138,7 @@ class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):
         self.assertTrue(result.is_valid)
         self.assertEqual(result.role, "doctor")
         self.assertEqual(result.user_id, 5)
+        self.assertEqual(result.phone_number, "50239925713")
         self.assertIsNotNone(result.doctor_profile)
         assert result.doctor_profile is not None
         self.assertEqual(result.doctor_profile.doctor_id, 3)

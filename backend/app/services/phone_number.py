@@ -1,3 +1,11 @@
+def normalize_phone_number(phone_number: str | None) -> str | None:
+    if phone_number is None:
+        return None
+
+    digits = "".join(character for character in phone_number if character.isdigit())
+    return digits or None
+
+
 def phone_number_candidates(phone_number: str | None) -> set[str]:
     if not phone_number:
         return set()
@@ -6,7 +14,7 @@ def phone_number_candidates(phone_number: str | None) -> set[str]:
     if not raw:
         return set()
 
-    digits = "".join(character for character in raw if character.isdigit())
+    digits = normalize_phone_number(raw)
     candidates = {raw}
 
     if digits:
