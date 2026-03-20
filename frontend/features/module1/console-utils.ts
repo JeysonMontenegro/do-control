@@ -6,6 +6,23 @@ export const nowPlusMinutes = (minutes: number) => {
   return date.toISOString().slice(0, 16);
 };
 
+export const splitDateTimeLocal = (value: string) => {
+  const normalized = value.slice(0, 16);
+  const [datePart = "", timePart = ""] = normalized.split("T");
+  return {
+    date: formatEditableDate(datePart),
+    time: timePart,
+  };
+};
+
+export const combineDisplayDateTimeToIso = (dateValue: string, timeValue: string) => {
+  const normalizedDate = parseDisplayDate(dateValue);
+  if (!normalizedDate || !timeValue) {
+    return "";
+  }
+  return new Date(`${normalizedDate}T${timeValue}`).toISOString();
+};
+
 export const formatDateTime = (value: string | null) => {
   if (!value) {
     return "Sin fecha";
@@ -19,6 +36,26 @@ export const formatDate = (value: string | Date) =>
     month: "2-digit",
     year: "numeric",
   }).format(typeof value === "string" ? new Date(value) : value);
+
+export const parseDisplayDate = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+  const match = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    return normalized;
+  }
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
+};
+
+export const formatEditableDate = (value: string | null) => {
+  if (!value) {
+    return "";
+  }
+  return formatDate(value);
+};
 
 export const formatWeekday = (value: string | Date) =>
   new Intl.DateTimeFormat("es-GT", {

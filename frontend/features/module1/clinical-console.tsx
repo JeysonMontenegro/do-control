@@ -22,12 +22,17 @@ import {
   confirmationLabel,
   dispatchStatusLabel,
   encounterTypeLabel,
+  combineDisplayDateTimeToIso,
+  formatDate,
   formatDateTime,
+  formatEditableDate,
   hasAnyRole,
   lastDispatchStatus,
   nowPlusMinutes,
+  parseDisplayDate,
   reminderLeadTimeLabel,
   reviewReasonLabel,
+  splitDateTimeLocal,
   startOfDay,
   startOfMonthGrid,
   startOfWeek,
@@ -219,6 +224,31 @@ function RequiredLabel({ children }: { children: string }) {
   );
 }
 
+function DateField({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (nextValue: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <label>
+      {required ? <RequiredLabel>{label}</RequiredLabel> : <span>{label}</span>}
+      <input
+        type="date"
+        lang="en-GB"
+        value={parseDisplayDate(value)}
+        onChange={(event) => onChange(formatEditableDate(event.target.value))}
+        required={required}
+      />
+    </label>
+  );
+}
+
 const getMessageTone = (message: string): "success" | "error" | "info" | "warning" => {
   const normalized = message.toLowerCase();
   if (
@@ -386,8 +416,10 @@ export function ClinicalConsole() {
   const [appointmentForm, setAppointmentForm] = useState({
     patient_id: "",
     doctor_id: "",
-    scheduled_start: nowPlusMinutes(60),
-    scheduled_end: nowPlusMinutes(90),
+    scheduled_start_date: splitDateTimeLocal(nowPlusMinutes(60)).date,
+    scheduled_start_time: splitDateTimeLocal(nowPlusMinutes(60)).time,
+    scheduled_end_date: splitDateTimeLocal(nowPlusMinutes(90)).date,
+    scheduled_end_time: splitDateTimeLocal(nowPlusMinutes(90)).time,
     appointment_type: "follow_up",
     reason: "",
     source: "receptionist",
@@ -397,7 +429,8 @@ export function ClinicalConsole() {
     patient_id: "",
     doctor_id: "",
     appointment_id: "",
-    encounter_date: nowPlusMinutes(0),
+    encounter_date: splitDateTimeLocal(nowPlusMinutes(0)).date,
+    encounter_time: splitDateTimeLocal(nowPlusMinutes(0)).time,
     encounter_type: "general_consultation",
     chief_complaint: "",
     created_by: "frontend-demo",
@@ -1077,8 +1110,8 @@ export function ClinicalConsole() {
         ...appointmentForm,
         patient_id: Number(appointmentForm.patient_id),
         doctor_id: Number(appointmentForm.doctor_id),
-        scheduled_start: new Date(appointmentForm.scheduled_start).toISOString(),
-        scheduled_end: new Date(appointmentForm.scheduled_end).toISOString(),
+        scheduled_start: combineDisplayDateTimeToIso(appointmentForm.scheduled_start_date, appointmentForm.scheduled_start_time),
+        scheduled_end: combineDisplayDateTimeToIso(appointmentForm.scheduled_end_date, appointmentForm.scheduled_end_time),
       });
       await loadData();
       setSelectedPatientId(appointmentForm.patient_id);
@@ -1097,7 +1130,7 @@ export function ClinicalConsole() {
         patient_id: Number(encounterForm.patient_id),
         doctor_id: Number(encounterForm.doctor_id),
         appointment_id: encounterForm.appointment_id ? Number(encounterForm.appointment_id) : null,
-        encounter_date: new Date(encounterForm.encounter_date).toISOString(),
+        encounter_date: combineDisplayDateTimeToIso(encounterForm.encounter_date, encounterForm.encounter_time),
         diagnoses: diagnoses
           .filter((item) => item.diagnosis_text.trim())
           .map((item) => ({
@@ -1359,7 +1392,7 @@ export function ClinicalConsole() {
         first_name: doctorAdminForm.first_name,
         last_name: doctorAdminForm.last_name,
         gender: doctorAdminForm.gender,
-        date_of_birth: doctorAdminForm.date_of_birth || null,
+        date_of_birth: parseDisplayDate(doctorAdminForm.date_of_birth) || null,
         specialty: doctorAdminForm.specialty || null,
         license_number: doctorAdminForm.license_number || null,
         primary_phone: doctorAdminForm.primary_phone.trim() ? normalizePhoneWithDefaultCountry(doctorAdminForm.primary_phone) : null,
@@ -1458,7 +1491,7 @@ export function ClinicalConsole() {
       first_name: doctor.first_name,
       last_name: doctor.last_name,
       gender: doctor.gender ?? "other",
-      date_of_birth: doctor.date_of_birth ?? "",
+      date_of_birth: formatEditableDate(doctor.date_of_birth ?? null),
       specialty: doctor.specialty ?? "",
       license_number: doctor.license_number ?? "",
       primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? DEFAULT_COUNTRY_DIAL_CODE,
@@ -2723,21 +2756,33 @@ export function ClinicalConsole() {
                   <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
                 </label>
               ) : null}
+              <DateField
+                label="Inicio"
+                value={appointmentForm.scheduled_start_date}
+                onChange={(nextValue) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: nextValue }))}
+                required
+              />
               <label>
-                <RequiredLabel>Inicio</RequiredLabel>
+                <RequiredLabel>Hora inicio</RequiredLabel>
                 <input
-                  type="datetime-local"
-                  value={appointmentForm.scheduled_start}
-                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_start: event.target.value }))}
+                  type="time"
+                  value={appointmentForm.scheduled_start_time}
+                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: event.target.value }))}
                   required
                 />
               </label>
+              <DateField
+                label="Fin"
+                value={appointmentForm.scheduled_end_date}
+                onChange={(nextValue) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: nextValue }))}
+                required
+              />
               <label>
-                <RequiredLabel>Fin</RequiredLabel>
+                <RequiredLabel>Hora fin</RequiredLabel>
                 <input
-                  type="datetime-local"
-                  value={appointmentForm.scheduled_end}
-                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_end: event.target.value }))}
+                  type="time"
+                  value={appointmentForm.scheduled_end_time}
+                  onChange={(event) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: event.target.value }))}
                   required
                 />
               </label>
@@ -3067,12 +3112,18 @@ export function ClinicalConsole() {
                   ))}
                 </select>
               </label>
+              <DateField
+                label="Fecha"
+                value={encounterForm.encounter_date}
+                onChange={(nextValue) => setEncounterForm((current) => ({ ...current, encounter_date: nextValue }))}
+                required
+              />
               <label>
-                <RequiredLabel>Fecha</RequiredLabel>
+                <RequiredLabel>Hora</RequiredLabel>
                 <input
-                  type="datetime-local"
-                  value={encounterForm.encounter_date}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, encounter_date: event.target.value }))}
+                  type="time"
+                  value={encounterForm.encounter_time}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, encounter_time: event.target.value }))}
                   required
                 />
               </label>
@@ -3765,10 +3816,11 @@ export function ClinicalConsole() {
                   <option value="other">Otro</option>
                 </select>
               </label>
-              <label>
-                <span>Fecha de nacimiento</span>
-                <input type="date" value={doctorAdminForm.date_of_birth} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: event.target.value }))} />
-              </label>
+              <DateField
+                label="Fecha de nacimiento"
+                value={doctorAdminForm.date_of_birth}
+                onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: nextValue }))}
+              />
               <PhoneField
                 label="Teléfono principal"
                 value={doctorAdminForm.primary_phone}
@@ -3893,7 +3945,7 @@ export function ClinicalConsole() {
                   <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
                     <strong>{doctor.first_name} {doctor.last_name}</strong>
                     <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                    <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                    <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
                     <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
                     <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
                     <span>
@@ -3931,7 +3983,7 @@ export function ClinicalConsole() {
                   <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
                     <strong>{doctor.first_name} {doctor.last_name}</strong>
                     <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                    <span>{doctor.date_of_birth ? `Nacimiento: ${doctor.date_of_birth}` : "Nacimiento no registrado"}</span>
+                    <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
                     <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
                     <span>
                       {doctor.clinics?.length
