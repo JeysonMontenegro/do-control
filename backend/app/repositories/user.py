@@ -33,6 +33,7 @@ class UserRepository:
                 selectinload(User.doctor_profile).selectinload(Doctor.phone_numbers),
             )
             .where(or_(*(User.phone_number == candidate for candidate in candidates)))
+            .order_by(User.is_active.desc(), User.id.desc())
         )
         return self.db.scalar(statement)
 

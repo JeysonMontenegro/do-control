@@ -100,6 +100,8 @@ class AuthProfileHttpSmokeTests(unittest.TestCase):
                 "specialty": "General",
                 "license_number": f"PROFILE-{unique_suffix}",
                 "primary_phone": duplicate_phone,
+                "user_email": f"duplicado.perfil.{unique_suffix}@docontrol.local",
+                "user_password": "Doctor123!",
             },
         )
         self.assertEqual(create_doctor_status, 201)

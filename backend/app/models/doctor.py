@@ -17,7 +17,7 @@ class Doctor(TimestampMixin, Base):
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     license_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    linked_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, unique=True)
+    linked_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     appointments = relationship("Appointment", back_populates="doctor")

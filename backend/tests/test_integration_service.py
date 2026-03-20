@@ -106,5 +106,73 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
         self.assertEqual(result.candidate_matches, [])
 
 
+class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = IntegrationService(DummySession())
+
+    def test_includes_doctor_profile_for_doctor_users(self) -> None:
+        self.service.user_repository = SimpleNamespace(
+            get_by_phone_number=lambda _phone: SimpleNamespace(
+                id=5,
+                first_name="Steve",
+                last_name="Alay",
+                phone_number="50239925713",
+                is_active=True,
+                roles=[SimpleNamespace(role=SimpleNamespace(name="doctor"))],
+                doctor_profile=SimpleNamespace(
+                    id=3,
+                    first_name="Steve",
+                    last_name="Alay",
+                    specialty=None,
+                    license_number=None,
+                    gender="M",
+                    phone_numbers=[
+                        SimpleNamespace(phone_number="50239925713", is_primary=True, is_active=True),
+                    ],
+                ),
+            )
+        )
+
+        result = self.service.verify_user_by_phone("50239925713")
+
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.role, "doctor")
+        self.assertEqual(result.user_id, 5)
+        self.assertIsNotNone(result.doctor_profile)
+        assert result.doctor_profile is not None
+        self.assertEqual(result.doctor_profile.doctor_id, 3)
+        self.assertEqual(result.doctor_profile.full_name, "Steve Alay")
+        self.assertEqual(result.doctor_profile.gender, "M")
+        self.assertEqual(result.doctor_profile.primary_phone, "50239925713")
+
+    def test_omits_doctor_profile_for_non_doctor_users(self) -> None:
+        self.service.user_repository = SimpleNamespace(
+            get_by_phone_number=lambda _phone: SimpleNamespace(
+                id=1,
+                first_name="Jeyson",
+                last_name="Montenegro",
+                phone_number="50258420737",
+                is_active=True,
+                roles=[SimpleNamespace(role=SimpleNamespace(name="admin"))],
+                doctor_profile=None,
+            )
+        )
+
+        result = self.service.verify_user_by_phone("50258420737")
+
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.role, "admin")
+        self.assertIsNone(result.doctor_profile)
+
+    def test_returns_invalid_for_missing_user(self) -> None:
+        self.service.user_repository = SimpleNamespace(get_by_phone_number=lambda _phone: None)
+
+        result = self.service.verify_user_by_phone("55550007")
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.phone_number, "55550007")
+        self.assertEqual(result.permissions, [])
+
+
 if __name__ == "__main__":
     unittest.main()

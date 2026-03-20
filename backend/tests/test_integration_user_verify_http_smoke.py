@@ -96,6 +96,31 @@ class IntegrationUserVerifyHttpSmokeTests(unittest.TestCase):
             self.assertEqual(body["is_valid"], True)
             self.assertEqual(body["role"], "doctor")
             self.assertEqual(body["user_id"], create_body["linked_user_id"])
+            self.assertIn("doctor_profile", body)
+            self.assertIsNotNone(body["doctor_profile"])
+            self.assertEqual(body["doctor_profile"]["doctor_id"], create_body["id"])
+            self.assertEqual(
+                body["doctor_profile"]["full_name"],
+                f"Doctor {unique_suffix}",
+            )
+            self.assertEqual(body["doctor_profile"]["primary_phone"], "50258420738")
+
+    def test_doctor_creation_requires_user_credentials(self) -> None:
+        unique_suffix = str(int(time.time() * 1000) % 10000000)
+        phone_number = f"503{int(unique_suffix) % 10000000:07d}"
+        create_status, create_body = request_json(
+            "/doctors",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "first_name": "Solo",
+                "last_name": unique_suffix,
+                "primary_phone": phone_number,
+            },
+        )
+        self.assertEqual(create_status, 422)
+        self.assertIn("user_email", json.dumps(create_body))
+        self.assertIn("user_password", json.dumps(create_body))
 
 
 if __name__ == "__main__":

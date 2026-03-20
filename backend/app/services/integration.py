@@ -20,6 +20,7 @@ from app.schemas.integration import (
     DoctorMatchResponse,
     DoctorScheduleAppointmentRead,
     DoctorVerificationRead,
+    IntegrationDoctorProfileRead,
     IntegrationUserVerificationRead,
     IntegrationEncounterCreateRequest,
     IntegrationEncounterCreateResponse,
@@ -87,6 +88,24 @@ class IntegrationService:
                 return role_name
         return next(iter(sorted(role_names)), None)
 
+    @staticmethod
+    def _build_doctor_profile(doctor: Doctor | None) -> IntegrationDoctorProfileRead | None:
+        if doctor is None:
+            return None
+
+        primary_phone = next(
+            (phone.phone_number for phone in doctor.phone_numbers if phone.is_primary and phone.is_active),
+            None,
+        )
+        return IntegrationDoctorProfileRead(
+            doctor_id=doctor.id,
+            full_name=f"{doctor.first_name} {doctor.last_name}".strip(),
+            specialty=doctor.specialty,
+            license_number=doctor.license_number,
+            gender=doctor.gender,
+            primary_phone=primary_phone,
+        )
+
     def verify_user_by_phone(self, phone_number: str) -> IntegrationUserVerificationRead:
         user = self.user_repository.get_by_phone_number(phone_number)
         if user is None or not user.is_active:
@@ -111,6 +130,7 @@ class IntegrationService:
             phone_number=user.phone_number,
             is_active=user.is_active,
             permissions=sorted(permissions),
+            doctor_profile=self._build_doctor_profile(user.doctor_profile) if "doctor" in role_names else None,
         )
 
     def verify_doctor(self, doctor_id: int) -> DoctorVerificationRead:

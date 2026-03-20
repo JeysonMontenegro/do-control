@@ -64,6 +64,8 @@ class IntegrationRequesterScopeHttpSmokeTests(unittest.TestCase):
                 "specialty": "General",
                 "license_number": f"SCOPE-{unique_suffix}",
                 "primary_phone": f"501{int(unique_suffix) % 10000000:07d}",
+                "user_email": f"scope.doctor.{unique_suffix}@example.com",
+                "user_password": "Doctor123!",
             },
         )
         self.assertEqual(doctor_status, 201)
@@ -121,6 +123,8 @@ class IntegrationRequesterScopeHttpSmokeTests(unittest.TestCase):
                     "specialty": "General",
                     "license_number": f"MULTI-{prefix}-{unique_suffix}",
                     "primary_phone": f"{prefix}{int(unique_suffix) % 10000000:07d}",
+                    "user_email": f"scope.multi.{prefix}.{unique_suffix}@example.com",
+                    "user_password": "Doctor123!",
                 },
             )
             self.assertEqual(doctor_status, 201)

@@ -107,44 +107,47 @@ class DoctorService:
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
         clinics_payload = data.pop("clinics", [])
-        primary_phone = data.pop("primary_phone", None)
+        primary_phone = data.pop("primary_phone")
         phone_channel_type = data.pop("phone_channel_type", "whatsapp")
-        user_email = data.pop("user_email", None)
-        user_password = data.pop("user_password", None)
-        doctor = self.repository.create(Doctor(**data))
+        user_email = data.pop("user_email")
+        user_password = data.pop("user_password")
+
+        if self.user_repository.get_by_email(user_email) is not None:
+            raise ValidationError("A user with that email already exists.")
+        existing_phone_user = self.user_repository.get_by_phone_number(primary_phone)
+        if existing_phone_user is not None:
+            raise ValidationError("A user with that phone number already exists.")
+        if self.repository.phone_number_in_use(primary_phone):
+            raise ValidationError("A doctor with that phone number already exists.")
+
+        doctor_role = self.user_repository.get_role_by_name("doctor")
+        if doctor_role is None:
+            doctor_role = self.user_repository.create_role(Role(name="doctor", description="Doctor"))
+        user = self.user_repository.create(
+            User(
+                email=user_email,
+                password_hash=hash_password(user_password),
+                first_name=data["first_name"],
+                last_name=data["last_name"],
+                gender=data.get("gender"),
+                phone_number=primary_phone,
+                is_active=True,
+            )
+        )
+        self.user_repository.add_role(UserRole(user_id=user.id, role_id=doctor_role.id))
+
+        doctor = self.repository.create(Doctor(**data, linked_user_id=user.id))
         if clinics_payload:
             self.repository.replace_clinics(doctor, [DoctorClinic(**clinic_data) for clinic_data in clinics_payload])
-        if primary_phone:
-            self.repository.add_phone_number(
-                DoctorPhoneNumber(
-                    doctor_id=doctor.id,
-                    phone_number=primary_phone,
-                    is_primary=True,
-                    is_active=True,
-                    channel_type=phone_channel_type,
-                )
+        self.repository.add_phone_number(
+            DoctorPhoneNumber(
+                doctor_id=doctor.id,
+                phone_number=primary_phone,
+                is_primary=True,
+                is_active=True,
+                channel_type=phone_channel_type,
             )
-        if user_email:
-            if not user_password:
-                raise ValidationError("Doctor login password is required when doctor login email is provided.")
-            if self.user_repository.get_by_email(user_email) is not None:
-                raise ValidationError("A user with that email already exists.")
-            doctor_role = self.user_repository.get_role_by_name("doctor")
-            if doctor_role is None:
-                doctor_role = self.user_repository.create_role(Role(name="doctor", description="Doctor"))
-            user = self.user_repository.create(
-                User(
-                    email=user_email,
-                    password_hash=hash_password(user_password),
-                    first_name=doctor.first_name,
-                    last_name=doctor.last_name,
-                    gender=doctor.gender,
-                    phone_number=primary_phone,
-                    is_active=True,
-                )
-            )
-            self.user_repository.add_role(UserRole(user_id=user.id, role_id=doctor_role.id))
-            doctor.linked_user_id = user.id
+        )
         create_audit_log(
             self.db,
             action="create",
@@ -154,14 +157,15 @@ class DoctorService:
         )
         self.db.commit()
         self.db.refresh(doctor)
-        if doctor.linked_user is not None:
-            EmailService(self.db).send_welcome_email(doctor.linked_user, temporary_password=user_password)
+        EmailService(self.db).send_welcome_email(doctor.linked_user, temporary_password=user_password)
         return doctor
 
     def update_doctor(self, doctor_id: int, payload: DoctorUpdate) -> Doctor:
         doctor = self.repository.get(doctor_id)
         if doctor is None:
             raise NotFoundError("Doctor not found.")
+        if doctor.linked_user is None:
+            raise ValidationError("Doctor must have a linked user.")
 
         updates = payload.model_dump(exclude_unset=True)
         clinics_payload = updates.pop("clinics", None) if "clinics" in updates else None
@@ -175,6 +179,11 @@ class DoctorService:
             self.repository.replace_clinics(doctor, [DoctorClinic(**clinic_data) for clinic_data in clinics_payload])
 
         if primary_phone is not None:
+            existing_phone_user = self.user_repository.get_by_phone_number(primary_phone)
+            if existing_phone_user is not None and existing_phone_user.id != doctor.linked_user_id:
+                raise ValidationError("A user with that phone number already exists.")
+            if self.repository.phone_number_in_use(primary_phone, exclude_linked_user_id=doctor.linked_user_id):
+                raise ValidationError("A doctor with that phone number already exists.")
             self.repository.deactivate_primary_phone_numbers(doctor.id)
             self.repository.add_phone_number(
                 DoctorPhoneNumber(
@@ -186,15 +195,14 @@ class DoctorService:
                 )
             )
 
-        if doctor.linked_user is not None:
-            doctor.linked_user.first_name = doctor.first_name
-            doctor.linked_user.last_name = doctor.last_name
-            doctor.linked_user.gender = doctor.gender
-            doctor.linked_user.is_active = doctor.is_active
-            if primary_phone is not None:
-                doctor.linked_user.phone_number = primary_phone
-            if user_password:
-                doctor.linked_user.password_hash = hash_password(user_password)
+        doctor.linked_user.first_name = doctor.first_name
+        doctor.linked_user.last_name = doctor.last_name
+        doctor.linked_user.gender = doctor.gender
+        doctor.linked_user.is_active = doctor.is_active
+        if primary_phone is not None:
+            doctor.linked_user.phone_number = primary_phone
+        if user_password:
+            doctor.linked_user.password_hash = hash_password(user_password)
 
         create_audit_log(
             self.db,

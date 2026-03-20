@@ -25,10 +25,10 @@ class DoctorCreate(BaseModel):
     date_of_birth: date | None = None
     license_number: str | None = None
     specialty: str | None = None
-    primary_phone: str | None = None
+    primary_phone: str
     phone_channel_type: str | None = "whatsapp"
-    user_email: str | None = None
-    user_password: str | None = None
+    user_email: str
+    user_password: str
     clinics: list[DoctorClinicCreate] = []
 
 
@@ -55,7 +55,7 @@ class DoctorRead(BaseModel):
     date_of_birth: date | None
     license_number: str | None
     specialty: str | None
-    linked_user_id: int | None
+    linked_user_id: int
     linked_user_email: str | None = None
     is_active: bool
     created_at: datetime

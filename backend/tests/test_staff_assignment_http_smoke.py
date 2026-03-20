@@ -90,6 +90,8 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "specialty": "Pediatría",
                 "license_number": f"COL-EXTRA-{unique_suffix}",
                 "primary_phone": f"406{int(unique_suffix) % 10000000:07d}",
+                "user_email": f"otro.doctor.{unique_suffix}@docontrol.local",
+                "user_password": "DoctorNew123!",
             },
         )
         self.assertEqual(extra_doctor_status, 201)
@@ -158,6 +160,8 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "specialty": "Dermatología",
                 "license_number": f"COL-BLOCK-{unique_suffix}",
                 "primary_phone": f"407{int(unique_suffix) % 10000000:07d}",
+                "user_email": f"bloqueado.doctor.{unique_suffix}@docontrol.local",
+                "user_password": "DoctorNew123!",
             },
         )
         self.assertEqual(blocked_doctor_status, 201)
@@ -284,6 +288,8 @@ class StaffAssignmentHttpSmokeTests(unittest.TestCase):
                 "specialty": "Cardiología",
                 "license_number": f"INACTIVE-{unique_suffix}",
                 "primary_phone": f"601{int(unique_suffix) % 10000000:07d}",
+                "user_email": f"inactivo.doctor.{unique_suffix}@docontrol.local",
+                "user_password": "DoctorNew123!",
             },
         )
         self.assertEqual(doctor_status, 201)
