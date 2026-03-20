@@ -691,12 +691,31 @@ export function ClinicalConsole() {
         const summary = await apiGet<PatientSummary>(summaryPath);
         setSelectedSummary(summary);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "No se pudo cargar el resumen del paciente.");
+        const errorMessage = error instanceof Error ? error.message : "No se pudo cargar el resumen del paciente.";
+        if (errorMessage.includes("Patient not found")) {
+          setSelectedSummary(null);
+          setSelectedPatientDispatches([]);
+          return;
+        }
+        setMessage(errorMessage);
       }
     }
 
     loadSummary();
   }, [isAuthenticated, selectedPatientId, doctorFilter, currentRoles]);
+
+  useEffect(() => {
+    if (!selectedPatientId) {
+      return;
+    }
+    const patientStillVisible = data.patients.some((patient) => String(patient.id) === selectedPatientId);
+    if (patientStillVisible) {
+      return;
+    }
+    setSelectedPatientId("");
+    setSelectedSummary(null);
+    setSelectedPatientDispatches([]);
+  }, [data.patients, selectedPatientId]);
 
   useEffect(() => {
     if (!selectedSummary) {
