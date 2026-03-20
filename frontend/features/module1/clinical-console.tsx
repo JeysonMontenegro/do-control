@@ -18,10 +18,12 @@ import { DispatchStatusModal } from "@/features/module1/components/dispatch-stat
 import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
+import { GestionReceptionSection } from "@/features/module1/components/gestion-reception-section";
 import { GestionRemindersSection } from "@/features/module1/components/gestion-reminders-section";
 import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
+import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { PendingReviewSection } from "@/features/module1/components/pending-review-section";
 import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
@@ -1527,190 +1529,19 @@ export function ClinicalConsole() {
           {!data.patients.length ? <p className="empty-state">No hay pacientes en la vista actual.</p> : null}
         </div>
       </article>
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Ficha del paciente</p>
-            <h2>{selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "Selecciona un paciente"}</h2>
-          </div>
-          {canManagePatients ? (
-            <div className="section-action-panel">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => selectedSummary && setActiveSectionAction("patient_edit")}
-                disabled={!selectedSummary}
-              >
-                Editar datos paciente
-              </button>
-            </div>
-          ) : null}
-        </div>
-        {selectedSummary ? (
-          <div className="detail-stack">
-            <div className="summary-grid">
-              <div className="metric-card">
-                <strong>{selectedSummary.patient.medical_record_number}</strong>
-                <span>Expediente</span>
-              </div>
-              <div className="metric-card">
-                <strong>{selectedSummary.appointments.length}</strong>
-                <span>Citas</span>
-              </div>
-              <div className="metric-card">
-                <strong>{selectedSummary.encounters.length}</strong>
-                <span>Consultas</span>
-              </div>
-            </div>
-            <div className="detail-panel compact-panel">
-              <strong>Datos principales</strong>
-              <div className="two-column-grid">
-                <span>Nombre: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
-                <span>Teléfono: {selectedSummary.patient.primary_phone}</span>
-                <span>
-                  Doctor(es):{" "}
-                  {selectedSummary.patient.assigned_doctors?.length
-                    ? selectedSummary.patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
-                    : "Sin asignación"}
-                </span>
-                <span>DPI: {selectedSummary.patient.national_id ?? "Sin registro"}</span>
-                <span>Estado: {selectedSummary.patient.is_active ? "Activo" : "Inactivo"}</span>
-              </div>
-            </div>
-            <div className="two-column-grid">
-              <div className="detail-panel">
-                <strong>Próximas citas</strong>
-                {(selectedSummary.appointments ?? []).length ? (
-                  selectedSummary.appointments.map((appointment) => (
-                    <button
-                      type="button"
-                      className="simple-list-item"
-                      key={`summary-appointment-${appointment.id}`}
-                      onClick={() => {
-                        setActiveTab("agenda");
-                        toggleAppointmentHistory(appointment.id);
-                      }}
-                    >
-                      <strong>{formatDateTime(appointment.scheduled_start)}</strong>
-                      <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
-                      <span>
-                        {appointmentTypeLabel(appointment.appointment_type)} · {appointmentStatusLabel(appointment.status)}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="empty-state">Sin citas registradas.</p>
-                )}
-              </div>
-              <div className="detail-panel">
-                <strong>Consultas</strong>
-                {sortedPatientEncounters.length ? (
-                  sortedPatientEncounters.map((encounter) => {
-                    const encounterAttachments = selectedSummary.attachments.filter(
-                      (attachment) => attachment.encounter_id === encounter.id,
-                    );
-                    const isExpanded = expandedEncounterId === encounter.id;
-
-                    return (
-                      <div key={`summary-encounter-${encounter.id}`}>
-                        <button
-                          type="button"
-                          className="simple-list-item"
-                          onClick={() => setExpandedEncounterId((current) => (current === encounter.id ? null : encounter.id))}
-                        >
-                          <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
-                          <span>{formatDateTime(encounter.encounter_date)}</span>
-                          <span>{encounter.chief_complaint}</span>
-                          <span>{isExpanded ? "Ocultar detalle" : "Ver detalle clínico"}</span>
-                        </button>
-                        {isExpanded ? (
-                          <div className="encounter-history-card">
-                            <div className="encounter-history-grid">
-                              <div className="timeline-item">
-                                <strong>Motivo</strong>
-                                <span>{encounter.chief_complaint}</span>
-                              </div>
-                              <div className="timeline-item">
-                                <strong>Estado</strong>
-                                <span>{appointmentStatusLabel(encounter.status)}</span>
-                              </div>
-                            </div>
-                            <div className="encounter-history-grid">
-                              <div className="timeline-item">
-                                <strong>Diagnósticos</strong>
-                                {(encounter.diagnoses ?? []).length ? (
-                                  (encounter.diagnoses ?? []).map((diagnosis) => (
-                                    <span key={`diagnosis-read-${diagnosis.id ?? diagnosis.diagnosis_text}`}>
-                                      {diagnosis.diagnosis_text}
-                                      {diagnosis.diagnosis_code ? ` · ${diagnosis.diagnosis_code}` : ""}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span>Sin diagnósticos registrados.</span>
-                                )}
-                              </div>
-                              <div className="timeline-item">
-                                <strong>Órdenes de examen</strong>
-                                {(encounter.exam_orders ?? []).length ? (
-                                  (encounter.exam_orders ?? []).map((exam) => (
-                                    <span key={`exam-read-${exam.id ?? exam.exam_name}`}>
-                                      {exam.exam_name}
-                                      {exam.status ? ` · ${dispatchStatusLabel(exam.status)}` : ""}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span>Sin exámenes registrados.</span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="encounter-history-grid">
-                              <div className="timeline-item">
-                                <strong>Receta</strong>
-                                {encounter.prescription?.items?.length ? (
-                                  encounter.prescription.items.map((item) => (
-                                    <span key={`prescription-read-${item.id ?? item.medication_name}`}>
-                                      {item.medication_name}
-                                      {item.dosage ? ` · ${item.dosage}` : ""}
-                                      {item.frequency ? ` · ${item.frequency}` : ""}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span>Sin receta registrada.</span>
-                                )}
-                              </div>
-                              <div className="timeline-item">
-                                <strong>Adjuntos</strong>
-                                {encounterAttachments.length ? (
-                                  encounterAttachments.map((attachment) => (
-                                    <button
-                                      type="button"
-                                      key={`encounter-attachment-${attachment.id}`}
-                                      className="secondary-button align-start"
-                                      onClick={() => openAttachment(attachment.id)}
-                                    >
-                                      {attachment.file_name}
-                                    </button>
-                                  ))
-                                ) : (
-                                  <span>Sin adjuntos en esta consulta.</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="empty-state">Sin consultas registradas.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="empty-state">Selecciona un paciente para ver su expediente.</p>
-        )}
-      </article>
+      <PatientSummarySection
+        canManagePatients={canManagePatients}
+        expandedEncounterId={expandedEncounterId}
+        onEditPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
+        onGoToAgendaAppointment={(appointmentId) => {
+          setActiveTab("agenda");
+          toggleAppointmentHistory(appointmentId);
+        }}
+        onOpenAttachment={openAttachment}
+        selectedSummary={selectedSummary}
+        setExpandedEncounterId={setExpandedEncounterId}
+        sortedPatientEncounters={sortedPatientEncounters}
+      />
     </section>
   );
 
@@ -2437,136 +2268,22 @@ export function ClinicalConsole() {
         ) : null}
 
         {gestionSubtab === "recepcion" && isAdmin ? (
-          <>
-            <article className="card section-card span-three">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Equipo clínico</p>
-                  <h2>Recepción</h2>
-                </div>
-                <button
-                  type="button"
-                  className="success-button"
-                  onClick={() => {
-                    resetReceptionistForm();
-                    setShowReceptionistModal(true);
-                  }}
-                >
-                  Agregar recepcionista
-                </button>
-              </div>
-              <p className="empty-state">
-                Cada recepcionista indica claramente qué doctores atiende. Usa editar para cambiar asignaciones o datos de acceso.
-              </p>
-            </article>
-
-            <article className="card section-card">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Equipo clínico</p>
-                  <h2>Recepcionistas</h2>
-                </div>
-              </div>
-              <div className="table-list">
-                {paginatedActiveReceptionists.map((receptionist) => (
-                  <button
-                    type="button"
-                    className={`simple-list-item ${selectedReceptionist?.id === receptionist.id ? "table-row-active" : ""}`}
-                    key={`receptionist-team-${receptionist.id}`}
-                    onClick={() => setSelectedReceptionistId(receptionist.id)}
-                  >
-                    <strong>Recepción: {receptionist.first_name} {receptionist.last_name}</strong>
-                    <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
-                    <span>{receptionist.email}</span>
-                    <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
-                    <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(receptionist)}>Editar</button>
-                      <button
-                        type="button"
-                        className={receptionist.is_active ? "danger-button" : "success-button"}
-                        onClick={() => toggleReceptionistActive(receptionist)}
-                      >
-                        {receptionist.is_active ? "Desactivar" : "Activar"}
-                      </button>
-                    </div>
-                  </button>
-                ))}
-                {!activeReceptionists.length ? <p className="empty-state">No hay recepcionistas activas registradas.</p> : null}
-              </div>
-              {renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
-            </article>
-
-            <article className="card section-card span-two">
-              <div className="subsection-header">
-                <div>
-                  <p className="eyebrow">Detalle</p>
-                  <h2>{selectedReceptionist ? `Recepción ${selectedReceptionist.first_name} ${selectedReceptionist.last_name}` : "Selecciona una recepcionista"}</h2>
-                </div>
-              </div>
-              {selectedReceptionist ? (
-                <div className="detail-stack">
-                  <div className="detail-panel compact-panel">
-                    <strong>Datos principales</strong>
-                    <span>Correo: {selectedReceptionist.email}</span>
-                    <span>Teléfono: {selectedReceptionist.phone_number ?? "Sin teléfono"}</span>
-                    <span>Estado: {selectedReceptionist.is_active ? "Activa" : "Inactiva"}</span>
-                  </div>
-                  <div className="detail-panel compact-panel">
-                    <strong>Doctores asignados</strong>
-                    {selectedReceptionist.assigned_doctors.length ? (
-                      selectedReceptionist.assigned_doctors.map((doctor) => (
-                        <div className="timeline-item" key={`selected-receptionist-doctor-${doctor.id}`}>
-                          <strong>Dr. {doctor.first_name} {doctor.last_name}</strong>
-                          <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-state">Esta recepcionista no tiene doctores asignados.</p>
-                    )}
-                  </div>
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => startReceptionistEdit(selectedReceptionist)}>
-                      Editar recepcionista
-                    </button>
-                    <button
-                      type="button"
-                      className={selectedReceptionist.is_active ? "danger-button" : "success-button"}
-                      onClick={() => toggleReceptionistActive(selectedReceptionist)}
-                    >
-                      {selectedReceptionist.is_active ? "Desactivar" : "Activar"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="empty-state">Selecciona una recepcionista del listado para ver sus doctores asignados.</p>
-              )}
-              {inactiveReceptionists.length ? (
-                <>
-                  <div className="subsection-header">
-                    <div>
-                      <p className="eyebrow">Histórico</p>
-                      <h2>Recepcionistas inactivas</h2>
-                    </div>
-                  </div>
-                  <div className="table-list">
-                    {paginatedInactiveReceptionists.map((receptionist) => (
-                      <button
-                        type="button"
-                        className="simple-list-item"
-                        key={`receptionist-team-inactive-${receptionist.id}`}
-                        onClick={() => setSelectedReceptionistId(receptionist.id)}
-                      >
-                        <strong>Recepción: {receptionist.first_name} {receptionist.last_name}</strong>
-                        <span>{receptionist.email}</span>
-                        <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
-                      </button>
-                    ))}
-                  </div>
-                  {renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
-                </>
-              ) : null}
-            </article>
-          </>
+          <GestionReceptionSection
+            activeReceptionists={activeReceptionists}
+            activeReceptionistsPager={renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
+            inactiveReceptionists={inactiveReceptionists}
+            inactiveReceptionistsPager={renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
+            onAddReceptionist={() => {
+              resetReceptionistForm();
+              setShowReceptionistModal(true);
+            }}
+            onEditReceptionist={startReceptionistEdit}
+            onSelectReceptionist={setSelectedReceptionistId}
+            paginatedActiveReceptionists={paginatedActiveReceptionists}
+            paginatedInactiveReceptionists={paginatedInactiveReceptionists}
+            selectedReceptionist={selectedReceptionist}
+            toggleReceptionistActive={toggleReceptionistActive}
+          />
         ) : null}
       </section>
     );
