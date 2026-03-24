@@ -99,6 +99,30 @@ function toFriendlyErrorMessage(rawMessage: string, status: number): string {
   if (message.includes("That phone number is already in use")) {
     return "Ese número de teléfono ya está en uso. Verifica el dato o usa otro número.";
   }
+  if (message.includes("Patient is not assigned to the selected doctor")) {
+    return "El paciente no está asignado al doctor seleccionado.";
+  }
+  if (message.includes("Appointment does not belong to the selected doctor")) {
+    return "La cita seleccionada no pertenece al doctor elegido.";
+  }
+  if (message.includes("Appointment already has an encounter")) {
+    return "La cita seleccionada ya tiene una consulta asociada.";
+  }
+  if (message.includes("Cannot create patients for an inactive doctor")) {
+    return "No se pueden crear pacientes para un doctor inactivo.";
+  }
+  if (message.includes("Cannot create appointments for an inactive doctor")) {
+    return "No se pueden crear citas para un doctor inactivo.";
+  }
+  if (message.includes("Cannot create encounters for an inactive doctor")) {
+    return "No se pueden registrar consultas para un doctor inactivo.";
+  }
+  if (message.includes("Encounter does not belong to the selected patient")) {
+    return "La consulta seleccionada no pertenece al paciente elegido.";
+  }
+  if (message.includes("Attachment content is required")) {
+    return "Debes seleccionar un archivo antes de adjuntarlo.";
+  }
   if (message.includes("Doctor login password is required")) {
     return "Debes ingresar una contraseña para crear el acceso del doctor.";
   }
@@ -171,6 +195,13 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
   return apiRequest<T>(path, buildJsonRequestInit("POST", payload));
+}
+
+export async function apiPostForm<T>(path: string, payload: FormData): Promise<T> {
+  return apiRequest<T>(path, {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export async function apiPatch<T>(path: string, payload: unknown): Promise<T> {

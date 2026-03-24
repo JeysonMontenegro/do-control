@@ -83,6 +83,19 @@ export function EncountersSection({
   submitAttachment,
   submitEncounter,
 }: EncountersSectionProps) {
+  const availableAppointments = appointments.filter((appointment) => {
+    if (appointment.status === "cancelled" || appointment.confirmation_status === "cancelled") {
+      return false;
+    }
+    if (encounterForm.patient_id && String(appointment.patient_id) !== encounterForm.patient_id) {
+      return false;
+    }
+    if (encounterForm.doctor_id && String(appointment.doctor_id) !== encounterForm.doctor_id) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <section className="tab-layout">
       <article className="card section-card span-two">
@@ -141,7 +154,7 @@ export function EncountersSection({
                   onChange={(event) => setEncounterForm((current) => ({ ...current, appointment_id: event.target.value }))}
                 >
                   <option value="">Sin cita</option>
-                  {appointments.map((appointment) => (
+                  {availableAppointments.map((appointment) => (
                     <option key={`encounter-appointment-${appointment.id}`} value={appointment.id}>
                       {appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · {formatDateTime(appointment.scheduled_start)}
                     </option>

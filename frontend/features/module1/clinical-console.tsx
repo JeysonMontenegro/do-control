@@ -69,10 +69,11 @@ import {
 } from "@/features/module1/console-utils";
 import { getMessageTone } from "@/features/module1/message-utils";
 import { getFirstExamOrderId } from "@/features/module1/review-utils";
-import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/api";
 import type {
   Appointment,
   AppointmentReviewItem,
+  AttachmentDownload,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationDispatchSummary,
@@ -535,13 +536,7 @@ export function ClinicalConsole() {
       formData.append("uploaded_by", "frontend-demo");
       formData.append("file", attachmentFile);
 
-      const response = await fetch(`${API_URL}/api/attachments`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
+      await apiPostForm("/api/attachments", formData);
 
       setAttachmentFile(null);
       setAttachmentEncounterId("");
@@ -564,11 +559,10 @@ export function ClinicalConsole() {
     setMessage("");
     setDownloadingAttachmentId(attachmentId);
     try {
-      window.open(
-        `${API_URL}/api/attachments/${attachmentId}/content?requested_by=frontend-demo`,
-        "_blank",
-        "noopener,noreferrer",
+      const download = await apiGet<AttachmentDownload>(
+        `/api/attachments/${attachmentId}/download?requested_by=frontend-demo`,
       );
+      window.open(download.download_url, "_blank", "noopener,noreferrer");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo abrir el archivo.");
     } finally {
