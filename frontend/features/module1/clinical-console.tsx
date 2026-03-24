@@ -32,6 +32,7 @@ import { ReviewResolutionModal } from "@/features/module1/components/review-reso
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useAppointmentAdmin } from "@/features/module1/hooks/use-appointment-admin";
 import { useAgendaInteractions } from "@/features/module1/hooks/use-agenda-interactions";
+import { useConsoleContextSync } from "@/features/module1/hooks/use-console-context-sync";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
@@ -864,53 +865,36 @@ export function ClinicalConsole() {
     templateForm,
   });
 
-  useEffect(() => {
-    if (!currentRoles.includes("doctor") || !selectedDoctor) {
-      return;
-    }
-    if (reminderRuleForm.doctor_id !== String(selectedDoctor.id)) {
-      setReminderRuleForm((current) => ({ ...current, doctor_id: String(selectedDoctor.id) }));
-    }
-    if (templateForm.doctor_id !== String(selectedDoctor.id)) {
-      setTemplateForm((current) => ({ ...current, doctor_id: String(selectedDoctor.id) }));
-    }
-  }, [currentRoles, reminderRuleForm.doctor_id, selectedDoctor, templateForm.doctor_id]);
-
-  useEffect(() => {
-    if (!availableDoctors.length) {
-      return;
-    }
-    if (hasSingleDoctorContext) {
-      const onlyDoctorId = String(availableDoctors[0].id);
-      if (doctorFilter !== onlyDoctorId) {
-        setDoctorFilter(onlyDoctorId);
-      }
-      if (appointmentForm.doctor_id !== onlyDoctorId) {
-        setAppointmentForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
-      }
-      if (encounterForm.doctor_id !== onlyDoctorId) {
-        setEncounterForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
-      }
-      if (patientForm.doctor_id !== onlyDoctorId) {
-        setPatientForm((current) => ({ ...current, doctor_id: onlyDoctorId }));
-      }
-    }
-  }, [appointmentForm.doctor_id, availableDoctors, doctorFilter, encounterForm.doctor_id, hasSingleDoctorContext, patientForm.doctor_id]);
-
-  useEffect(() => {
-    if (!confirmationTemplate || templateForm.body.trim()) {
-      return;
-    }
-    setTemplateForm((current) => ({
-      ...current,
-      doctor_id: confirmationTemplate.doctor_id ? String(confirmationTemplate.doctor_id) : current.doctor_id,
-      channel: confirmationTemplate.channel,
-      template_key: confirmationTemplate.template_key,
-      title: confirmationTemplate.title,
-      body: confirmationTemplate.body,
-      is_active: confirmationTemplate.is_active,
-    }));
-  }, [confirmationTemplate, templateForm.body]);
+  useConsoleContextSync({
+    appointmentFormDoctorId: appointmentForm.doctor_id,
+    availableDoctors,
+    confirmationTemplate,
+    currentRoles,
+    doctorFilter,
+    encounterFormDoctorId: encounterForm.doctor_id,
+    hasSingleDoctorContext,
+    patientFormDoctorId: patientForm.doctor_id,
+    reminderRuleFormDoctorId: reminderRuleForm.doctor_id,
+    selectedDoctor,
+    setConfirmationTemplateDefaults: (template) =>
+      setTemplateForm((current) => ({
+        ...current,
+        doctor_id: template.doctor_id ? String(template.doctor_id) : current.doctor_id,
+        channel: template.channel,
+        template_key: template.template_key,
+        title: template.title,
+        body: template.body,
+        is_active: template.is_active,
+      })),
+    setAppointmentDoctorId: (doctorId) => setAppointmentForm((current) => ({ ...current, doctor_id: doctorId })),
+    setDoctorFilter,
+    setEncounterDoctorId: (doctorId) => setEncounterForm((current) => ({ ...current, doctor_id: doctorId })),
+    setPatientDoctorId: (doctorId) => setPatientForm((current) => ({ ...current, doctor_id: doctorId })),
+    setReminderRuleDoctorId: (doctorId) => setReminderRuleForm((current) => ({ ...current, doctor_id: doctorId })),
+    setTemplateDoctorId: (doctorId) => setTemplateForm((current) => ({ ...current, doctor_id: doctorId })),
+    templateFormBody: templateForm.body,
+    templateFormDoctorId: templateForm.doctor_id,
+  });
 
   const {
     calendarMetrics,
