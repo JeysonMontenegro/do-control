@@ -13,10 +13,10 @@ import {
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
+import { ConsoleMainContent } from "@/features/module1/components/console-main-content";
 import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
 import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
-import { ConsoleContentRouter } from "@/features/module1/components/console-content-router";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersTab } from "@/features/module1/components/encounters-tab";
 import { GestionHub } from "@/features/module1/components/gestion-hub";
@@ -583,266 +583,6 @@ export function ClinicalConsole() {
     setCalendarDate,
   });
 
-  const renderAgendaTab = () => (
-    <AgendaTab
-      agendaDays={agendaDays}
-      allowMultiDoctorVisibility={allowMultiDoctorVisibility}
-      appointmentDispatches={appointmentDispatches}
-      appointmentFilter={appointmentFilter}
-      appointmentForm={appointmentForm}
-      appointmentHistory={appointmentHistory}
-      appointmentReviewItems={appointmentReviewItems}
-      appointmentsByDayKey={appointmentsByDayKey}
-      availableDoctors={availableDoctors}
-      calendarDate={calendarDate}
-      calendarMetrics={calendarMetrics}
-      calendarView={calendarView}
-      canChooseAmongMultipleDoctors={canChooseAmongMultipleDoctors}
-      canManageAppointments={canManageAppointments}
-      canViewGlobalCommunications={canViewGlobalCommunications}
-      data={{ appointments: filteredAppointments, encounters: filteredEncounters, patients: filteredPatients }}
-      dispatchAttempts={dispatchAttempts}
-      doctorFilter={doctorFilter}
-      expandedDispatchId={expandedDispatchId}
-      filteredAppointments={filteredAppointments}
-      focusedAppointment={focusedAppointment}
-      goToNextRange={goToNextRange}
-      goToPreviousRange={goToPreviousRange}
-      goToToday={goToToday}
-      isAdmin={isAdmin}
-      monthDays={monthDays}
-      onAppointmentDoctorFieldChange={(value) => setAppointmentForm((current) => ({ ...current, doctor_id: value }))}
-      onAppointmentEndDateFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value }))}
-      onAppointmentEndTimeFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value }))}
-      onAppointmentFilterChange={setAppointmentFilter}
-      onAppointmentPatientFieldChange={(value) => setAppointmentForm((current) => ({ ...current, patient_id: value }))}
-      onAppointmentStartDateFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value }))}
-      onAppointmentStartTimeFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value }))}
-      onCalendarViewChange={setCalendarView}
-      onDoctorFilterChange={setDoctorFilter}
-      onSelectAppointment={toggleAppointmentHistory}
-      openDispatchAttempts={toggleDispatchAttempts}
-      reminderNow={sendAppointmentReminderNow}
-      renderAppointmentBadges={renderAppointmentBadges}
-      selectedDoctor={selectedDoctor}
-      selectedSummary={selectedSummary}
-      slotLabels={slotLabels}
-      submitAppointment={submitAppointment}
-      updateAppointmentStatus={updateAppointmentStatus}
-    />
-  );
-
-  const renderPacientesTab = () => (
-    <PatientsTab
-      canManagePatients={canManagePatients}
-      expandedEncounterId={expandedEncounterId}
-      isAdmin={isAdmin}
-      onEditSelectedPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
-      onGoToAgendaFromPatient={(appointmentId) => {
-        setActiveTab("agenda");
-        toggleAppointmentHistory(appointmentId);
-      }}
-      onOpenAttachment={openAttachment}
-      onPatientSearchChange={setPatientSearch}
-      onSelectPatient={setSelectedPatientId}
-      onShowCreatePatientModal={() => setActiveSectionAction("patient_create")}
-      patientSearch={patientSearch}
-      patients={filteredPatients}
-      selectedPatientId={selectedPatientId}
-      selectedSummary={selectedSummary}
-      setExpandedEncounterId={setExpandedEncounterId}
-      sortedPatientEncounters={sortedPatientEncounters}
-    />
-  );
-
-  const renderConsultasTab = () => (
-    <EncountersTab
-      appointments={filteredAppointments}
-      attachmentEncounterId={attachmentEncounterId}
-      attachmentType={attachmentType}
-      availableDoctors={availableDoctors}
-      canChooseAmongMultipleDoctors={canChooseAmongMultipleDoctors}
-      canManageEncounters={canManageEncounters}
-      closeEncounter={closeEncounter}
-      diagnoses={diagnoses}
-      downloadingAttachmentId={downloadingAttachmentId}
-      encounters={filteredEncounters}
-      encounterForm={encounterForm}
-      examOrders={examOrders}
-      isAdmin={isAdmin}
-      openAttachment={openAttachment}
-      patients={filteredPatients}
-      prescriptionItems={prescriptionItems}
-      selectedDoctor={selectedDoctor}
-      selectedSummary={selectedSummary}
-      setAttachmentEncounterId={setAttachmentEncounterId}
-      setAttachmentFile={setAttachmentFile}
-      setAttachmentType={setAttachmentType}
-      setDiagnoses={setDiagnoses}
-      setEncounterForm={setEncounterForm}
-      setExamOrders={setExamOrders}
-      setPrescriptionItems={setPrescriptionItems}
-      submitAttachment={submitAttachment}
-      submitEncounter={submitEncounter}
-    />
-  );
-
-  const renderMensajesTab = () => (
-    <MessagesTab
-      canViewGlobalCommunications={canViewGlobalCommunications}
-      communicationDispatchSummary={communicationDispatchSummary}
-      communicationDispatches={communicationDispatches}
-      data={{ patients: filteredPatients }}
-      dispatchAttempts={dispatchAttempts}
-      dispatchFilters={dispatchFilters}
-      expandedDispatchId={expandedDispatchId}
-      generateDispatchesNow={generateDispatchesNow}
-      isAdmin={isAdmin}
-      messagesSubtab={messagesSubtab}
-      requeueDispatch={requeueDispatch}
-      requeueVisibleFailedDispatches={requeueVisibleFailedDispatches}
-      selectedPatientDispatches={selectedPatientDispatches}
-      selectedPatientId={selectedPatientId}
-      selectedSummary={selectedSummary}
-      setActiveTab={setActiveTab}
-      setDispatchFilters={setDispatchFilters}
-      setMessagesSubtab={setMessagesSubtab}
-      setSelectedPatientId={setSelectedPatientId}
-      toggleAppointmentHistory={toggleAppointmentHistory}
-      toggleDispatchAttempts={toggleDispatchAttempts}
-      updateDispatchStatus={updateDispatchStatus}
-    />
-  );
-
-  const renderPendientesTab = () => {
-    return (
-      <PendingReviewTab
-        appointmentReviewItems={appointmentReviewItems}
-        communicationDispatches={communicationDispatches}
-        filteredAppointments={filteredAppointments}
-        onGoToAgendaAppointment={(appointmentId) => {
-          setActiveTab("agenda");
-          toggleAppointmentHistory(appointmentId);
-        }}
-        renderAppointmentBadges={renderAppointmentBadges}
-        reviewQueueByAppointmentId={reviewQueueByAppointmentId}
-        resolveReviewItem={resolveReviewItem}
-      />
-    );
-  };
-
-  const renderDoctoresTab = () => {
-    if (!isAdmin) {
-      return renderAgendaTab();
-    }
-
-    return (
-      <DoctorsSection
-        activeDoctors={activeDoctors}
-        activePager={<PagerBar onChange={setActiveDoctorPage} page={activeDoctorPage} pageSize={teamPageSize} totalItems={filteredActiveDoctors.length} />}
-        addDoctorClinic={addDoctorClinic}
-        doctorAdminForm={doctorAdminForm}
-        doctorDirectorySearch={doctorDirectorySearch}
-        doctorRosterTab={doctorRosterTab}
-        editingDoctorId={editingDoctorId}
-        filteredActiveDoctorsCount={filteredActiveDoctors.length}
-        filteredInactiveDoctorsCount={filteredInactiveDoctors.length}
-        inactiveDoctors={inactiveDoctors}
-        inactivePager={<PagerBar onChange={setInactiveDoctorPage} page={inactiveDoctorPage} pageSize={teamPageSize} totalItems={filteredInactiveDoctors.length} />}
-        isAdmin={isAdmin}
-        onDoctorDirectorySearchChange={updateDoctorDirectorySearch}
-        paginatedActiveDoctors={paginatedActiveDoctors}
-        paginatedInactiveDoctors={paginatedInactiveDoctors}
-        removeDoctorClinic={removeDoctorClinic}
-        resetDoctorAdminForm={resetDoctorAdminForm}
-        setDoctorAdminForm={setDoctorAdminForm}
-        setDoctorRosterTab={setDoctorRosterTab}
-        startDoctorEdit={startDoctorEdit}
-        submitDoctorAdmin={submitDoctorAdmin}
-        toggleDoctorActive={toggleDoctorActive}
-        updateDoctorClinic={updateDoctorClinic}
-      />
-    );
-  };
-
-  const renderGestionTab = () => {
-    return (
-      <GestionHub
-        activateDefault24HourReminder={activateDefault24HourReminder}
-        activeDoctorsCount={activeDoctors.length}
-        activeReceptionists={activeReceptionists}
-        activeReceptionistsCount={activeReceptionists.length}
-        activeReceptionistsPager={<PagerBar onChange={setActiveReceptionistPage} page={activeReceptionistPage} pageSize={teamPageSize} totalItems={activeReceptionists.length} />}
-        allowMultiDoctorVisibility={allowMultiDoctorVisibility}
-        availableDoctors={data.doctors}
-        cancelledUpcomingCount={cancelledUpcomingCount}
-        clinicSetting={clinicSetting}
-        communicationTemplates={communicationTemplates}
-        confirmationTemplatePreview={templatePreview}
-        confirmedUpcomingCount={confirmedUpcomingCount}
-        currentUserDisplay={currentUserDisplay}
-        currentUserEmail={currentUserEmail}
-        currentUserProfilePhotoUrl={currentUserProfilePhotoUrl}
-        doctorNameById={doctorNameById}
-        emailDispatches={emailDispatches}
-        emailTemplateForm={emailTemplateForm}
-        emailTemplatePreview={emailTemplatePreview}
-        emailTemplates={emailTemplates}
-        generalReminderRule={generalReminderRule}
-        gestionSubtab={gestionSubtab}
-        inactiveReceptionists={inactiveReceptionists}
-        inactiveReceptionistsPager={<PagerBar onChange={setInactiveReceptionistPage} page={inactiveReceptionistPage} pageSize={teamPageSize} totalItems={inactiveReceptionists.length} />}
-        inactiveUsersCount={inactiveDoctors.length + inactiveReceptionists.length}
-        isAdmin={isAdmin}
-        onAddReceptionist={() => {
-          resetReceptionistForm();
-          setShowReceptionistModal(true);
-        }}
-        onEditReceptionist={startReceptionistEdit}
-        onGoToAgendaAppointment={(appointmentId) => {
-          setActiveTab("agenda");
-          toggleAppointmentHistory(appointmentId);
-        }}
-        onGestionSubtabChange={setGestionSubtab}
-        onProfilePhotoChange={setProfilePhotoFile}
-        onSelectReceptionist={setSelectedReceptionistId}
-        paginatedActiveReceptionists={paginatedActiveReceptionists}
-        paginatedInactiveReceptionists={paginatedInactiveReceptionists}
-        previewConfirmationTemplate={previewConfirmationTemplate}
-        previewEmailTemplate={previewEmailTemplate}
-        profileForm={profileForm}
-        reminderRuleForm={reminderRuleForm}
-        reminderRules={reminderRules}
-        remindersScheduledCount={remindersScheduledCount}
-        resendEmailDispatch={resendEmailDispatch}
-        saveConfirmationTemplate={saveConfirmationTemplate}
-        saveEmailTemplate={saveEmailTemplate}
-        scopedDoctorId={scopedDoctorId}
-        scopedUpcomingAppointments={scopedUpcomingAppointments}
-        selectedDoctor={selectedDoctor}
-        selectedReceptionist={selectedReceptionist}
-        sendTestEmail={sendTestEmail}
-        setEmailTemplateForm={setEmailTemplateForm}
-        setProfileForm={setProfileForm}
-        setReminderRuleForm={setReminderRuleForm}
-        setTemplateForm={setTemplateForm}
-        setTestEmailRecipient={setTestEmailRecipient}
-        submitReminderRule={submitReminderRule}
-        templateForm={templateForm}
-        testEmailRecipient={testEmailRecipient}
-        toggleEmailDelivery={toggleEmailDelivery}
-        toggleEmailProcessSetting={toggleEmailProcessSetting}
-        toggleMultiDoctorVisibility={toggleMultiDoctorVisibility}
-        toggleReceptionistActive={toggleReceptionistActive}
-        toggleReminderRule={toggleReminderRule}
-        toggleTemplate={toggleTemplate}
-        unconfirmedUpcomingCount={unconfirmedUpcomingCount}
-        updateCurrentProfile={updateCurrentProfile}
-        uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
-      />
-    );
-  };
-
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -895,15 +635,239 @@ export function ClinicalConsole() {
               />
             ) : null}
 
-            <ConsoleContentRouter
+            <ConsoleMainContent
               activeTab={activeTab}
-              agendaContent={renderAgendaTab}
-              doctorsContent={isAdmin ? renderDoctoresTab : renderAgendaTab}
-              encountersContent={renderConsultasTab}
-              gestionContent={canViewGestion ? renderGestionTab : renderAgendaTab}
-              messagesContent={renderMensajesTab}
-              patientsContent={renderPacientesTab}
-              pendingContent={renderPendientesTab}
+              agendaTabProps={{
+                agendaDays,
+                allowMultiDoctorVisibility,
+                appointmentDispatches,
+                appointmentFilter,
+                appointmentForm,
+                appointmentHistory,
+                appointmentReviewItems,
+                appointmentsByDayKey,
+                availableDoctors,
+                calendarDate,
+                calendarMetrics,
+                calendarView,
+                canChooseAmongMultipleDoctors,
+                canManageAppointments,
+                canViewGlobalCommunications,
+                data: { appointments: filteredAppointments, encounters: filteredEncounters, patients: filteredPatients },
+                dispatchAttempts,
+                doctorFilter,
+                expandedDispatchId,
+                filteredAppointments,
+                focusedAppointment,
+                goToNextRange,
+                goToPreviousRange,
+                goToToday,
+                isAdmin,
+                monthDays,
+                onAppointmentDoctorFieldChange: (value) => setAppointmentForm((current) => ({ ...current, doctor_id: value })),
+                onAppointmentEndDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value })),
+                onAppointmentEndTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value })),
+                onAppointmentFilterChange: setAppointmentFilter,
+                onAppointmentPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, patient_id: value })),
+                onAppointmentStartDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value })),
+                onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
+                onCalendarViewChange: setCalendarView,
+                onDoctorFilterChange: setDoctorFilter,
+                onSelectAppointment: toggleAppointmentHistory,
+                openDispatchAttempts: toggleDispatchAttempts,
+                reminderNow: sendAppointmentReminderNow,
+                renderAppointmentBadges,
+                selectedDoctor,
+                selectedSummary,
+                slotLabels,
+                submitAppointment,
+                updateAppointmentStatus,
+              }}
+              canViewGestion={canViewGestion}
+              doctorsSectionProps={{
+                activeDoctors,
+                activePager: <PagerBar onChange={setActiveDoctorPage} page={activeDoctorPage} pageSize={teamPageSize} totalItems={filteredActiveDoctors.length} />,
+                addDoctorClinic,
+                doctorAdminForm,
+                doctorDirectorySearch,
+                doctorRosterTab,
+                editingDoctorId,
+                filteredActiveDoctorsCount: filteredActiveDoctors.length,
+                filteredInactiveDoctorsCount: filteredInactiveDoctors.length,
+                inactiveDoctors,
+                inactivePager: <PagerBar onChange={setInactiveDoctorPage} page={inactiveDoctorPage} pageSize={teamPageSize} totalItems={filteredInactiveDoctors.length} />,
+                isAdmin,
+                onDoctorDirectorySearchChange: updateDoctorDirectorySearch,
+                paginatedActiveDoctors,
+                paginatedInactiveDoctors,
+                removeDoctorClinic,
+                resetDoctorAdminForm,
+                setDoctorAdminForm,
+                setDoctorRosterTab,
+                startDoctorEdit,
+                submitDoctorAdmin,
+                toggleDoctorActive,
+                updateDoctorClinic,
+              }}
+              encountersTabProps={{
+                appointments: filteredAppointments,
+                attachmentEncounterId,
+                attachmentType,
+                availableDoctors,
+                canChooseAmongMultipleDoctors,
+                canManageEncounters,
+                closeEncounter,
+                diagnoses,
+                downloadingAttachmentId,
+                encounters: filteredEncounters,
+                encounterForm,
+                examOrders,
+                isAdmin,
+                openAttachment,
+                patients: filteredPatients,
+                prescriptionItems,
+                selectedDoctor,
+                selectedSummary,
+                setAttachmentEncounterId,
+                setAttachmentFile,
+                setAttachmentType,
+                setDiagnoses,
+                setEncounterForm,
+                setExamOrders,
+                setPrescriptionItems,
+                submitAttachment,
+                submitEncounter,
+              }}
+              gestionHubProps={{
+                activateDefault24HourReminder,
+                activeDoctorsCount: activeDoctors.length,
+                activeReceptionists,
+                activeReceptionistsCount: activeReceptionists.length,
+                activeReceptionistsPager: <PagerBar onChange={setActiveReceptionistPage} page={activeReceptionistPage} pageSize={teamPageSize} totalItems={activeReceptionists.length} />,
+                allowMultiDoctorVisibility,
+                availableDoctors: data.doctors,
+                cancelledUpcomingCount,
+                clinicSetting,
+                communicationTemplates,
+                confirmationTemplatePreview: templatePreview,
+                confirmedUpcomingCount,
+                currentUserDisplay,
+                currentUserEmail,
+                currentUserProfilePhotoUrl,
+                doctorNameById,
+                emailDispatches,
+                emailTemplateForm,
+                emailTemplatePreview,
+                emailTemplates,
+                generalReminderRule,
+                gestionSubtab,
+                inactiveReceptionists,
+                inactiveReceptionistsPager: <PagerBar onChange={setInactiveReceptionistPage} page={inactiveReceptionistPage} pageSize={teamPageSize} totalItems={inactiveReceptionists.length} />,
+                inactiveUsersCount: inactiveDoctors.length + inactiveReceptionists.length,
+                isAdmin,
+                onAddReceptionist: () => {
+                  resetReceptionistForm();
+                  setShowReceptionistModal(true);
+                },
+                onEditReceptionist: startReceptionistEdit,
+                onGoToAgendaAppointment: (appointmentId) => {
+                  setActiveTab("agenda");
+                  toggleAppointmentHistory(appointmentId);
+                },
+                onGestionSubtabChange: setGestionSubtab,
+                onProfilePhotoChange: setProfilePhotoFile,
+                onSelectReceptionist: setSelectedReceptionistId,
+                paginatedActiveReceptionists,
+                paginatedInactiveReceptionists,
+                previewConfirmationTemplate,
+                previewEmailTemplate,
+                profileForm,
+                reminderRuleForm,
+                reminderRules,
+                remindersScheduledCount,
+                resendEmailDispatch,
+                saveConfirmationTemplate,
+                saveEmailTemplate,
+                scopedDoctorId,
+                scopedUpcomingAppointments,
+                selectedDoctor,
+                selectedReceptionist,
+                sendTestEmail,
+                setEmailTemplateForm,
+                setProfileForm,
+                setReminderRuleForm,
+                setTemplateForm,
+                setTestEmailRecipient,
+                submitReminderRule,
+                templateForm,
+                testEmailRecipient,
+                toggleEmailDelivery,
+                toggleEmailProcessSetting,
+                toggleMultiDoctorVisibility,
+                toggleReceptionistActive,
+                toggleReminderRule,
+                toggleTemplate,
+                unconfirmedUpcomingCount,
+                updateCurrentProfile,
+                uploadCurrentProfilePhoto,
+              }}
+              isAdmin={isAdmin}
+              messagesTabProps={{
+                canViewGlobalCommunications,
+                communicationDispatchSummary,
+                communicationDispatches,
+                data: { patients: filteredPatients },
+                dispatchAttempts,
+                dispatchFilters,
+                expandedDispatchId,
+                generateDispatchesNow,
+                isAdmin,
+                messagesSubtab,
+                requeueDispatch,
+                requeueVisibleFailedDispatches,
+                selectedPatientDispatches,
+                selectedPatientId,
+                selectedSummary,
+                setActiveTab,
+                setDispatchFilters,
+                setMessagesSubtab,
+                setSelectedPatientId,
+                toggleAppointmentHistory,
+                toggleDispatchAttempts,
+                updateDispatchStatus,
+              }}
+              patientsTabProps={{
+                canManagePatients,
+                expandedEncounterId,
+                isAdmin,
+                onEditSelectedPatient: () => selectedSummary && setActiveSectionAction("patient_edit"),
+                onGoToAgendaFromPatient: (appointmentId) => {
+                  setActiveTab("agenda");
+                  toggleAppointmentHistory(appointmentId);
+                },
+                onOpenAttachment: openAttachment,
+                onPatientSearchChange: setPatientSearch,
+                onSelectPatient: setSelectedPatientId,
+                onShowCreatePatientModal: () => setActiveSectionAction("patient_create"),
+                patientSearch,
+                patients: filteredPatients,
+                selectedPatientId,
+                selectedSummary,
+                setExpandedEncounterId,
+                sortedPatientEncounters,
+              }}
+              pendingReviewTabProps={{
+                appointmentReviewItems,
+                communicationDispatches,
+                filteredAppointments,
+                onGoToAgendaAppointment: (appointmentId) => {
+                  setActiveTab("agenda");
+                  toggleAppointmentHistory(appointmentId);
+                },
+                renderAppointmentBadges,
+                reviewQueueByAppointmentId,
+                resolveReviewItem,
+              }}
             />
           </div>
           <PatientActionModal
