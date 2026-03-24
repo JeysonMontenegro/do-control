@@ -19,12 +19,8 @@ import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersSection } from "@/features/module1/components/encounters-section";
-import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
+import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
-import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
-import { GestionReceptionSection } from "@/features/module1/components/gestion-reception-section";
-import { GestionRemindersSection } from "@/features/module1/components/gestion-reminders-section";
-import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
 import { PatientActionModal } from "@/features/module1/components/patient-action-modal";
@@ -1172,136 +1168,80 @@ export function ClinicalConsole() {
   };
 
   const renderGestionTab = () => {
-    const gestionTabs: Array<{ id: GestionSubtab; label: string }> = [
-      { id: "resumen", label: "Resumen" },
-      { id: "mensajes", label: "Mensajes" },
-      { id: "recordatorios", label: "Recordatorios" },
-      ...(isAdmin ? [{ id: "correos" as GestionSubtab, label: "Correos" }, { id: "recepcion" as GestionSubtab, label: "Recepción" }] : []),
-    ];
-
     return (
-      <section className="tab-layout">
-        <article className="card section-card span-three">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Configuración</p>
-              <h2>Centro de administración</h2>
-            </div>
-            {selectedDoctor ? <div className="context-pill">Contexto: {selectedDoctor.first_name} {selectedDoctor.last_name}</div> : null}
-          </div>
-          <div className="chip-row">
-            {gestionTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`filter-chip ${gestionSubtab === tab.id ? "filter-chip-active" : ""}`}
-                onClick={() => setGestionSubtab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </article>
-
-        {gestionSubtab === "resumen" ? (
-          <GestionSummarySection
-            activeDoctorsCount={activeDoctors.length}
-            activeReceptionistsCount={activeReceptionists.length}
-            allowMultiDoctorVisibility={allowMultiDoctorVisibility}
-            cancelledUpcomingCount={cancelledUpcomingCount}
-            confirmedUpcomingCount={confirmedUpcomingCount}
-            currentUserDisplay={currentUserDisplay}
-            currentUserEmail={currentUserEmail}
-            currentUserProfilePhotoUrl={currentUserProfilePhotoUrl}
-            inactiveUsersCount={inactiveDoctors.length + inactiveReceptionists.length}
-            isAdmin={isAdmin}
-            onGoToAgendaAppointment={(appointmentId) => {
-              setActiveTab("agenda");
-              toggleAppointmentHistory(appointmentId);
-            }}
-            onProfilePhotoChange={setProfilePhotoFile}
-            profileForm={profileForm}
-            remindersScheduledCount={remindersScheduledCount}
-            scopedUpcomingAppointments={scopedUpcomingAppointments}
-            setProfileForm={setProfileForm}
-            toggleMultiDoctorVisibility={toggleMultiDoctorVisibility}
-            unconfirmedUpcomingCount={unconfirmedUpcomingCount}
-            updateCurrentProfile={updateCurrentProfile}
-            uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
-          />
-        ) : null}
-
-        {gestionSubtab === "mensajes" ? (
-          <GestionMessagesSection
-            communicationTemplates={communicationTemplates}
-            confirmationBodyPlaceholder={DEFAULT_CONFIRMATION_BODY}
-            confirmationTitlePlaceholder={DEFAULT_CONFIRMATION_TITLE}
-            previewConfirmationTemplate={previewConfirmationTemplate}
-            saveConfirmationTemplate={saveConfirmationTemplate}
-            scopedDoctorId={scopedDoctorId}
-            setTemplateForm={setTemplateForm}
-            templateForm={templateForm}
-            templatePreview={templatePreview}
-            toggleTemplate={toggleTemplate}
-          />
-        ) : null}
-
-        {gestionSubtab === "recordatorios" ? (
-          <GestionRemindersSection
-            activateDefault24HourReminder={activateDefault24HourReminder}
-            availableDoctors={data.doctors}
-            doctorNameById={doctorNameById}
-            generalReminderRule={generalReminderRule}
-            isAdmin={isAdmin}
-            reminderRuleForm={reminderRuleForm}
-            reminderRules={reminderRules}
-            scopedDoctorId={scopedDoctorId}
-            scopedUpcomingAppointmentsCount={scopedUpcomingAppointments.length}
-            selectedDoctor={selectedDoctor}
-            setReminderRuleForm={setReminderRuleForm}
-            submitReminderRule={submitReminderRule}
-            toggleReminderRule={toggleReminderRule}
-          />
-        ) : null}
-
-        {gestionSubtab === "correos" && isAdmin ? (
-          <GestionEmailSection
-            clinicSetting={clinicSetting}
-            emailDispatches={emailDispatches}
-            emailTemplateForm={emailTemplateForm}
-            emailTemplatePreview={emailTemplatePreview}
-            emailTemplates={emailTemplates}
-            previewEmailTemplate={previewEmailTemplate}
-            resendEmailDispatch={resendEmailDispatch}
-            saveEmailTemplate={saveEmailTemplate}
-            sendTestEmail={sendTestEmail}
-            setEmailTemplateForm={setEmailTemplateForm}
-            setTestEmailRecipient={setTestEmailRecipient}
-            testEmailRecipient={testEmailRecipient}
-            toggleEmailDelivery={toggleEmailDelivery}
-            toggleEmailProcessSetting={toggleEmailProcessSetting}
-          />
-        ) : null}
-
-        {gestionSubtab === "recepcion" && isAdmin ? (
-          <GestionReceptionSection
-            activeReceptionists={activeReceptionists}
-            activeReceptionistsPager={renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
-            inactiveReceptionists={inactiveReceptionists}
-            inactiveReceptionistsPager={renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
-            onAddReceptionist={() => {
-              resetReceptionistForm();
-              setShowReceptionistModal(true);
-            }}
-            onEditReceptionist={startReceptionistEdit}
-            onSelectReceptionist={setSelectedReceptionistId}
-            paginatedActiveReceptionists={paginatedActiveReceptionists}
-            paginatedInactiveReceptionists={paginatedInactiveReceptionists}
-            selectedReceptionist={selectedReceptionist}
-            toggleReceptionistActive={toggleReceptionistActive}
-          />
-        ) : null}
-      </section>
+      <GestionHub
+        activateDefault24HourReminder={activateDefault24HourReminder}
+        activeDoctorsCount={activeDoctors.length}
+        activeReceptionists={activeReceptionists}
+        activeReceptionistsCount={activeReceptionists.length}
+        activeReceptionistsPager={renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
+        allowMultiDoctorVisibility={allowMultiDoctorVisibility}
+        availableDoctors={data.doctors}
+        cancelledUpcomingCount={cancelledUpcomingCount}
+        clinicSetting={clinicSetting}
+        communicationTemplates={communicationTemplates}
+        confirmationTemplatePreview={templatePreview}
+        confirmedUpcomingCount={confirmedUpcomingCount}
+        currentUserDisplay={currentUserDisplay}
+        currentUserEmail={currentUserEmail}
+        currentUserProfilePhotoUrl={currentUserProfilePhotoUrl}
+        doctorNameById={doctorNameById}
+        emailDispatches={emailDispatches}
+        emailTemplateForm={emailTemplateForm}
+        emailTemplatePreview={emailTemplatePreview}
+        emailTemplates={emailTemplates}
+        generalReminderRule={generalReminderRule}
+        gestionSubtab={gestionSubtab}
+        inactiveReceptionists={inactiveReceptionists}
+        inactiveReceptionistsPager={renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
+        inactiveUsersCount={inactiveDoctors.length + inactiveReceptionists.length}
+        isAdmin={isAdmin}
+        onAddReceptionist={() => {
+          resetReceptionistForm();
+          setShowReceptionistModal(true);
+        }}
+        onEditReceptionist={startReceptionistEdit}
+        onGoToAgendaAppointment={(appointmentId) => {
+          setActiveTab("agenda");
+          toggleAppointmentHistory(appointmentId);
+        }}
+        onGestionSubtabChange={setGestionSubtab}
+        onProfilePhotoChange={setProfilePhotoFile}
+        onSelectReceptionist={setSelectedReceptionistId}
+        paginatedActiveReceptionists={paginatedActiveReceptionists}
+        paginatedInactiveReceptionists={paginatedInactiveReceptionists}
+        previewConfirmationTemplate={previewConfirmationTemplate}
+        previewEmailTemplate={previewEmailTemplate}
+        profileForm={profileForm}
+        reminderRuleForm={reminderRuleForm}
+        reminderRules={reminderRules}
+        remindersScheduledCount={remindersScheduledCount}
+        resendEmailDispatch={resendEmailDispatch}
+        saveConfirmationTemplate={saveConfirmationTemplate}
+        saveEmailTemplate={saveEmailTemplate}
+        scopedDoctorId={scopedDoctorId}
+        scopedUpcomingAppointments={scopedUpcomingAppointments}
+        selectedDoctor={selectedDoctor}
+        selectedReceptionist={selectedReceptionist}
+        sendTestEmail={sendTestEmail}
+        setEmailTemplateForm={setEmailTemplateForm}
+        setProfileForm={setProfileForm}
+        setReminderRuleForm={setReminderRuleForm}
+        setTemplateForm={setTemplateForm}
+        setTestEmailRecipient={setTestEmailRecipient}
+        submitReminderRule={submitReminderRule}
+        templateForm={templateForm}
+        testEmailRecipient={testEmailRecipient}
+        toggleEmailDelivery={toggleEmailDelivery}
+        toggleEmailProcessSetting={toggleEmailProcessSetting}
+        toggleMultiDoctorVisibility={toggleMultiDoctorVisibility}
+        toggleReceptionistActive={toggleReceptionistActive}
+        toggleReminderRule={toggleReminderRule}
+        toggleTemplate={toggleTemplate}
+        unconfirmedUpcomingCount={unconfirmedUpcomingCount}
+        updateCurrentProfile={updateCurrentProfile}
+        uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
+      />
     );
   };
 
