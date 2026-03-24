@@ -17,6 +17,7 @@ import { DispatchStatusModal } from "@/features/module1/components/dispatch-stat
 import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
 import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
+import { ConsoleContentRouter } from "@/features/module1/components/console-content-router";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersSection } from "@/features/module1/components/encounters-section";
 import { GestionHub } from "@/features/module1/components/gestion-hub";
@@ -25,6 +26,7 @@ import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesSection } from "@/features/module1/components/messages-section";
 import { PatientActionModal } from "@/features/module1/components/patient-action-modal";
 import { PatientsSection } from "@/features/module1/components/patients-section";
+import { PagerBar } from "@/features/module1/components/pager-bar";
 import { PendingReviewTab } from "@/features/module1/components/pending-review-tab";
 import { ReceptionistModal } from "@/features/module1/components/receptionist-modal";
 import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
@@ -1113,26 +1115,6 @@ export function ClinicalConsole() {
     );
   };
 
-  const renderPager = (page: number, totalItems: number, onChange: (page: number) => void) => {
-    const totalPages = Math.max(1, Math.ceil(totalItems / teamPageSize));
-    if (totalPages <= 1) {
-      return null;
-    }
-    return (
-      <div className="pagination-bar">
-        <button type="button" className="secondary-button" onClick={() => onChange(page - 1)} disabled={page <= 1}>
-          Anterior
-        </button>
-        <span>
-          Página {page} de {totalPages}
-        </span>
-        <button type="button" className="secondary-button" onClick={() => onChange(page + 1)} disabled={page >= totalPages}>
-          Siguiente
-        </button>
-      </div>
-    );
-  };
-
   const renderDoctoresTab = () => {
     if (!isAdmin) {
       return renderAgendaTab();
@@ -1141,7 +1123,7 @@ export function ClinicalConsole() {
     return (
       <DoctorsSection
         activeDoctors={activeDoctors}
-        activePager={renderPager(activeDoctorPage, filteredActiveDoctors.length, setActiveDoctorPage)}
+        activePager={<PagerBar onChange={setActiveDoctorPage} page={activeDoctorPage} pageSize={teamPageSize} totalItems={filteredActiveDoctors.length} />}
         addDoctorClinic={addDoctorClinic}
         doctorAdminForm={doctorAdminForm}
         doctorDirectorySearch={doctorDirectorySearch}
@@ -1150,7 +1132,7 @@ export function ClinicalConsole() {
         filteredActiveDoctorsCount={filteredActiveDoctors.length}
         filteredInactiveDoctorsCount={filteredInactiveDoctors.length}
         inactiveDoctors={inactiveDoctors}
-        inactivePager={renderPager(inactiveDoctorPage, filteredInactiveDoctors.length, setInactiveDoctorPage)}
+        inactivePager={<PagerBar onChange={setInactiveDoctorPage} page={inactiveDoctorPage} pageSize={teamPageSize} totalItems={filteredInactiveDoctors.length} />}
         isAdmin={isAdmin}
         onDoctorDirectorySearchChange={updateDoctorDirectorySearch}
         paginatedActiveDoctors={paginatedActiveDoctors}
@@ -1174,7 +1156,7 @@ export function ClinicalConsole() {
         activeDoctorsCount={activeDoctors.length}
         activeReceptionists={activeReceptionists}
         activeReceptionistsCount={activeReceptionists.length}
-        activeReceptionistsPager={renderPager(activeReceptionistPage, activeReceptionists.length, setActiveReceptionistPage)}
+        activeReceptionistsPager={<PagerBar onChange={setActiveReceptionistPage} page={activeReceptionistPage} pageSize={teamPageSize} totalItems={activeReceptionists.length} />}
         allowMultiDoctorVisibility={allowMultiDoctorVisibility}
         availableDoctors={data.doctors}
         cancelledUpcomingCount={cancelledUpcomingCount}
@@ -1193,7 +1175,7 @@ export function ClinicalConsole() {
         generalReminderRule={generalReminderRule}
         gestionSubtab={gestionSubtab}
         inactiveReceptionists={inactiveReceptionists}
-        inactiveReceptionistsPager={renderPager(inactiveReceptionistPage, inactiveReceptionists.length, setInactiveReceptionistPage)}
+        inactiveReceptionistsPager={<PagerBar onChange={setInactiveReceptionistPage} page={inactiveReceptionistPage} pageSize={teamPageSize} totalItems={inactiveReceptionists.length} />}
         inactiveUsersCount={inactiveDoctors.length + inactiveReceptionists.length}
         isAdmin={isAdmin}
         onAddReceptionist={() => {
@@ -1243,28 +1225,6 @@ export function ClinicalConsole() {
         uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
       />
     );
-  };
-
-  const renderActiveTab = () => {
-    if (activeTab === "agenda") {
-      return renderAgendaTab();
-    }
-    if (activeTab === "doctores") {
-      return isAdmin ? renderDoctoresTab() : renderAgendaTab();
-    }
-    if (activeTab === "pacientes") {
-      return renderPacientesTab();
-    }
-    if (activeTab === "consultas") {
-      return renderConsultasTab();
-    }
-    if (activeTab === "mensajes") {
-      return renderMensajesTab();
-    }
-    if (activeTab === "pendientes") {
-      return renderPendientesTab();
-    }
-    return canViewGestion ? renderGestionTab() : renderAgendaTab();
   };
 
   return (
@@ -1319,7 +1279,16 @@ export function ClinicalConsole() {
               />
             ) : null}
 
-            {renderActiveTab()}
+            <ConsoleContentRouter
+              activeTab={activeTab}
+              agendaContent={renderAgendaTab}
+              doctorsContent={isAdmin ? renderDoctoresTab : renderAgendaTab}
+              encountersContent={renderConsultasTab}
+              gestionContent={canViewGestion ? renderGestionTab : renderAgendaTab}
+              messagesContent={renderMensajesTab}
+              patientsContent={renderPacientesTab}
+              pendingContent={renderPendientesTab}
+            />
           </div>
           <PatientActionModal
             activeSectionAction={activeSectionAction}
