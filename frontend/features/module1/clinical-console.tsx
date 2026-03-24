@@ -36,6 +36,7 @@ import { useConsoleContextSync } from "@/features/module1/hooks/use-console-cont
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
+import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
 import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
 import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
 import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
@@ -331,94 +332,6 @@ export function ClinicalConsole() {
       loadData();
     }
   }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    async function loadSummary() {
-      if (!selectedPatientId) {
-        setSelectedSummary(null);
-        return;
-      }
-
-      try {
-        const summaryPath =
-          scopedDoctorId !== null
-            ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
-            : `/api/patients/${selectedPatientId}/summary`;
-        const summary = await apiGet<PatientSummary>(summaryPath);
-        setSelectedSummary(summary);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "No se pudo cargar el resumen del paciente.";
-        if (errorMessage.includes("Patient not found")) {
-          setSelectedSummary(null);
-          setSelectedPatientDispatches([]);
-          return;
-        }
-        setMessage(errorMessage);
-      }
-    }
-
-    loadSummary();
-  }, [isAuthenticated, selectedPatientId, doctorFilter, currentRoles]);
-
-  useEffect(() => {
-    if (!selectedPatientId) {
-      return;
-    }
-    const patientStillVisible = data.patients.some((patient) => String(patient.id) === selectedPatientId);
-    if (patientStillVisible) {
-      return;
-    }
-    setSelectedPatientId("");
-    setSelectedSummary(null);
-    setSelectedPatientDispatches([]);
-  }, [data.patients, selectedPatientId]);
-
-  useEffect(() => {
-    if (!selectedSummary) {
-      setPatientEditForm(createPatientEditForm());
-      return;
-    }
-
-    setPatientEditForm({
-      first_name: selectedSummary.patient.first_name ?? "",
-      last_name: selectedSummary.patient.last_name ?? "",
-      primary_phone: selectedSummary.patient.primary_phone ?? "",
-      national_id: selectedSummary.patient.national_id ?? "",
-      tax_id: selectedSummary.patient.tax_id ?? "",
-      email: selectedSummary.patient.email ?? "",
-      address: selectedSummary.patient.address ?? "",
-      notes: selectedSummary.patient.notes ?? "",
-      is_active: selectedSummary.patient.is_active,
-    });
-  }, [selectedSummary]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-    if (!selectedPatientId || !canViewPatientTimeline) {
-      setSelectedPatientDispatches([]);
-      return;
-    }
-
-    async function loadPatientDispatches() {
-      try {
-        const dispatches = await apiGet<CommunicationDispatch[]>(
-          `/api/communication-dispatches?patient_id=${selectedPatientId}&limit=12`,
-        );
-        setSelectedPatientDispatches(dispatches);
-      } catch (error) {
-        setSelectedPatientDispatches([]);
-        setMessage(error instanceof Error ? error.message : "No se pudo cargar el historial de mensajes.");
-      }
-    }
-
-    loadPatientDispatches();
-  }, [isAuthenticated, selectedPatientId, canViewPatientTimeline]);
   async function toggleEmailDelivery(enabled: boolean) {
     setMessage("");
     try {
@@ -504,13 +417,7 @@ export function ClinicalConsole() {
       });
       await loadData();
       if (selectedPatientId) {
-        setSelectedSummary(
-          await apiGet<PatientSummary>(
-            scopedDoctorId !== null
-              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
-              : `/api/patients/${selectedPatientId}/summary`,
-          ),
-        );
+        await refreshSelectedSummary();
       }
       setMessage(`Consulta ${encounterId} cerrada.`);
     } catch (error) {
@@ -541,13 +448,7 @@ export function ClinicalConsole() {
       setAttachmentFile(null);
       setAttachmentEncounterId("");
       if (selectedPatientId) {
-        setSelectedSummary(
-          await apiGet<PatientSummary>(
-            scopedDoctorId !== null
-              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
-              : `/api/patients/${selectedPatientId}/summary`,
-          ),
-        );
+        await refreshSelectedSummary();
       }
       setMessage("Documento adjuntado.");
     } catch (error) {
@@ -894,6 +795,20 @@ export function ClinicalConsole() {
     setTemplateDoctorId: (doctorId) => setTemplateForm((current) => ({ ...current, doctor_id: doctorId })),
     templateFormBody: templateForm.body,
     templateFormDoctorId: templateForm.doctor_id,
+  });
+
+  const { refreshSelectedSummary } = usePatientContext({
+    canViewPatientTimeline,
+    dataPatients: data.patients,
+    isAuthenticated,
+    scopedDoctorId,
+    selectedPatientId,
+    selectedSummary,
+    setMessage,
+    setPatientEditForm,
+    setSelectedPatientDispatches,
+    setSelectedPatientId,
+    setSelectedSummary,
   });
 
   const {
