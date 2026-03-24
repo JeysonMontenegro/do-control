@@ -582,6 +582,16 @@ export function ClinicalConsole() {
         />
       ) : (
         <ConsoleAuthShell
+          contextBarProps={{
+            appointmentFilter,
+            currentUserDisplay,
+            globalSearch: topbarSearch,
+            onClearAgendaFilter: () => setAppointmentFilter("all"),
+            onClearPatientFocus: () => setSelectedPatientId(""),
+            onClearSearch: () => setTopbarSearch(""),
+            selectedDoctor,
+            selectedSummary,
+          }}
           loading={loading}
           mainContent={
             <ConsoleMainContent

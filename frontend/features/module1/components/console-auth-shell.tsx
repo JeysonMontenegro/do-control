@@ -2,11 +2,13 @@
 
 import type { ComponentProps, ReactNode } from "react";
 
+import { ConsoleContextBar } from "@/features/module1/components/console-context-bar";
 import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
 import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
 
 type ConsoleAuthShellProps = {
+  contextBarProps: ComponentProps<typeof ConsoleContextBar>;
   loading: boolean;
   mainContent: ReactNode;
   message: string;
@@ -18,6 +20,7 @@ type ConsoleAuthShellProps = {
 };
 
 export function ConsoleAuthShell({
+  contextBarProps,
   loading,
   mainContent,
   message,
@@ -33,6 +36,7 @@ export function ConsoleAuthShell({
 
       <div className="app-content">
         <ConsoleTopbar {...topbarProps} />
+        <ConsoleContextBar {...contextBarProps} />
 
         {message ? <p className={`message-box message-box-${messageTone}`}>{message}</p> : null}
         {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}
