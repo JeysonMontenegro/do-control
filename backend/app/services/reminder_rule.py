@@ -24,7 +24,11 @@ class ReminderRuleService:
                 return set()
             return {current_user.doctor_profile.id}
         if "receptionist" in roles:
-            return {assignment.doctor_id for assignment in current_user.receptionist_assignments}
+            return {
+                assignment.doctor_id
+                for assignment in current_user.doctor_staff_assignments
+                if assignment.is_active and assignment.assignment_type == "receptionist"
+            }
         return set()
 
     def list_rules(self, *, current_user: User) -> list[ReminderRule]:
@@ -38,7 +42,7 @@ class ReminderRuleService:
         if payload.doctor_id is not None and self.doctor_repository.get(payload.doctor_id) is None:
             raise NotFoundError("Doctor not found.")
 
-        rule = self.repository.create(ReminderRule(**payload.model_dump()))
+        rule = self.repository.create(ReminderRule(**payload.model_dump(), owner_doctor_id=payload.doctor_id))
         create_audit_log(
             self.db,
             action="create",

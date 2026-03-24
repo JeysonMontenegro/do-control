@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -9,6 +9,10 @@ from app.models.base import TimestampMixin
 
 class AppointmentReviewItem(TimestampMixin, Base):
     __tablename__ = "appointment_review_items"
+    __table_args__ = (
+        Index("ix_appointment_review_items_doctor_id", "doctor_id"),
+        Index("ix_appointment_review_items_review_status_created", "review_status", "created_at", "id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_name: Mapped[str] = mapped_column(String(255))

@@ -163,6 +163,7 @@ class CommunicationDispatchService:
                 CommunicationDispatch(
                     patient_id=appointment.patient_id,
                     doctor_id=appointment.doctor_id,
+                    owner_doctor_id=appointment.doctor_id,
                     appointment_id=appointment.id,
                     reminder_rule_id=rule.id,
                     template_id=template.id,
@@ -231,6 +232,7 @@ class CommunicationDispatchService:
                 CommunicationDispatch(
                     patient_id=encounter.patient_id,
                     doctor_id=encounter.doctor_id,
+                    owner_doctor_id=encounter.doctor_id,
                     exam_order_id=exam_order.id,
                     reminder_rule_id=rule.id,
                     template_id=template.id,
@@ -302,7 +304,14 @@ class CommunicationDispatchService:
         if payload.template_id is not None and self.template_repository.get(payload.template_id) is None:
             raise NotFoundError("Communication template not found.")
 
-        dispatch = self.repository.create(CommunicationDispatch(**payload.model_dump()))
+        owner_doctor_id = payload.doctor_id
+        if owner_doctor_id is None and payload.appointment_id is not None:
+            appointment = self.appointment_repository.get(payload.appointment_id)
+            owner_doctor_id = appointment.doctor_id if appointment is not None else None
+        if owner_doctor_id is None and payload.reminder_rule_id is not None:
+            reminder_rule = self.reminder_rule_repository.get(payload.reminder_rule_id)
+            owner_doctor_id = reminder_rule.doctor_id if reminder_rule is not None else None
+        dispatch = self.repository.create(CommunicationDispatch(**payload.model_dump(), owner_doctor_id=owner_doctor_id))
         if dispatch.rendered_message is None:
             dispatch.rendered_message = self.render_dispatch_message(dispatch)
         if dispatch.next_attempt_at is None and dispatch.status == "pending":
@@ -344,6 +353,7 @@ class CommunicationDispatchService:
             CommunicationDispatch(
                 patient_id=appointment.patient_id,
                 doctor_id=appointment.doctor_id,
+                owner_doctor_id=appointment.doctor_id,
                 appointment_id=appointment.id,
                 template_id=template.id,
                 channel=template.channel,

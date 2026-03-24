@@ -6,6 +6,7 @@ from app.models.appointment import Appointment, AppointmentHistory
 from app.repositories.appointment import AppointmentRepository
 from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
+from app.repositories.user import UserRepository
 from app.schemas.appointment import AppointmentCreate, AppointmentHistoryRead, AppointmentRead, AppointmentStatusUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import ConflictError, NotFoundError, ValidationError
@@ -17,6 +18,13 @@ class AppointmentService:
         self.repository = AppointmentRepository(db)
         self.doctor_repository = DoctorRepository(db)
         self.patient_repository = PatientRepository(db)
+        self.user_repository = UserRepository(db)
+
+    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
+        if not actor_identifier or "@" not in actor_identifier:
+            return None
+        user = self.user_repository.get_by_email(actor_identifier)
+        return user.id if user is not None else None
 
     def _serialize_appointment(self, appointment: Appointment) -> AppointmentRead:
         patient_name = None
@@ -65,7 +73,11 @@ class AppointmentService:
 
         self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
 
-        appointment = Appointment(**payload.model_dump())
+        appointment = Appointment(
+            **payload.model_dump(),
+            owner_doctor_id=payload.doctor_id,
+            created_by_user_id=self._resolve_actor_user_id(payload.created_by),
+        )
         created = self.repository.create(appointment)
         self.repository.add_history(
             AppointmentHistory(
@@ -74,6 +86,7 @@ class AppointmentService:
                 new_status=created.status,
                 change_reason="appointment created",
                 changed_by=payload.created_by,
+                changed_by_user_id=self._resolve_actor_user_id(payload.created_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )
@@ -152,6 +165,7 @@ class AppointmentService:
                 new_status=appointment.status,
                 change_reason="cancelled from integration flow",
                 changed_by=changed_by,
+                changed_by_user_id=self._resolve_actor_user_id(changed_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )
@@ -208,6 +222,7 @@ class AppointmentService:
                 new_status=payload.status,
                 change_reason=payload.change_reason,
                 changed_by=payload.changed_by,
+                changed_by_user_id=self._resolve_actor_user_id(payload.changed_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )

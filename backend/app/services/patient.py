@@ -31,7 +31,7 @@ class PatientService:
         if scoped_doctor_id is None:
             raise ConflictError("Debe seleccionar el doctor responsable del paciente.")
         data["medical_record_number"] = data.get("medical_record_number") or self.repository.next_medical_record_number()
-        patient = Patient(**data)
+        patient = Patient(**data, owner_doctor_id=scoped_doctor_id)
         duplicate = self.repository.find_duplicate(patient)
         if duplicate is not None:
             raise ConflictError("Patient already exists according to duplicate validation rules.")

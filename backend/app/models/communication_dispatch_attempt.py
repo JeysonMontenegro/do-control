@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -9,6 +9,9 @@ from app.models.base import TimestampMixin
 
 class CommunicationDispatchAttempt(TimestampMixin, Base):
     __tablename__ = "communication_dispatch_attempts"
+    __table_args__ = (
+        Index("ix_communication_dispatch_attempts_dispatch_attempted", "dispatch_id", "attempted_at", "id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     dispatch_id: Mapped[int] = mapped_column(ForeignKey("communication_dispatches.id"))

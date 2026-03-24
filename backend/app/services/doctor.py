@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.doctor import Doctor
 from app.models.doctor_clinic import DoctorClinic
 from app.models.doctor_phone_number import DoctorPhoneNumber
+from app.models.doctor_staff_assignment import DoctorStaffAssignment
 from app.models.user import Role, User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
@@ -66,16 +67,16 @@ class DoctorService:
             phone_numbers=doctor.phone_numbers,
             assigned_receptionists=[
                 AssignedReceptionistRead(
-                    id=assignment.user.id,
-                    first_name=assignment.user.first_name,
-                    last_name=assignment.user.last_name,
-                    email=assignment.user.email,
-                    gender=assignment.user.gender,
-                    phone_number=assignment.user.phone_number,
-                    is_active=assignment.user.is_active,
+                    id=assignment.staff_user.id,
+                    first_name=assignment.staff_user.first_name,
+                    last_name=assignment.staff_user.last_name,
+                    email=assignment.staff_user.email,
+                    gender=assignment.staff_user.gender,
+                    phone_number=assignment.staff_user.primary_phone_number,
+                    is_active=assignment.staff_user.is_active,
                 )
-                for assignment in doctor.receptionist_assignments
-                if assignment.user is not None
+                for assignment in doctor.staff_assignments
+                if assignment.is_active and assignment.assignment_type == "receptionist" and assignment.staff_user is not None
             ],
         )
 
@@ -103,7 +104,6 @@ class DoctorService:
             return {doctor.id for doctor in self.repository.list_for_receptionist_user(current_user.id)}
         return set()
 
-
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
         clinics_payload = data.pop("clinics", [])
@@ -111,6 +111,9 @@ class DoctorService:
         phone_channel_type = data.pop("phone_channel_type", "whatsapp")
         user_email = data.pop("user_email")
         user_password = data.pop("user_password")
+        first_name = data.pop("first_name")
+        last_name = data.pop("last_name")
+        gender = data.pop("gender", None)
 
         if self.user_repository.get_by_email(user_email) is not None:
             raise ValidationError("A user with that email already exists.")
@@ -127,12 +130,18 @@ class DoctorService:
             User(
                 email=user_email,
                 password_hash=hash_password(user_password),
-                first_name=data["first_name"],
-                last_name=data["last_name"],
-                gender=data.get("gender"),
-                phone_number=primary_phone,
+                first_name=first_name,
+                last_name=last_name,
+                gender=gender,
                 is_active=True,
             )
+        )
+        self.user_repository.sync_primary_phone_number(
+            user.id,
+            primary_phone,
+            phone_type="mobile",
+            is_verified=False,
+            can_talk_to_bot=True,
         )
         self.user_repository.add_role(UserRole(user_id=user.id, role_id=doctor_role.id))
 
@@ -153,7 +162,7 @@ class DoctorService:
             action="create",
             entity_type="doctor",
             entity_id=str(doctor.id),
-            after_data={"name": f"{doctor.first_name} {doctor.last_name}"},
+            after_data={"name": f"{user.first_name} {user.last_name}"},
         )
         self.db.commit()
         self.db.refresh(doctor)
@@ -171,6 +180,10 @@ class DoctorService:
         clinics_payload = updates.pop("clinics", None) if "clinics" in updates else None
         primary_phone = updates.pop("primary_phone", None) if "primary_phone" in updates else None
         user_password = updates.pop("user_password", None) if "user_password" in updates else None
+        first_name = updates.pop("first_name", None) if "first_name" in updates else None
+        last_name = updates.pop("last_name", None) if "last_name" in updates else None
+        gender = updates.pop("gender", None) if "gender" in updates else None
+        is_active = updates.pop("is_active", None) if "is_active" in updates else None
 
         for field, value in updates.items():
             setattr(doctor, field, value)
@@ -194,13 +207,22 @@ class DoctorService:
                     channel_type="whatsapp",
                 )
             )
+            self.user_repository.sync_primary_phone_number(
+                doctor.linked_user.id,
+                primary_phone,
+                phone_type="mobile",
+                is_verified=False,
+                can_talk_to_bot=True,
+            )
 
-        doctor.linked_user.first_name = doctor.first_name
-        doctor.linked_user.last_name = doctor.last_name
-        doctor.linked_user.gender = doctor.gender
-        doctor.linked_user.is_active = doctor.is_active
-        if primary_phone is not None:
-            doctor.linked_user.phone_number = primary_phone
+        if first_name is not None:
+            doctor.linked_user.first_name = first_name
+        if last_name is not None:
+            doctor.linked_user.last_name = last_name
+        if gender is not None:
+            doctor.linked_user.gender = gender
+        if is_active is not None:
+            doctor.linked_user.is_active = is_active
         if user_password:
             doctor.linked_user.password_hash = hash_password(user_password)
 

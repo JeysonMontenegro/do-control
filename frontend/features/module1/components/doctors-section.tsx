@@ -1,29 +1,9 @@
 "use client";
 
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
+import type { DoctorAdminForm, DoctorClinicForm } from "@/features/module1/clinical-console-defaults";
 import { formatDate } from "@/features/module1/console-utils";
 import type { Doctor } from "@/features/module1/types";
-
-type DoctorClinicForm = {
-  clinic_name: string;
-  address: string;
-  phone_number: string;
-  notes: string;
-  is_primary: boolean;
-};
-
-export type DoctorAdminForm = {
-  first_name: string;
-  last_name: string;
-  gender: string;
-  date_of_birth: string;
-  specialty: string;
-  license_number: string;
-  primary_phone: string;
-  user_email: string;
-  user_password: string;
-  clinics: DoctorClinicForm[];
-};
 
 type DoctorRosterTab = "activos" | "inactivos";
 

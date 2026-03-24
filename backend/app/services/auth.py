@@ -32,7 +32,7 @@ class AuthService:
             last_name=user.last_name,
             display_name=user.display_name,
             gender=user.gender,
-            phone_number=user.phone_number,
+            phone_number=user.primary_phone_number,
             profile_photo_url=self._profile_photo_url(user.profile_photo_storage_key),
             roles=roles,
         )
@@ -41,9 +41,6 @@ class AuthService:
         doctor = user.doctor_profile
         if doctor is None:
             return
-        doctor.first_name = user.first_name
-        doctor.last_name = user.last_name
-        doctor.gender = user.gender
         for phone in doctor.phone_numbers:
             phone.is_primary = False
             if phone_number is None:
@@ -83,7 +80,7 @@ class AuthService:
             last_name=user.last_name,
             display_name=user.display_name,
             gender=user.gender,
-            phone_number=user.phone_number,
+            phone_number=user.primary_phone_number,
             profile_photo_url=self._profile_photo_url(user.profile_photo_storage_key),
             roles=roles,
         )
@@ -128,9 +125,15 @@ class AuthService:
                     raise ValidationError("That phone number is already in use.")
                 if self.doctor_repository.phone_number_in_use(normalized_phone, exclude_linked_user_id=user.id):
                     raise ValidationError("That phone number is already in use.")
-            user.phone_number = normalized_phone
+            self.repository.sync_primary_phone_number(
+                user.id,
+                normalized_phone,
+                phone_type="mobile",
+                is_verified=False,
+                can_talk_to_bot=bool(normalized_phone),
+            )
 
-        self._sync_doctor_profile_phone(user, user.phone_number)
+        self._sync_doctor_profile_phone(user, user.primary_phone_number)
         self.repository.db.commit()
         self.repository.db.refresh(user)
         return self._serialize_profile(user)

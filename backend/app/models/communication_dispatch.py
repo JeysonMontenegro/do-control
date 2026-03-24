@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -9,10 +9,20 @@ from app.models.base import TimestampMixin
 
 class CommunicationDispatch(TimestampMixin, Base):
     __tablename__ = "communication_dispatches"
+    __table_args__ = (
+        Index("ix_communication_dispatches_patient_id", "patient_id"),
+        Index("ix_communication_dispatches_doctor_id", "doctor_id"),
+        Index("ix_communication_dispatches_status_next_attempt", "status", "next_attempt_at"),
+        Index("ix_communication_dispatches_appointment_rule", "appointment_id", "reminder_rule_id"),
+        Index("ix_communication_dispatches_exam_order_rule", "exam_order_id", "reminder_rule_id"),
+        CheckConstraint("status IN ('pending', 'sent', 'failed', 'cancelled')", name="ck_communication_dispatches_status"),
+        CheckConstraint("channel IN ('whatsapp')", name="ck_communication_dispatches_channel"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
     appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True)
     exam_order_id: Mapped[int | None] = mapped_column(ForeignKey("exam_orders.id"), nullable=True)
     reminder_rule_id: Mapped[int | None] = mapped_column(ForeignKey("reminder_rules.id"), nullable=True)

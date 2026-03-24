@@ -9,6 +9,7 @@ from app.models.file_attachment import FileAttachment
 from app.repositories.encounter import EncounterRepository
 from app.repositories.file_attachment import FileAttachmentRepository
 from app.repositories.patient import PatientRepository
+from app.repositories.user import UserRepository
 from app.schemas.file_attachment import FileAttachmentDownloadRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
@@ -22,6 +23,13 @@ class FileAttachmentService:
         self.patient_repository = PatientRepository(db)
         self.encounter_repository = EncounterRepository(db)
         self.storage = StorageService()
+        self.user_repository = UserRepository(db)
+
+    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
+        if not actor_identifier or "@" not in actor_identifier:
+            return None
+        user = self.user_repository.get_by_email(actor_identifier)
+        return user.id if user is not None else None
 
     def upload_attachment(
         self,
@@ -38,12 +46,14 @@ class FileAttachmentService:
         if patient is None:
             raise NotFoundError("Patient not found.")
 
+        owner_doctor_id = patient.owner_doctor_id
         if encounter_id is not None:
             encounter = self.encounter_repository.get(encounter_id)
             if encounter is None:
                 raise NotFoundError("Encounter not found.")
             if encounter.patient_id != patient_id:
                 raise ValidationError("Encounter does not belong to the selected patient.")
+            owner_doctor_id = encounter.owner_doctor_id or encounter.doctor_id or owner_doctor_id
 
         suffix = Path(file_name).suffix
         key = f"patients/{patient_id}/{uuid4()}{suffix}"
@@ -53,6 +63,7 @@ class FileAttachmentService:
         attachment = self.repository.create(
             FileAttachment(
                 patient_id=patient_id,
+                owner_doctor_id=owner_doctor_id,
                 encounter_id=encounter_id,
                 file_type=file_type,
                 file_name=file_name,
@@ -60,6 +71,7 @@ class FileAttachmentService:
                 content_type=content_type,
                 file_size=len(content),
                 uploaded_by=uploaded_by,
+                uploaded_by_user_id=self._resolve_actor_user_id(uploaded_by),
             )
         )
         create_audit_log(

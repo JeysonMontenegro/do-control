@@ -15,7 +15,7 @@ import {
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
-import { DoctorsSection, type DoctorAdminForm } from "@/features/module1/components/doctors-section";
+import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersSection } from "@/features/module1/components/encounters-section";
 import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
@@ -31,7 +31,11 @@ import { PendingReviewSection } from "@/features/module1/components/pending-revi
 import { ReceptionistModal } from "@/features/module1/components/receptionist-modal";
 import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
+import { useAppointmentAdmin } from "@/features/module1/hooks/use-appointment-admin";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
+import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
+import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
+import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
 import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
 import {
   CONFIRMATION_TEMPLATE_KEY,
@@ -44,7 +48,6 @@ import {
 } from "@/features/module1/console-config";
 import {
   addDays,
-  appointmentStatusLabel,
   appointmentTypeLabel,
   calendarRangeLabel,
   communicationKindLabel,
@@ -54,11 +57,9 @@ import {
   combineDisplayDateTimeToIso,
   formatDate,
   formatDateTime,
-  formatEditableDate,
   hasAnyRole,
   lastDispatchStatus,
   nowPlusMinutes,
-  parseDisplayDate,
   reminderLeadTimeLabel,
   reviewReasonLabel,
   splitDateTimeLocal,
@@ -67,12 +68,10 @@ import {
   startOfWeek,
 } from "@/features/module1/console-utils";
 import { getMessageTone } from "@/features/module1/message-utils";
-import { DEFAULT_COUNTRY_DIAL_CODE, normalizePhoneWithDefaultCountry } from "@/features/module1/phone-utils";
 import { getFirstExamOrderId } from "@/features/module1/review-utils";
 import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   Appointment,
-  AppointmentHistory,
   AppointmentReviewItem,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
@@ -111,14 +110,6 @@ type LoadState = {
 type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
 type MessagesSubtab = "paciente" | "citas" | "operacion";
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
-type DoctorClinicForm = {
-  clinic_name: string;
-  address: string;
-  phone_number: string;
-  notes: string;
-  is_primary: boolean;
-};
-type DoctorRosterTab = "activos" | "inactivos";
 
 const initialLoadState: LoadState = {
   doctors: [],
@@ -126,27 +117,6 @@ const initialLoadState: LoadState = {
   appointments: [],
   encounters: [],
 };
-
-const emptyDoctorClinic = (): DoctorClinicForm => ({
-  clinic_name: "",
-  address: "",
-  phone_number: "",
-  notes: "",
-  is_primary: false,
-});
-
-const createDoctorAdminForm = (): DoctorAdminForm => ({
-  first_name: "",
-  last_name: "",
-  gender: "male",
-  date_of_birth: "",
-  specialty: "",
-  license_number: "",
-  primary_phone: DEFAULT_COUNTRY_DIAL_CODE,
-  user_email: "",
-  user_password: "",
-  clinics: [emptyDoctorClinic()],
-});
 
 export function ClinicalConsole() {
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
@@ -156,9 +126,6 @@ export function ClinicalConsole() {
   const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
   const [messagesSubtab, setMessagesSubtab] = useState<MessagesSubtab>("paciente");
-  const [doctorRosterTab, setDoctorRosterTab] = useState<DoctorRosterTab>("activos");
-  const [doctorDirectorySearch, setDoctorDirectorySearch] = useState("");
-  const [activeSectionAction, setActiveSectionAction] = useState<"patient_create" | "patient_edit" | null>(null);
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
   const [doctorFilter, setDoctorFilter] = useState("");
@@ -179,12 +146,8 @@ export function ClinicalConsole() {
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
-  const [appointmentHistory, setAppointmentHistory] = useState<Record<number, AppointmentHistory[]>>({});
-  const [appointmentDispatches, setAppointmentDispatches] = useState<Record<number, CommunicationDispatch[]>>({});
-  const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
   const [expandedEncounterId, setExpandedEncounterId] = useState<number | null>(null);
   const [appointmentReviewItems, setAppointmentReviewItems] = useState<AppointmentReviewItem[]>([]);
-  const [appointmentFilter, setAppointmentFilter] = useState<"all" | "ws" | "confirmed" | "pending_confirmation" | "needs_attention">("all");
   const [dispatchFilters, setDispatchFilters] = useState({
     status_filter: "",
     channel: "",
@@ -194,20 +157,6 @@ export function ClinicalConsole() {
   const [templateForm, setTemplateForm] = useState(createTemplateForm);
   const [emailTemplateForm, setEmailTemplateForm] = useState(createEmailTemplateForm);
   const [testEmailRecipient, setTestEmailRecipient] = useState("");
-  const [patientForm, setPatientForm] = useState(() => createPatientForm());
-  const [patientEditForm, setPatientEditForm] = useState(createPatientEditForm);
-  const [appointmentForm, setAppointmentForm] = useState({
-    patient_id: "",
-    doctor_id: "",
-    scheduled_start_date: splitDateTimeLocal(nowPlusMinutes(60)).date,
-    scheduled_start_time: splitDateTimeLocal(nowPlusMinutes(60)).time,
-    scheduled_end_date: splitDateTimeLocal(nowPlusMinutes(90)).date,
-    scheduled_end_time: splitDateTimeLocal(nowPlusMinutes(90)).time,
-    appointment_type: "follow_up",
-    reason: "",
-    source: "receptionist",
-    created_by: "frontend-demo",
-  });
   const [encounterForm, setEncounterForm] = useState({
     patient_id: "",
     doctor_id: "",
@@ -227,15 +176,6 @@ export function ClinicalConsole() {
   const [examOrders, setExamOrders] = useState<ExamOrder[]>([
     { exam_name: "", exam_category: null, instructions: null },
   ]);
-  const [doctorAdminForm, setDoctorAdminForm] = useState<DoctorAdminForm>(createDoctorAdminForm());
-  const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
-  const [activeDoctorPage, setActiveDoctorPage] = useState(1);
-  const [inactiveDoctorPage, setInactiveDoctorPage] = useState(1);
-  const [receptionistForm, setReceptionistForm] = useState(createReceptionistForm);
-  const [editingReceptionistId, setEditingReceptionistId] = useState<number | null>(null);
-  const [showReceptionistModal, setShowReceptionistModal] = useState(false);
-  const [selectedReceptionistId, setSelectedReceptionistId] = useState<number | null>(null);
-  const [receptionistDoctorSearch, setReceptionistDoctorSearch] = useState("");
   const [activeReceptionistPage, setActiveReceptionistPage] = useState(1);
   const [inactiveReceptionistPage, setInactiveReceptionistPage] = useState(1);
 
@@ -478,26 +418,6 @@ export function ClinicalConsole() {
 
     loadPatientDispatches();
   }, [isAuthenticated, selectedPatientId, canViewPatientTimeline]);
-
-
-  async function submitPatient(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await apiPost<Patient>("/api/patients", {
-        ...patientForm,
-        national_id: patientForm.national_id || null,
-        doctor_id: patientForm.doctor_id ? Number(patientForm.doctor_id) : scopedDoctorId,
-      });
-      setPatientForm(createPatientForm(hasSingleDoctorContext ? String(availableDoctors[0]?.id ?? "") : ""));
-      setActiveSectionAction(null);
-      await loadData();
-      setMessage("Paciente creado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo crear el paciente.");
-    }
-  }
-
   async function toggleEmailDelivery(enabled: boolean) {
     setMessage("");
     try {
@@ -521,62 +441,6 @@ export function ClinicalConsole() {
       setMessage(enabled ? "Proceso de correo habilitado." : "Proceso de correo deshabilitado.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo actualizar el proceso de correo.");
-    }
-  }
-
-  async function submitPatientUpdate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedPatientId) {
-      setMessage("Selecciona un paciente para editar.");
-      return;
-    }
-
-    setMessage("");
-    try {
-      const updatePath =
-        scopedDoctorId !== null ? `/api/patients/${selectedPatientId}?doctor_id=${scopedDoctorId}` : `/api/patients/${selectedPatientId}`;
-      await apiPatch<Patient>(updatePath, {
-        first_name: patientEditForm.first_name,
-        last_name: patientEditForm.last_name,
-        primary_phone: patientEditForm.primary_phone,
-        national_id: patientEditForm.national_id || null,
-        tax_id: patientEditForm.tax_id || null,
-        email: patientEditForm.email || null,
-        address: patientEditForm.address || null,
-        notes: patientEditForm.notes || null,
-        is_active: patientEditForm.is_active,
-      });
-      await loadData();
-      setSelectedSummary(
-        await apiGet<PatientSummary>(
-          scopedDoctorId !== null
-            ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
-            : `/api/patients/${selectedPatientId}/summary`,
-        ),
-      );
-      setActiveSectionAction(null);
-      setMessage("Paciente actualizado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el paciente.");
-    }
-  }
-
-  async function submitAppointment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await apiPost<Appointment>("/api/appointments", {
-        ...appointmentForm,
-        patient_id: Number(appointmentForm.patient_id),
-        doctor_id: Number(appointmentForm.doctor_id),
-        scheduled_start: combineDisplayDateTimeToIso(appointmentForm.scheduled_start_date, appointmentForm.scheduled_start_time),
-        scheduled_end: combineDisplayDateTimeToIso(appointmentForm.scheduled_end_date, appointmentForm.scheduled_end_time),
-      });
-      await loadData();
-      setSelectedPatientId(appointmentForm.patient_id);
-      setMessage("Cita creada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo crear la cita.");
     }
   }
 
@@ -628,58 +492,6 @@ export function ClinicalConsole() {
       setMessage("Consulta registrada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo registrar la consulta.");
-    }
-  }
-
-  async function updateAppointmentStatus(appointmentId: number, status: string) {
-    setMessage("");
-    try {
-      await apiPatch<Appointment>(`/api/appointments/${appointmentId}/status`, {
-        status,
-        changed_by: "frontend-demo",
-        change_reason: `Cambio manual a ${status}`,
-      });
-      await loadData();
-      if (selectedPatientId) {
-        setSelectedSummary(
-          await apiGet<PatientSummary>(
-            scopedDoctorId !== null
-              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
-              : `/api/patients/${selectedPatientId}/summary`,
-          ),
-        );
-      }
-      setMessage(`Cita ${appointmentId} actualizada a ${appointmentStatusLabel(status)}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la cita.");
-    }
-  }
-
-  async function toggleAppointmentHistory(appointmentId: number) {
-    if (expandedAppointmentId === appointmentId) {
-      setExpandedAppointmentId(null);
-      return;
-    }
-
-    setMessage("");
-    try {
-      const [history, dispatches] = await Promise.all([
-        appointmentHistory[appointmentId]
-          ? Promise.resolve(appointmentHistory[appointmentId])
-          : apiGet<AppointmentHistory[]>(`/api/appointments/${appointmentId}/history`),
-        appointmentDispatches[appointmentId]
-          ? Promise.resolve(appointmentDispatches[appointmentId])
-          : apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?appointment_id=${appointmentId}&limit=20`),
-      ]);
-      if (!appointmentHistory[appointmentId]) {
-        setAppointmentHistory((current) => ({ ...current, [appointmentId]: history }));
-      }
-      if (!appointmentDispatches[appointmentId]) {
-        setAppointmentDispatches((current) => ({ ...current, [appointmentId]: dispatches }));
-      }
-      setExpandedAppointmentId(appointmentId);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo cargar el detalle de la cita.");
     }
   }
 
@@ -836,197 +648,6 @@ export function ClinicalConsole() {
     }
   }
 
-  async function submitDoctorAdmin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      const payload = {
-        first_name: doctorAdminForm.first_name,
-        last_name: doctorAdminForm.last_name,
-        gender: doctorAdminForm.gender,
-        date_of_birth: parseDisplayDate(doctorAdminForm.date_of_birth) || null,
-        specialty: doctorAdminForm.specialty || null,
-        license_number: doctorAdminForm.license_number || null,
-        primary_phone: doctorAdminForm.primary_phone.trim() ? normalizePhoneWithDefaultCountry(doctorAdminForm.primary_phone) : null,
-        clinics: doctorAdminForm.clinics
-          .filter((clinic) => clinic.clinic_name.trim())
-          .map((clinic, index) => ({
-            clinic_name: clinic.clinic_name.trim(),
-            address: clinic.address.trim() || null,
-            phone_number: clinic.phone_number.trim() || null,
-            notes: clinic.notes.trim() || null,
-            is_primary: clinic.is_primary || index === 0,
-          })),
-        ...(editingDoctorId
-          ? { user_password: doctorAdminForm.user_password || undefined }
-          : { user_email: doctorAdminForm.user_email || null, user_password: doctorAdminForm.user_password || null }),
-      };
-      if (editingDoctorId) {
-        await apiPatch<Doctor>(`/api/doctors/${editingDoctorId}`, payload);
-      } else {
-        await apiPost<Doctor>("/api/doctors", payload);
-      }
-      resetDoctorAdminForm();
-      await loadData();
-      setMessage(editingDoctorId ? "Doctor actualizado." : "Doctor registrado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo guardar el doctor.");
-    }
-  }
-
-  async function submitReceptionist(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      const payload = {
-        first_name: receptionistForm.first_name,
-        last_name: receptionistForm.last_name,
-        gender: receptionistForm.gender,
-        phone_number: receptionistForm.phone_number || null,
-        email: receptionistForm.email,
-        ...(editingReceptionistId ? { password: receptionistForm.password || undefined } : { password: receptionistForm.password }),
-        doctor_ids: receptionistForm.doctor_ids,
-      };
-      if (editingReceptionistId) {
-        await apiPatch<Receptionist>(`/api/receptionists/${editingReceptionistId}`, payload);
-      } else {
-      await apiPost<Receptionist>("/api/receptionists", payload);
-      }
-      setSelectedReceptionistId(editingReceptionistId);
-      resetReceptionistForm();
-      await loadData();
-      setMessage(editingReceptionistId ? "Recepcionista actualizada." : "Recepcionista registrada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo guardar la recepcionista.");
-    }
-  }
-
-  async function toggleDoctorActive(doctor: Doctor) {
-    setMessage("");
-    try {
-      await apiPatch<Doctor>(`/api/doctors/${doctor.id}`, { is_active: !doctor.is_active });
-      await loadData();
-      setMessage(`Doctor ${doctor.is_active ? "desactivado" : "activado"}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el doctor.");
-    }
-  }
-
-  async function toggleReceptionistActive(receptionist: Receptionist) {
-    setMessage("");
-    try {
-      await apiPatch<Receptionist>(`/api/receptionists/${receptionist.id}`, { is_active: !receptionist.is_active });
-      await loadData();
-      setMessage(`Recepcionista ${receptionist.is_active ? "desactivada" : "activada"}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la recepcionista.");
-    }
-  }
-
-  async function toggleMultiDoctorVisibility(enabled: boolean) {
-    setMessage("");
-    try {
-      const updatedSetting = await apiPatch<ClinicSetting>("/api/clinic-settings", {
-        allow_multi_doctor_visibility: enabled,
-      });
-      setClinicSetting(updatedSetting);
-      await loadData();
-      setMessage(enabled ? "La visibilidad de varios doctores fue habilitada." : "La visibilidad de varios doctores fue ocultada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la configuración de clínica.");
-    }
-  }
-
-  function startDoctorEdit(doctor: Doctor) {
-    setEditingDoctorId(doctor.id);
-    setDoctorAdminForm({
-      first_name: doctor.first_name,
-      last_name: doctor.last_name,
-      gender: doctor.gender ?? "other",
-      date_of_birth: formatEditableDate(doctor.date_of_birth ?? null),
-      specialty: doctor.specialty ?? "",
-      license_number: doctor.license_number ?? "",
-      primary_phone: doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? DEFAULT_COUNTRY_DIAL_CODE,
-      user_email: doctor.linked_user_email ?? "",
-      user_password: "",
-      clinics: doctor.clinics?.length
-        ? doctor.clinics.map((clinic) => ({
-            clinic_name: clinic.clinic_name,
-            address: clinic.address ?? "",
-            phone_number: clinic.phone_number ?? "",
-            notes: clinic.notes ?? "",
-            is_primary: clinic.is_primary,
-          }))
-        : [emptyDoctorClinic()],
-    });
-  }
-
-  function resetDoctorAdminForm() {
-    setEditingDoctorId(null);
-    setDoctorAdminForm(createDoctorAdminForm());
-  }
-
-  function updateDoctorClinic(index: number, field: keyof DoctorClinicForm, value: string | boolean) {
-    setDoctorAdminForm((current) => {
-      const clinics = current.clinics.map((clinic, clinicIndex) => {
-        if (clinicIndex !== index) {
-          return clinic;
-        }
-        if (field === "is_primary" && value === true) {
-          return { ...clinic, is_primary: true };
-        }
-        return { ...clinic, [field]: value };
-      });
-      if (field === "is_primary" && value === true) {
-        return {
-          ...current,
-          clinics: clinics.map((clinic, clinicIndex) => ({ ...clinic, is_primary: clinicIndex === index })),
-        };
-      }
-      return { ...current, clinics };
-    });
-  }
-
-  function addDoctorClinic() {
-    setDoctorAdminForm((current) => ({
-      ...current,
-      clinics: [...current.clinics, emptyDoctorClinic()],
-    }));
-  }
-
-  function removeDoctorClinic(index: number) {
-    setDoctorAdminForm((current) => {
-      const nextClinics = current.clinics.filter((_, clinicIndex) => clinicIndex !== index);
-      return {
-        ...current,
-        clinics: nextClinics.length ? nextClinics : [emptyDoctorClinic()],
-      };
-    });
-  }
-
-  function startReceptionistEdit(receptionist: Receptionist) {
-    setSelectedReceptionistId(receptionist.id);
-    setEditingReceptionistId(receptionist.id);
-    setReceptionistForm({
-      ...createReceptionistForm(),
-      first_name: receptionist.first_name,
-      last_name: receptionist.last_name,
-      gender: receptionist.gender ?? "other",
-      phone_number: receptionist.phone_number ?? "",
-      email: receptionist.email,
-      doctor_ids: receptionist.assigned_doctors.map((doctor) => doctor.id),
-    });
-    setReceptionistDoctorSearch("");
-    setShowReceptionistModal(true);
-  }
-
-  function resetReceptionistForm() {
-    setEditingReceptionistId(null);
-    setReceptionistForm(createReceptionistForm());
-    setReceptionistDoctorSearch("");
-    setShowReceptionistModal(false);
-  }
-
   async function toggleReminderRule(rule: ReminderRule) {
     setMessage("");
     try {
@@ -1040,6 +661,141 @@ export function ClinicalConsole() {
     }
   }
 
+  const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
+  const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
+  const teamPageSize = 6;
+  const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
+  const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
+  const currentUserDisplay = useMemo(() => {
+    const fullName = `${currentUserFirstName} ${currentUserLastName}`.trim();
+    const alias = currentUserDisplayName?.trim() || "";
+    const baseName = fullName || alias || currentUserEmail;
+    if (currentRoles.includes("doctor")) {
+      return `${currentUserGender === "female" ? "Dra." : "Dr."} ${baseName}`;
+    }
+    if (currentRoles.includes("receptionist")) {
+      return `Recepción ${baseName}`;
+    }
+    return baseName;
+  }, [currentRoles, currentUserDisplayName, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
+  const {
+    activeDoctorPage,
+    activeDoctors,
+    addDoctorClinic,
+    doctorAdminForm,
+    doctorDirectorySearch,
+    doctorRosterTab,
+    editingDoctorId,
+    filteredActiveDoctors,
+    filteredInactiveDoctors,
+    inactiveDoctorPage,
+    inactiveDoctors,
+    removeDoctorClinic,
+    resetDoctorAdminForm,
+    setActiveDoctorPage,
+    setDoctorAdminForm,
+    setDoctorRosterTab,
+    setInactiveDoctorPage,
+    startDoctorEdit,
+    submitDoctorAdmin,
+    toggleDoctorActive,
+    toggleMultiDoctorVisibility,
+    updateDoctorClinic,
+    updateDoctorDirectorySearch,
+  } = useDoctorAdmin({
+    doctors: data.doctors,
+    loadData,
+    setClinicSetting,
+    setMessage,
+  });
+  const paginatedActiveDoctors = useMemo(
+    () => filteredActiveDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
+    [activeDoctorPage, filteredActiveDoctors, teamPageSize],
+  );
+  const paginatedInactiveDoctors = useMemo(
+    () => filteredInactiveDoctors.slice((inactiveDoctorPage - 1) * teamPageSize, inactiveDoctorPage * teamPageSize),
+    [inactiveDoctorPage, filteredInactiveDoctors, teamPageSize],
+  );
+  const paginatedActiveReceptionists = useMemo(
+    () => activeReceptionists.slice((activeReceptionistPage - 1) * teamPageSize, activeReceptionistPage * teamPageSize),
+    [activeReceptionistPage, activeReceptionists, teamPageSize],
+  );
+  const paginatedInactiveReceptionists = useMemo(
+    () => inactiveReceptionists.slice((inactiveReceptionistPage - 1) * teamPageSize, inactiveReceptionistPage * teamPageSize),
+    [inactiveReceptionistPage, inactiveReceptionists, teamPageSize],
+  );
+  const {
+    editingReceptionistId,
+    filteredDoctorOptions,
+    receptionistDoctorSearch,
+    receptionistForm,
+    resetReceptionistForm,
+    selectedReceptionist,
+    setReceptionistDoctorSearch,
+    setReceptionistForm,
+    setSelectedReceptionistId,
+    setShowReceptionistModal,
+    showReceptionistModal,
+    startReceptionistEdit,
+    submitReceptionist,
+    toggleReceptionistActive,
+  } = useReceptionistAdmin({
+    activeReceptionists,
+    doctors: data.doctors,
+    loadData,
+    receptionists,
+    setMessage,
+  });
+  const scopedDoctorId = useMemo(() => {
+    if (currentRoles.includes("doctor")) {
+      return doctorFilter ? Number(doctorFilter) : activeDoctors[0]?.id ?? null;
+    }
+    return doctorFilter ? Number(doctorFilter) : null;
+  }, [activeDoctors, currentRoles, doctorFilter]);
+  const {
+    appointmentDispatches,
+    appointmentFilter,
+    appointmentForm,
+    appointmentHistory,
+    expandedAppointmentId,
+    setAppointmentDispatches,
+    setAppointmentFilter,
+    setAppointmentForm,
+    setExpandedAppointmentId,
+    submitAppointment,
+    toggleAppointmentHistory,
+    updateAppointmentStatus,
+  } = useAppointmentAdmin({
+    loadData,
+    scopedDoctorId,
+    selectedPatientId,
+    setMessage,
+    setSelectedPatientId,
+    setSelectedSummary,
+  });
+  const focusedAppointment = useMemo(
+    () => data.appointments.find((appointment) => appointment.id === expandedAppointmentId) ?? null,
+    [data.appointments, expandedAppointmentId],
+  );
+  const selectedDoctor = useMemo(
+    () =>
+      activeDoctors.find(
+        (doctor) => String(doctor.id) === doctorFilter || String(doctor.id) === appointmentForm.doctor_id || String(doctor.id) === encounterForm.doctor_id,
+      ) ?? activeDoctors[0] ?? null,
+    [activeDoctors, appointmentForm.doctor_id, doctorFilter, encounterForm.doctor_id],
+  );
+  const availableDoctors = activeDoctors;
+  const hasSingleDoctorContext = availableDoctors.length === 1;
+  const doctorNameById = useMemo(
+    () =>
+      new Map(
+        data.doctors.map((doctor) => [
+          doctor.id,
+          `Dr. ${doctor.first_name} ${doctor.last_name}`.trim(),
+        ]),
+      ),
+    [data.doctors],
+  );
   const reviewQueueByAppointmentId = useMemo(
     () =>
       new Map(
@@ -1049,7 +805,6 @@ export function ClinicalConsole() {
       ),
     [appointmentReviewItems],
   );
-
   const filteredAppointments = useMemo(() => {
     return data.appointments.filter((appointment) => {
       if (doctorFilter && String(appointment.doctor_id) !== doctorFilter) {
@@ -1078,7 +833,6 @@ export function ClinicalConsole() {
       return true;
     });
   }, [appointmentFilter, communicationDispatches, data.appointments, doctorFilter, reviewQueueByAppointmentId]);
-
   const agendaDays = useMemo(() => {
     if (calendarView === "dia") {
       return [startOfDay(calendarDate)];
@@ -1089,7 +843,6 @@ export function ClinicalConsole() {
     }
     return [];
   }, [calendarDate, calendarView]);
-
   const monthDays = useMemo(() => {
     if (calendarView !== "mes") {
       return [];
@@ -1097,7 +850,6 @@ export function ClinicalConsole() {
     const start = startOfMonthGrid(calendarDate);
     return Array.from({ length: 42 }, (_, index) => addDays(start, index));
   }, [calendarDate, calendarView]);
-
   const appointmentsByDayKey = useMemo(() => {
     const map = new Map<string, Appointment[]>();
     for (const appointment of filteredAppointments) {
@@ -1112,105 +864,24 @@ export function ClinicalConsole() {
     return map;
   }, [filteredAppointments]);
 
-  const focusedAppointment = useMemo(
-    () => data.appointments.find((appointment) => appointment.id === expandedAppointmentId) ?? null,
-    [data.appointments, expandedAppointmentId],
-  );
-  const activeDoctors = useMemo(() => data.doctors.filter((doctor) => doctor.is_active), [data.doctors]);
-  const inactiveDoctors = useMemo(() => data.doctors.filter((doctor) => !doctor.is_active), [data.doctors]);
-  const normalizedDoctorDirectorySearch = doctorDirectorySearch.trim().toLowerCase();
-  const filteredActiveDoctors = useMemo(() => {
-    if (!normalizedDoctorDirectorySearch) {
-      return activeDoctors;
-    }
-    return activeDoctors.filter((doctor) =>
-      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
-        .toLowerCase()
-        .includes(normalizedDoctorDirectorySearch),
-    );
-  }, [activeDoctors, normalizedDoctorDirectorySearch]);
-  const filteredInactiveDoctors = useMemo(() => {
-    if (!normalizedDoctorDirectorySearch) {
-      return inactiveDoctors;
-    }
-    return inactiveDoctors.filter((doctor) =>
-      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
-        .toLowerCase()
-        .includes(normalizedDoctorDirectorySearch),
-    );
-  }, [inactiveDoctors, normalizedDoctorDirectorySearch]);
-  const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
-  const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
-  const teamPageSize = 6;
-  const allowMultiDoctorVisibility = clinicSetting?.allow_multi_doctor_visibility ?? false;
-  const canChooseAmongMultipleDoctors = isAdmin || isReceptionist || allowMultiDoctorVisibility;
-  const currentUserDisplay = useMemo(() => {
-    const fullName = `${currentUserFirstName} ${currentUserLastName}`.trim();
-    const alias = currentUserDisplayName?.trim() || "";
-    const baseName = fullName || alias || currentUserEmail;
-    if (currentRoles.includes("doctor")) {
-      return `${currentUserGender === "female" ? "Dra." : "Dr."} ${baseName}`;
-    }
-    if (currentRoles.includes("receptionist")) {
-      return `Recepción ${baseName}`;
-    }
-    return baseName;
-  }, [currentRoles, currentUserDisplayName, currentUserEmail, currentUserFirstName, currentUserGender, currentUserLastName]);
-  const paginatedActiveDoctors = useMemo(
-    () => filteredActiveDoctors.slice((activeDoctorPage - 1) * teamPageSize, activeDoctorPage * teamPageSize),
-    [activeDoctorPage, filteredActiveDoctors, teamPageSize],
-  );
-  const paginatedInactiveDoctors = useMemo(
-    () => filteredInactiveDoctors.slice((inactiveDoctorPage - 1) * teamPageSize, inactiveDoctorPage * teamPageSize),
-    [inactiveDoctorPage, filteredInactiveDoctors, teamPageSize],
-  );
-  const paginatedActiveReceptionists = useMemo(
-    () => activeReceptionists.slice((activeReceptionistPage - 1) * teamPageSize, activeReceptionistPage * teamPageSize),
-    [activeReceptionistPage, activeReceptionists, teamPageSize],
-  );
-  const paginatedInactiveReceptionists = useMemo(
-    () => inactiveReceptionists.slice((inactiveReceptionistPage - 1) * teamPageSize, inactiveReceptionistPage * teamPageSize),
-    [inactiveReceptionistPage, inactiveReceptionists, teamPageSize],
-  );
-  const selectedReceptionist = useMemo(
-    () => receptionists.find((receptionist) => receptionist.id === selectedReceptionistId) ?? activeReceptionists[0] ?? null,
-    [activeReceptionists, receptionists, selectedReceptionistId],
-  );
-  const filteredDoctorOptions = useMemo(() => {
-    const search = receptionistDoctorSearch.trim().toLowerCase();
-    if (!search) {
-      return data.doctors;
-    }
-    return data.doctors.filter((doctor) =>
-      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""}`.toLowerCase().includes(search),
-    );
-  }, [data.doctors, receptionistDoctorSearch]);
-  const selectedDoctor = useMemo(
-    () =>
-      activeDoctors.find(
-        (doctor) => String(doctor.id) === doctorFilter || String(doctor.id) === appointmentForm.doctor_id || String(doctor.id) === encounterForm.doctor_id,
-      ) ?? activeDoctors[0] ?? null,
-    [activeDoctors, appointmentForm.doctor_id, doctorFilter, encounterForm.doctor_id],
-  );
-  const availableDoctors = activeDoctors;
-  const hasSingleDoctorContext = availableDoctors.length === 1;
-  const doctorNameById = useMemo(
-    () =>
-      new Map(
-        data.doctors.map((doctor) => [
-          doctor.id,
-          `Dr. ${doctor.first_name} ${doctor.last_name}`.trim(),
-        ]),
-      ),
-    [data.doctors],
-  );
-
-  const scopedDoctorId = useMemo(() => {
-    if (currentRoles.includes("doctor")) {
-      return selectedDoctor?.id ?? null;
-    }
-    return doctorFilter ? Number(doctorFilter) : null;
-  }, [currentRoles, doctorFilter, selectedDoctor]);
+  const {
+    activeSectionAction,
+    patientEditForm,
+    patientForm,
+    setActiveSectionAction,
+    setPatientEditForm,
+    setPatientForm,
+    submitPatient,
+    submitPatientUpdate,
+  } = usePatientAdmin({
+    availableDoctors,
+    hasSingleDoctorContext,
+    loadData,
+    scopedDoctorId,
+    selectedPatientId,
+    setMessage,
+    setSelectedSummary,
+  });
 
   const scopedReminderRules = useMemo(
     () =>
@@ -1633,11 +1304,7 @@ export function ClinicalConsole() {
         inactiveDoctors={inactiveDoctors}
         inactivePager={renderPager(inactiveDoctorPage, filteredInactiveDoctors.length, setInactiveDoctorPage)}
         isAdmin={isAdmin}
-        onDoctorDirectorySearchChange={(value) => {
-          setDoctorDirectorySearch(value);
-          setActiveDoctorPage(1);
-          setInactiveDoctorPage(1);
-        }}
+        onDoctorDirectorySearchChange={updateDoctorDirectorySearch}
         paginatedActiveDoctors={paginatedActiveDoctors}
         paginatedInactiveDoctors={paginatedInactiveDoctors}
         removeDoctorClinic={removeDoctorClinic}

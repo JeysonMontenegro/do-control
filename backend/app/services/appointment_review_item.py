@@ -26,7 +26,11 @@ class AppointmentReviewItemService:
                 return set()
             return {current_user.doctor_profile.id}
         if "receptionist" in roles:
-            return {assignment.doctor_id for assignment in current_user.receptionist_assignments}
+            return {
+                assignment.doctor_id
+                for assignment in current_user.doctor_staff_assignments
+                if assignment.is_active and assignment.assignment_type == "receptionist"
+            }
         return set()
 
     def create_item(

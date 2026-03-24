@@ -3,6 +3,54 @@ import {
   DEFAULT_CONFIRMATION_BODY,
   DEFAULT_CONFIRMATION_TITLE,
 } from "@/features/module1/console-config";
+import { nowPlusMinutes, splitDateTimeLocal } from "@/features/module1/console-utils";
+import { DEFAULT_COUNTRY_DIAL_CODE } from "@/features/module1/phone-utils";
+
+export type DoctorClinicForm = {
+  clinic_name: string;
+  address: string;
+  phone_number: string;
+  notes: string;
+  is_primary: boolean;
+};
+
+export type DoctorAdminForm = {
+  first_name: string;
+  last_name: string;
+  gender: string;
+  date_of_birth: string;
+  specialty: string;
+  license_number: string;
+  primary_phone: string;
+  user_email: string;
+  user_password: string;
+  clinics: DoctorClinicForm[];
+};
+
+export function emptyDoctorClinic(): DoctorClinicForm {
+  return {
+    clinic_name: "",
+    address: "",
+    phone_number: "",
+    notes: "",
+    is_primary: false,
+  };
+}
+
+export function createDoctorAdminForm(): DoctorAdminForm {
+  return {
+    first_name: "",
+    last_name: "",
+    gender: "male",
+    date_of_birth: "",
+    specialty: "",
+    license_number: "",
+    primary_phone: DEFAULT_COUNTRY_DIAL_CODE,
+    user_email: "",
+    user_password: "",
+    clinics: [emptyDoctorClinic()],
+  };
+}
 
 export function createLoginForm() {
   return {
@@ -81,6 +129,21 @@ export function createPatientEditForm() {
     address: "",
     notes: "",
     is_active: true,
+  };
+}
+
+export function createAppointmentForm() {
+  return {
+    patient_id: "",
+    doctor_id: "",
+    scheduled_start_date: splitDateTimeLocal(nowPlusMinutes(60)).date,
+    scheduled_start_time: splitDateTimeLocal(nowPlusMinutes(60)).time,
+    scheduled_end_date: splitDateTimeLocal(nowPlusMinutes(90)).date,
+    scheduled_end_time: splitDateTimeLocal(nowPlusMinutes(90)).time,
+    appointment_type: "follow_up",
+    reason: "",
+    source: "receptionist",
+    created_by: "frontend-demo",
   };
 }
 

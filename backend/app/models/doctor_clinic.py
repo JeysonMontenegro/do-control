@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -7,6 +7,7 @@ from app.models.base import TimestampMixin
 
 class DoctorClinic(TimestampMixin, Base):
     __tablename__ = "doctor_clinics"
+    __table_args__ = (Index("ix_doctor_clinics_doctor_id", "doctor_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))

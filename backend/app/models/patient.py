@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Boolean, Date, Index, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, ForeignKeyConstraint, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -13,9 +13,24 @@ class Patient(TimestampMixin, Base):
         Index("ix_patients_name", "last_name", "first_name"),
         Index("ix_patients_primary_phone", "primary_phone"),
         Index("ix_patients_national_id", "national_id"),
+        Index("ix_patients_owner_doctor_id", "owner_doctor_id"),
+        CheckConstraint("btrim(first_name) <> ''", name="ck_patients_first_name_not_blank"),
+        CheckConstraint("btrim(last_name) <> ''", name="ck_patients_last_name_not_blank"),
+        CheckConstraint("btrim(primary_phone) <> ''", name="ck_patients_primary_phone_not_blank"),
+        CheckConstraint("btrim(medical_record_number) <> ''", name="ck_patients_mrn_not_blank"),
+        CheckConstraint("national_id IS NULL OR btrim(national_id) <> ''", name="ck_patients_national_id_not_blank"),
+        CheckConstraint("tax_id IS NULL OR btrim(tax_id) <> ''", name="ck_patients_tax_id_not_blank"),
+        ForeignKeyConstraint(
+            ["id", "owner_doctor_id"],
+            ["patient_doctor_assignments.patient_id", "patient_doctor_assignments.doctor_id"],
+            name="fk_patients_owner_assignment",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     medical_record_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(String(100))
     middle_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -41,7 +56,12 @@ class Patient(TimestampMixin, Base):
     appointments = relationship("Appointment", back_populates="patient")
     encounters = relationship("Encounter", back_populates="patient")
     phone_numbers = relationship("PatientPhoneNumber", back_populates="patient", cascade="all, delete-orphan")
-    doctor_assignments = relationship("PatientDoctorAssignment", back_populates="patient", cascade="all, delete-orphan")
+    doctor_assignments = relationship(
+        "PatientDoctorAssignment",
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        foreign_keys="PatientDoctorAssignment.patient_id",
+    )
 
     @property
     def assigned_doctors(self):

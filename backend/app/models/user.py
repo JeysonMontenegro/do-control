@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -7,6 +7,11 @@ from app.models.base import TimestampMixin
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("btrim(email) <> ''", name="ck_users_email_not_blank"),
+        CheckConstraint("btrim(first_name) <> ''", name="ck_users_first_name_not_blank"),
+        CheckConstraint("btrim(last_name) <> ''", name="ck_users_last_name_not_blank"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -15,13 +20,17 @@ class User(TimestampMixin, Base):
     last_name: Mapped[str] = mapped_column(String(100))
     display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    phone_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     profile_photo_storage_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    phone_numbers = relationship("UserPhoneNumber", back_populates="user", cascade="all, delete-orphan")
     doctor_profile = relationship("Doctor", back_populates="linked_user", uselist=False)
-    receptionist_assignments = relationship("ReceptionistDoctorAssignment", back_populates="user", cascade="all, delete-orphan")
+    doctor_staff_assignments = relationship("DoctorStaffAssignment", back_populates="staff_user", cascade="all, delete-orphan")
+
+    @property
+    def primary_phone_number(self) -> str | None:
+        return next((phone.phone_number for phone in self.phone_numbers if phone.is_primary), None)
 
 
 class Role(Base):
@@ -45,14 +54,3 @@ class UserRole(Base):
     user = relationship("User", back_populates="roles")
     role = relationship("Role", back_populates="users")
 
-
-class ReceptionistDoctorAssignment(TimestampMixin, Base):
-    __tablename__ = "receptionist_doctor_assignments"
-    __table_args__ = (UniqueConstraint("user_id", "doctor_id", name="uq_receptionist_doctor_assignment"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
-
-    user = relationship("User", back_populates="receptionist_assignments")
-    doctor = relationship("Doctor", back_populates="receptionist_assignments")

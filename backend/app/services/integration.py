@@ -122,13 +122,14 @@ class IntegrationService:
         for role_name in role_names:
             permissions.update(self.ROLE_PERMISSION_MAP.get(role_name, []))
 
+        primary_phone_number = getattr(user, "primary_phone_number", None) or getattr(user, "phone_number", None)
         return IntegrationUserVerificationRead(
             is_valid=True,
             user_id=user.id,
             role=primary_role,
             roles=sorted(role_names),
             user_name=f"{user.first_name} {user.last_name}".strip(),
-            phone_number=normalize_phone_number(user.phone_number),
+            phone_number=normalize_phone_number(primary_phone_number),
             is_active=user.is_active,
             permissions=sorted(permissions),
             doctor_profile=self._build_doctor_profile(user.doctor_profile) if "doctor" in role_names else None,

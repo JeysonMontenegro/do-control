@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
-from app.models.user import ReceptionistDoctorAssignment, Role, User, UserRole
+from app.models.doctor_staff_assignment import DoctorStaffAssignment
+from app.models.user import Role, User, UserRole
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.receptionist import ReceptionistCreate, ReceptionistRead, ReceptionistDoctorRead, ReceptionistUpdate
@@ -27,8 +28,8 @@ class ReceptionistService:
                 last_name=assignment.doctor.last_name,
                 specialty=assignment.doctor.specialty,
             )
-            for assignment in user.receptionist_assignments
-            if assignment.doctor is not None
+            for assignment in user.doctor_staff_assignments
+            if assignment.is_active and assignment.assignment_type == "receptionist" and assignment.doctor is not None
         ]
         return ReceptionistRead(
             id=user.id,
@@ -36,7 +37,7 @@ class ReceptionistService:
             last_name=user.last_name,
             email=user.email,
             gender=user.gender,
-            phone_number=user.phone_number,
+            phone_number=user.primary_phone_number,
             is_active=user.is_active,
             created_at=user.created_at,
             updated_at=user.updated_at,
@@ -46,6 +47,11 @@ class ReceptionistService:
     def create_receptionist(self, payload: ReceptionistCreate) -> ReceptionistRead:
         if self.user_repository.get_by_email(payload.email) is not None:
             raise ValidationError("A user with that email already exists.")
+
+        if payload.phone_number:
+            existing_phone_user = self.user_repository.get_by_phone_number(payload.phone_number)
+            if existing_phone_user is not None:
+                raise ValidationError("A user with that phone number already exists.")
 
         receptionist_role = self.user_repository.get_role_by_name("receptionist")
         if receptionist_role is None:
@@ -65,14 +71,25 @@ class ReceptionistService:
                 first_name=payload.first_name,
                 last_name=payload.last_name,
                 gender=payload.gender,
-                phone_number=payload.phone_number,
                 is_active=True,
             )
         )
+        self.user_repository.sync_primary_phone_number(
+            user.id,
+            payload.phone_number,
+            phone_type="mobile",
+            is_verified=False,
+            can_talk_to_bot=bool(payload.phone_number),
+        )
         self.user_repository.add_role(UserRole(user_id=user.id, role_id=receptionist_role.id))
         for doctor in doctors:
-            self.user_repository.add_receptionist_assignment(
-                ReceptionistDoctorAssignment(user_id=user.id, doctor_id=doctor.id)
+            self.user_repository.add_doctor_staff_assignment(
+                DoctorStaffAssignment(
+                    doctor_id=doctor.id,
+                    staff_user_id=user.id,
+                    assignment_type="receptionist",
+                    is_active=True,
+                )
             )
 
         create_audit_log(
@@ -97,9 +114,24 @@ class ReceptionistService:
         updates = payload.model_dump(exclude_unset=True)
         doctor_ids = updates.pop("doctor_ids", None)
         password = updates.pop("password", None)
+        phone_number = updates.pop("phone_number", None) if "phone_number" in updates else None
+
+        if phone_number is not None:
+            existing_phone_user = self.user_repository.get_by_phone_number(phone_number)
+            if existing_phone_user is not None and existing_phone_user.id != user.id:
+                raise ValidationError("A user with that phone number already exists.")
 
         for field, value in updates.items():
             setattr(user, field, value)
+
+        if phone_number is not None:
+            self.user_repository.sync_primary_phone_number(
+                user.id,
+                phone_number,
+                phone_type="mobile",
+                is_verified=False,
+                can_talk_to_bot=bool(phone_number),
+            )
 
         if password:
             user.password_hash = hash_password(password)
@@ -111,10 +143,15 @@ class ReceptionistService:
                 if doctor is None:
                     raise NotFoundError(f"Doctor {doctor_id} not found.")
                 doctors.append(doctor)
-            self.user_repository.clear_receptionist_assignments(user.id)
+            self.user_repository.clear_doctor_staff_assignments(user.id, assignment_type="receptionist")
             for doctor in doctors:
-                self.user_repository.add_receptionist_assignment(
-                    ReceptionistDoctorAssignment(user_id=user.id, doctor_id=doctor.id)
+                self.user_repository.add_doctor_staff_assignment(
+                    DoctorStaffAssignment(
+                        doctor_id=doctor.id,
+                        staff_user_id=user.id,
+                        assignment_type="receptionist",
+                        is_active=True,
+                    )
                 )
 
         create_audit_log(

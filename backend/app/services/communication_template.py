@@ -55,7 +55,7 @@ class CommunicationTemplateService:
             raise NotFoundError("Doctor not found.")
         self._validate_template_body(payload.body)
 
-        template = self.repository.create(CommunicationTemplate(**payload.model_dump()))
+        template = self.repository.create(CommunicationTemplate(**payload.model_dump(), owner_doctor_id=payload.doctor_id))
         create_audit_log(
             self.db,
             action="create",
@@ -135,6 +135,7 @@ class CommunicationTemplateService:
 
         preview_template = CommunicationTemplate(
             doctor_id=doctor_id,
+            owner_doctor_id=doctor_id,
             channel=payload.channel,
             template_key=payload.template_key,
             title=payload.title,

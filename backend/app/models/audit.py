@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, JSON, String
+from sqlalchemy import CheckConstraint, DateTime, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -8,6 +8,13 @@ from app.db.base import Base
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        CheckConstraint("btrim(actor_type) <> ''", name="ck_audit_logs_actor_type_not_blank"),
+        CheckConstraint("actor_id IS NULL OR btrim(actor_id) <> ''", name="ck_audit_logs_actor_id_not_blank"),
+        CheckConstraint("btrim(action) <> ''", name="ck_audit_logs_action_not_blank"),
+        CheckConstraint("btrim(entity_type) <> ''", name="ck_audit_logs_entity_type_not_blank"),
+        CheckConstraint("btrim(entity_id) <> ''", name="ck_audit_logs_entity_id_not_blank"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     actor_type: Mapped[str] = mapped_column(String(30))

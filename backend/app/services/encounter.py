@@ -7,6 +7,7 @@ from app.repositories.appointment import AppointmentRepository
 from app.repositories.doctor import DoctorRepository
 from app.repositories.encounter import EncounterRepository
 from app.repositories.patient import PatientRepository
+from app.repositories.user import UserRepository
 from app.schemas.encounter import EncounterCreate, EncounterUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
@@ -19,6 +20,13 @@ class EncounterService:
         self.doctor_repository = DoctorRepository(db)
         self.patient_repository = PatientRepository(db)
         self.appointment_repository = AppointmentRepository(db)
+        self.user_repository = UserRepository(db)
+
+    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
+        if not actor_identifier or "@" not in actor_identifier:
+            return None
+        user = self.user_repository.get_by_email(actor_identifier)
+        return user.id if user is not None else None
 
     def create_encounter(self, payload: EncounterCreate) -> Encounter:
         if self.patient_repository.get(payload.patient_id) is None:
@@ -39,6 +47,7 @@ class EncounterService:
         encounter = Encounter(
             patient_id=payload.patient_id,
             doctor_id=payload.doctor_id,
+            owner_doctor_id=payload.doctor_id,
             appointment_id=payload.appointment_id,
             encounter_date=payload.encounter_date,
             encounter_type=payload.encounter_type,
@@ -51,6 +60,7 @@ class EncounterService:
             treatment_plan=payload.treatment_plan,
             follow_up_notes=payload.follow_up_notes,
             created_by=payload.created_by,
+            created_by_user_id=self._resolve_actor_user_id(payload.created_by),
         )
 
         encounter.diagnoses = [
