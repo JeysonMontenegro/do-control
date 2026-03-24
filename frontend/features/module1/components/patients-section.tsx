@@ -4,12 +4,15 @@ import { ActiveFiltersBar } from "@/features/module1/components/active-filters-b
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { formatDateTime } from "@/features/module1/console-utils";
-import type { Encounter, Patient, PatientSummary } from "@/features/module1/types";
+import type { Doctor, Encounter, Patient, PatientSummary } from "@/features/module1/types";
 
 type PatientsSectionProps = {
+  availableDoctors: Doctor[];
   canManagePatients: boolean;
+  doctorFilter: string;
   expandedEncounterId: number | null;
   isAdmin: boolean;
+  isReceptionist: boolean;
   patientSearch: string;
   patients: Patient[];
   selectedPatientId: string;
@@ -20,6 +23,7 @@ type PatientsSectionProps = {
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGoToEncounters: () => void;
   onGoToMessages: () => void;
+  onPatientDoctorFilterChange: (value: string) => void;
   onOpenAttachment: (attachmentId: number) => void;
   onPatientSearchChange: (value: string) => void;
   onSelectPatient: (patientId: string) => void;
@@ -28,9 +32,12 @@ type PatientsSectionProps = {
 };
 
 export function PatientsSection({
+  availableDoctors,
   canManagePatients,
+  doctorFilter,
   expandedEncounterId,
   isAdmin,
+  isReceptionist,
   patientSearch,
   patients,
   selectedPatientId,
@@ -41,12 +48,17 @@ export function PatientsSection({
   onGoToAgendaAppointment,
   onGoToEncounters,
   onGoToMessages,
+  onPatientDoctorFilterChange,
   onOpenAttachment,
   onPatientSearchChange,
   onSelectPatient,
   onShowCreatePatient,
   setExpandedEncounterId,
 }: PatientsSectionProps) {
+  const selectedDoctorLabel = doctorFilter
+    ? availableDoctors.find((doctor) => String(doctor.id) === doctorFilter)
+    : null;
+
   return (
     <section className="tab-layout patients-layout">
       <article className="card section-card span-two">
@@ -56,6 +68,16 @@ export function PatientsSection({
             <h2>Listado</h2>
           </div>
           <div className="section-tools-panel">
+            {isAdmin || (isReceptionist && availableDoctors.length > 1) ? (
+              <select value={doctorFilter} onChange={(event) => onPatientDoctorFilterChange(event.target.value)}>
+                <option value="">{isAdmin ? "Todos los doctores" : "Todos mis doctores"}</option>
+                {availableDoctors.map((doctor) => (
+                  <option key={`patient-doctor-filter-${doctor.id}`} value={doctor.id}>
+                    Dr. {doctor.first_name} {doctor.last_name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             {canManagePatients ? (
               <button type="button" className="secondary-button" onClick={onShowCreatePatient}>
                 Agregar paciente
@@ -70,8 +92,20 @@ export function PatientsSection({
           </div>
         </div>
         <ActiveFiltersBar
-          items={patientSearch.trim() ? [{ label: "Busqueda", value: patientSearch.trim() }] : []}
-          onClearAll={patientSearch.trim() ? () => onPatientSearchChange("") : undefined}
+          items={[
+            ...(selectedDoctorLabel
+              ? [{ label: "Doctor", value: `Dr. ${selectedDoctorLabel.first_name} ${selectedDoctorLabel.last_name}` }]
+              : []),
+            ...(patientSearch.trim() ? [{ label: "Busqueda", value: patientSearch.trim() }] : []),
+          ]}
+          onClearAll={
+            doctorFilter || patientSearch.trim()
+              ? () => {
+                  onPatientDoctorFilterChange("");
+                  onPatientSearchChange("");
+                }
+              : undefined
+          }
           resultsLabel="pacientes visibles"
           resultsValue={patients.length}
         />

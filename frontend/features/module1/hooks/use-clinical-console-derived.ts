@@ -140,10 +140,18 @@ export function useClinicalConsoleDerived({
   );
 
   const filteredPatients = useMemo(() => {
-    if (!normalizedGlobalSearch) {
-      return data.patients;
-    }
     return data.patients.filter((patient) => {
+      if (
+        doctorFilter &&
+        !patient.assigned_doctors?.some((doctor) => String(doctor.id) === doctorFilter)
+      ) {
+        return false;
+      }
+
+      if (!normalizedGlobalSearch) {
+        return true;
+      }
+
       const haystack = [
         patient.medical_record_number,
         patient.first_name,
@@ -155,7 +163,7 @@ export function useClinicalConsoleDerived({
         .toLowerCase();
       return haystack.includes(normalizedGlobalSearch);
     });
-  }, [data.patients, normalizedGlobalSearch]);
+  }, [data.patients, doctorFilter, normalizedGlobalSearch]);
 
   const filteredEncounters = useMemo(() => {
     if (!normalizedGlobalSearch) {
