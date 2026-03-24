@@ -23,6 +23,7 @@ import { useConsoleContextSync } from "@/features/module1/hooks/use-console-cont
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useClinicalDataLoader } from "@/features/module1/hooks/use-clinical-data-loader";
+import { useClinicalFormPrefills } from "@/features/module1/hooks/use-clinical-form-prefills";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
 import { useEncounterAttachmentAdmin } from "@/features/module1/hooks/use-encounter-attachment-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
@@ -568,6 +569,16 @@ export function ClinicalConsole() {
     expandedAppointmentId,
     filteredAppointments,
     setCalendarDate,
+  });
+
+  useClinicalFormPrefills({
+    appointmentForm,
+    encounterForm,
+    selectedDoctor,
+    selectedPatientId,
+    selectedSummary,
+    setAppointmentForm,
+    setEncounterForm,
   });
 
   return (
