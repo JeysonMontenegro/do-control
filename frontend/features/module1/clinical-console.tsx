@@ -35,6 +35,7 @@ import { useAgendaInteractions } from "@/features/module1/hooks/use-agenda-inter
 import { useConsoleContextSync } from "@/features/module1/hooks/use-console-context-sync";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
+import { useClinicalDataLoader } from "@/features/module1/hooks/use-clinical-data-loader";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
 import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
@@ -212,6 +213,50 @@ export function ClinicalConsole() {
     },
   });
 
+  const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canManageEncounters = hasAnyRole(currentRoles, ["admin", "doctor"]);
+  const canViewPatientTimeline = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canViewMessages = hasAnyRole(currentRoles, ["admin", "receptionist", "doctor"]);
+  const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
+  const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const canViewGestion = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
+  const isAdmin = hasAnyRole(currentRoles, ["admin"]);
+  const isReceptionist = hasAnyRole(currentRoles, ["receptionist"]);
+
+  const { loadData } = useClinicalDataLoader({
+    canViewGestion,
+    canViewGlobalCommunications,
+    canViewReviewQueue,
+    currentRoles,
+    data,
+    dispatchFilters,
+    doctorFilter,
+    encounterFormDoctorId: encounterForm.doctor_id,
+    isAdmin,
+    isAuthenticated,
+    patientSearch,
+    reminderRuleFormDoctorId: reminderRuleForm.doctor_id,
+    setAppointmentReviewItems,
+    setClinicSetting,
+    setCommunicationDispatchSummary,
+    setCommunicationDispatches,
+    setCommunicationTemplates,
+    setData,
+    setDoctorFilter,
+    setEmailDispatches,
+    setEmailTemplates,
+    setEncounterDoctorId: (doctorId) => setEncounterForm((current) => ({ ...current, doctor_id: doctorId })),
+    setLoading,
+    setMessage,
+    setReceptionists,
+    setReminderRuleDoctorId: (doctorId) => setReminderRuleForm((current) => ({ ...current, doctor_id: doctorId })),
+    setReminderRules,
+    setSelectedPatientId,
+    setTemplateDoctorId: (doctorId) => setTemplateForm((current) => ({ ...current, doctor_id: doctorId })),
+    templateFormDoctorId: templateForm.doctor_id,
+  });
+
   const {
     activeReviewItem,
     closeReviewResolutionModal,
@@ -230,109 +275,6 @@ export function ClinicalConsole() {
     setMessage,
     onResolved: loadData,
   });
-
-  const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const canManageEncounters = hasAnyRole(currentRoles, ["admin", "doctor"]);
-  const canViewPatientTimeline = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const canViewMessages = hasAnyRole(currentRoles, ["admin", "receptionist", "doctor"]);
-  const canViewGlobalCommunications = hasAnyRole(currentRoles, ["admin", "receptionist"]);
-  const canViewReviewQueue = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const canViewGestion = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
-  const isAdmin = hasAnyRole(currentRoles, ["admin"]);
-  const isReceptionist = hasAnyRole(currentRoles, ["receptionist"]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const patientPath = patientSearch.trim()
-        ? `/api/patients?query=${encodeURIComponent(patientSearch.trim())}`
-        : "/api/patients";
-      const patientPathWithScope =
-        scopedDoctorId !== null ? `${patientPath}${patientPath.includes("?") ? "&" : "?"}doctor_id=${scopedDoctorId}` : patientPath;
-      const dispatchParams = new URLSearchParams({ limit: "40" });
-      if (dispatchFilters.status_filter) {
-        dispatchParams.set("status_filter", dispatchFilters.status_filter);
-      }
-      if (dispatchFilters.channel) {
-        dispatchParams.set("channel", dispatchFilters.channel);
-      }
-      if (dispatchFilters.query.trim()) {
-        dispatchParams.set("query", dispatchFilters.query.trim());
-      }
-
-      const [
-        doctors,
-        patients,
-        appointments,
-        encounters,
-        loadedReminderRules,
-        loadedTemplates,
-        loadedDispatches,
-        loadedDispatchSummary,
-        loadedReviewItems,
-        loadedReceptionists,
-        loadedClinicSetting,
-        loadedEmailTemplates,
-        loadedEmailDispatches,
-      ] = await Promise.all([
-        apiGet<Doctor[]>("/api/doctors"),
-        apiGet<Patient[]>(patientPathWithScope),
-        apiGet<Appointment[]>("/api/appointments"),
-        apiGet<Encounter[]>("/api/encounters"),
-        canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
-        canViewGestion ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
-        canViewGlobalCommunications
-          ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
-          : Promise.resolve([]),
-        canViewGlobalCommunications ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary") : Promise.resolve(null),
-        canViewReviewQueue ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20") : Promise.resolve([]),
-        isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
-        apiGet<ClinicSetting>("/api/clinic-settings"),
-        isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
-        isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
-      ]);
-
-      setData({ doctors, patients, appointments, encounters });
-      setReminderRules(loadedReminderRules);
-      setCommunicationTemplates(loadedTemplates);
-      setCommunicationDispatches(loadedDispatches);
-      setCommunicationDispatchSummary(loadedDispatchSummary);
-      setAppointmentReviewItems(loadedReviewItems);
-      setReceptionists(loadedReceptionists);
-      setClinicSetting(loadedClinicSetting);
-      setEmailTemplates(loadedEmailTemplates);
-      setEmailDispatches(loadedEmailDispatches);
-      if (!appointmentForm.doctor_id && doctors[0]) {
-        setAppointmentForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
-      }
-      if (!encounterForm.doctor_id && doctors[0]) {
-        setEncounterForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
-      }
-      if (!selectedPatientId && patients[0]) {
-        setSelectedPatientId(String(patients[0].id));
-      }
-      if (!doctorFilter && doctors[0] && (currentRoles.includes("doctor") || currentRoles.includes("receptionist"))) {
-        setDoctorFilter(String(doctors[0].id));
-      }
-      if (!reminderRuleForm.doctor_id && doctors[0] && currentRoles.includes("doctor")) {
-        setReminderRuleForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
-      }
-      if (!templateForm.doctor_id && doctors[0] && currentRoles.includes("doctor")) {
-        setTemplateForm((current) => ({ ...current, doctor_id: String(doctors[0].id) }));
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo cargar la información clínica.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-    }
-  }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
 
   const { toggleEmailDelivery, toggleEmailProcessSetting } = useEmailSettingsAdmin({
     setClinicSetting,
