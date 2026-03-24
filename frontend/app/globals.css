@@ -1594,53 +1594,6 @@ select.compact-input:hover {
 
 @media (max-width: 840px) {
   body {
-    padding: 6px;
-  }
-
-  .hero,
-  .section-card,
-  .topbar,
-  .app-sidebar,
-  .console-context-bar {
-    padding: 14px;
-  }
-
-  .topbar {
-    display: grid;
-  }
-
-  .topbar-search {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .profile-card-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .agenda-shell,
-  .month-grid {
-    display: none;
-  }
-
-  .mobile-agenda-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .searchable-select-panel {
-    position: static;
-    margin-top: 8px;
-    box-shadow: inset 0 0 0 1px rgba(15, 108, 120, 0.08);
-  }
-
-  .searchable-select-options {
-    max-height: 220px;
-  }
-}
-
-@media (max-width: 640px) {
-  body {
     padding: 0;
   }
 
@@ -1649,16 +1602,17 @@ select.compact-input:hover {
   }
 
   .app-shell-auth {
-    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-columns: 88px minmax(0, 1fr);
     gap: 8px;
     min-height: 100vh;
     align-items: start;
   }
 
-  .app-sidebar,
-  .topbar,
-  .section-card,
   .hero,
+  .section-card,
+  .topbar,
+  .app-sidebar,
+  .console-context-bar,
   .card {
     border-radius: 18px;
   }
@@ -1774,6 +1728,43 @@ select.compact-input:hover {
     display: none;
   }
 
+  .topbar {
+    display: grid;
+    padding: 12px;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 11;
+  }
+
+  .topbar-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .profile-card-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .agenda-shell,
+  .month-grid {
+    display: none;
+  }
+
+  .mobile-agenda-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .searchable-select-panel {
+    position: static;
+    margin-top: 8px;
+    box-shadow: inset 0 0 0 1px rgba(15, 108, 120, 0.08);
+  }
+
+  .searchable-select-options {
+    max-height: 220px;
+  }
   .app-content {
     gap: 8px;
   }
@@ -2013,5 +2004,11 @@ select.compact-input:hover {
 
   .mobile-agenda-list {
     gap: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell-auth {
+    grid-template-columns: 82px minmax(0, 1fr);
   }
 }
