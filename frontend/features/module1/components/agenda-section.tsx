@@ -71,6 +71,8 @@ type AgendaSectionProps = {
   onAppointmentStartTimeChange: (value: string) => void;
   onCalendarViewChange: (value: CalendarView) => void;
   onDoctorFilterChange: (value: string) => void;
+  onGoToMessagesForAppointment: (appointmentId: number, patientId: number) => void;
+  onGoToPatient: (patientId: number) => void;
   onSelectAppointment: (appointmentId: number) => void;
   openDispatchAttempts: (dispatchId: number) => void;
   reminderNow: (appointmentId: number) => void;
@@ -118,6 +120,8 @@ export function AgendaSection({
   onAppointmentStartTimeChange,
   onCalendarViewChange,
   onDoctorFilterChange,
+  onGoToMessagesForAppointment,
+  onGoToPatient,
   onSelectAppointment,
   openDispatchAttempts,
   reminderNow,
@@ -212,6 +216,18 @@ export function AgendaSection({
                 </button>
               </div>
             ) : null}
+            <div className="row-actions">
+              <button type="button" className="secondary-button" onClick={() => onGoToPatient(focusedAppointment.patient_id)}>
+                Ver paciente
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => onGoToMessagesForAppointment(focusedAppointment.id, focusedAppointment.patient_id)}
+              >
+                Ver mensajes
+              </button>
+            </div>
           </div>
           <div className="detail-panel">
             <strong>Historial</strong>

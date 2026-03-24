@@ -344,10 +344,34 @@ export function MessagesSection({
                   <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
                   <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
                   <span>{dispatch.error_message ?? dispatch.rendered_message ?? "Sin observación."}</span>
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
-                      {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
+                <div className="row-actions">
+                  {dispatch.patient_id ? (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setSelectedPatientId(String(dispatch.patient_id));
+                        setActiveTab("pacientes");
+                      }}
+                    >
+                      Ver paciente
                     </button>
+                  ) : null}
+                  {dispatch.appointment_id ? (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setActiveTab("agenda");
+                        toggleAppointmentHistory(dispatch.appointment_id as number);
+                      }}
+                    >
+                      Ver cita
+                    </button>
+                  ) : null}
+                  <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
+                    {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
+                  </button>
                     {isAdmin && dispatch.status !== "delivered" ? (
                       <button type="button" className="success-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
                         Marcar entregado

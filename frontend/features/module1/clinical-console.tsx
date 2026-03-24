@@ -632,6 +632,16 @@ export function ClinicalConsole() {
                 onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
                 onCalendarViewChange: setCalendarView,
                 onDoctorFilterChange: setDoctorFilter,
+                onGoToMessagesForAppointment: (appointmentId, patientId) => {
+                  setSelectedPatientId(String(patientId));
+                  setMessagesSubtab("citas");
+                  setActiveTab("mensajes");
+                  toggleAppointmentHistory(appointmentId);
+                },
+                onGoToPatient: (patientId) => {
+                  setSelectedPatientId(String(patientId));
+                  setActiveTab("pacientes");
+                },
                 onSelectAppointment: toggleAppointmentHistory,
                 openDispatchAttempts: toggleDispatchAttempts,
                 reminderNow: sendAppointmentReminderNow,
