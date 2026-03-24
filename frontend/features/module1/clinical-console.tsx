@@ -697,6 +697,14 @@ export function ClinicalConsole() {
                 prescriptionItems,
                 selectedDoctor,
                 selectedSummary,
+                onGoToAgendaAppointment: (appointmentId) => {
+                  setActiveTab("agenda");
+                  toggleAppointmentHistory(appointmentId);
+                },
+                onGoToPatient: (patientId) => {
+                  setSelectedPatientId(String(patientId));
+                  setActiveTab("pacientes");
+                },
                 setAttachmentEncounterId,
                 setAttachmentFile,
                 setAttachmentType,

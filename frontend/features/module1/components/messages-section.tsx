@@ -197,6 +197,27 @@ export function MessagesSection({
                         </span>
                         <div className="message-preview">{dispatch.rendered_message ?? "Sin texto generado."}</div>
                         {dispatch.error_message ? <span>Error: {dispatch.error_message}</span> : null}
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => setActiveTab("pacientes")}
+                          >
+                            Ver expediente
+                          </button>
+                          {dispatch.appointment_id ? (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => {
+                                setActiveTab("agenda");
+                                toggleAppointmentHistory(dispatch.appointment_id as number);
+                              }}
+                            >
+                              Ver cita
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     ))
                   ) : (

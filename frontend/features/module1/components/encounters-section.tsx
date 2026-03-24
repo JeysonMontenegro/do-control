@@ -42,6 +42,8 @@ type EncountersSectionProps = {
   patients: Patient[];
   selectedDoctor: Doctor | null;
   selectedSummary: PatientSummary | null;
+  onGoToAgendaAppointment: (appointmentId: number) => void;
+  onGoToPatient: (patientId: number) => void;
   setAttachmentEncounterId: React.Dispatch<React.SetStateAction<string>>;
   setAttachmentFile: React.Dispatch<React.SetStateAction<File | null>>;
   setAttachmentType: React.Dispatch<React.SetStateAction<string>>;
@@ -72,6 +74,8 @@ export function EncountersSection({
   patients,
   selectedDoctor,
   selectedSummary,
+  onGoToAgendaAppointment,
+  onGoToPatient,
   setAttachmentEncounterId,
   setAttachmentFile,
   setAttachmentType,
@@ -318,13 +322,25 @@ export function EncountersSection({
                 <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
                 <span>{formatDateTime(encounter.encounter_date)}</span>
                 <span>{encounter.chief_complaint}</span>
-                {encounter.status !== "closed" && canManageEncounters ? (
-                  <div className="row-actions">
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => onGoToPatient(encounter.patient_id)}>
+                    Ver paciente
+                  </button>
+                  {encounter.appointment_id ? (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => onGoToAgendaAppointment(encounter.appointment_id as number)}
+                    >
+                      Ver cita
+                    </button>
+                  ) : null}
+                  {encounter.status !== "closed" && canManageEncounters ? (
                     <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
                       Cerrar
                     </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
             ))
           ) : (
