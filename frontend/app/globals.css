@@ -759,6 +759,53 @@ select.compact-input:hover {
   background: linear-gradient(180deg, rgba(255, 248, 235, 0.98) 0%, rgba(255, 244, 222, 0.98) 100%);
 }
 
+.active-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #dbe6f6;
+  background: #f8fbff;
+}
+
+.active-filters-summary {
+  display: grid;
+  gap: 2px;
+  min-width: 92px;
+}
+
+.active-filters-summary strong {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.active-filters-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.active-filters-chips {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.active-filter-chip {
+  border-radius: 999px;
+  padding: 7px 11px;
+  border: 1px solid #d8e3f2;
+  background: #fff;
+  font-size: 0.84rem;
+}
+
+.active-filter-chip-muted {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.75);
+}
+
 .empty-state-copy {
   display: grid;
   gap: 6px;

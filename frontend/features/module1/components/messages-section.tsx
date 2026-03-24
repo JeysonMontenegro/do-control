@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import type { ConsoleTab } from "@/features/module1/console-config";
 import {
@@ -82,6 +83,12 @@ export function MessagesSection({
   toggleDispatchAttempts,
   updateDispatchStatus,
 }: MessagesSectionProps) {
+  const activeDispatchFilters = [
+    dispatchFilters.status_filter ? { label: "Estado", value: dispatchStatusLabel(dispatchFilters.status_filter) } : null,
+    dispatchFilters.channel ? { label: "Canal", value: dispatchFilters.channel } : null,
+    dispatchFilters.query.trim() ? { label: "Busqueda", value: dispatchFilters.query.trim() } : null,
+  ].filter((item): item is { label: string; value: string } => item !== null);
+
   return (
     <section className="tab-layout">
       <article className="card section-card span-three">
@@ -318,6 +325,17 @@ export function MessagesSection({
               placeholder="Buscar por teléfono, referencia o error"
             />
           </div>
+          <ActiveFiltersBar
+            clearLabel="Limpiar filtros operativos"
+            items={activeDispatchFilters}
+            onClearAll={
+              activeDispatchFilters.length
+                ? () => setDispatchFilters({ status_filter: "", channel: "", query: "" })
+                : undefined
+            }
+            resultsLabel="comunicaciones visibles"
+            resultsValue={communicationDispatches.length}
+          />
           <div className="table-list">
             {communicationDispatches.length ? (
               communicationDispatches.map((dispatch) => (

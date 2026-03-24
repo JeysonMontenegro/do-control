@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { formatDateTime } from "@/features/module1/console-utils";
@@ -62,6 +63,12 @@ export function PatientsSection({
             />
           </div>
         </div>
+        <ActiveFiltersBar
+          items={patientSearch.trim() ? [{ label: "Busqueda", value: patientSearch.trim() }] : []}
+          onClearAll={patientSearch.trim() ? () => onPatientSearchChange("") : undefined}
+          resultsLabel="pacientes visibles"
+          resultsValue={patients.length}
+        />
         <div className="table-wrap">
           {patients.length ? (
             <table className="data-table">

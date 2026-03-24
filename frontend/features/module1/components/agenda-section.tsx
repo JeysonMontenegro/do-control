@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
 import type { CalendarView } from "@/features/module1/console-config";
@@ -127,6 +128,23 @@ export function AgendaSection({
   submitAppointment,
   updateAppointmentStatus,
 }: AgendaSectionProps) {
+  const activeAgendaFilters = [
+    doctorFilter && selectedDoctor ? { label: "Doctor", value: `${selectedDoctor.first_name} ${selectedDoctor.last_name}` } : null,
+    appointmentFilter !== "all"
+      ? {
+          label: "Agenda",
+          value:
+            appointmentFilter === "ws"
+              ? "WhatsApp"
+              : appointmentFilter === "confirmed"
+                ? "Confirmadas"
+                : appointmentFilter === "pending_confirmation"
+                  ? "Por confirmar"
+                  : "Requieren atencion",
+        }
+      : null,
+  ].filter((item): item is { label: string; value: string } => item !== null);
+
   const reviewQueueByAppointmentId = new Map(
     appointmentReviewItems
       .filter((item) => item.existing_appointment_id !== null)
@@ -359,6 +377,19 @@ export function AgendaSection({
             </div>
           </div>
         </div>
+        <ActiveFiltersBar
+          items={activeAgendaFilters}
+          onClearAll={
+            activeAgendaFilters.length
+              ? () => {
+                  onDoctorFilterChange("");
+                  onAppointmentFilterChange("all");
+                }
+              : undefined
+          }
+          resultsLabel="citas en la vista actual"
+          resultsValue={filteredAppointments.length}
+        />
         <AgendaCalendar
           calendarView={calendarView}
           calendarDate={calendarDate}
