@@ -36,6 +36,7 @@ import { useConsoleContextSync } from "@/features/module1/hooks/use-console-cont
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
+import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
 import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
 import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
 import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
@@ -332,31 +333,11 @@ export function ClinicalConsole() {
       loadData();
     }
   }, [isAuthenticated, patientSearch, currentRoles, dispatchFilters, doctorFilter]);
-  async function toggleEmailDelivery(enabled: boolean) {
-    setMessage("");
-    try {
-      const updated = await apiPatch<ClinicSetting>("/api/clinic-settings", {
-        email_delivery_enabled: enabled,
-      });
-      setClinicSetting(updated);
-      setMessage(enabled ? "Envío de correos habilitado." : "Envío de correos deshabilitado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la configuración de correos.");
-    }
-  }
 
-  async function toggleEmailProcessSetting(field: keyof ClinicSetting, enabled: boolean) {
-    setMessage("");
-    try {
-      const updated = await apiPatch<ClinicSetting>("/api/clinic-settings", {
-        [field]: enabled,
-      });
-      setClinicSetting(updated);
-      setMessage(enabled ? "Proceso de correo habilitado." : "Proceso de correo deshabilitado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el proceso de correo.");
-    }
-  }
+  const { toggleEmailDelivery, toggleEmailProcessSetting } = useEmailSettingsAdmin({
+    setClinicSetting,
+    setMessage,
+  });
 
   async function submitEncounter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
