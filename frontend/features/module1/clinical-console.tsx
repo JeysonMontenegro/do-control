@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
 import { AgendaTab } from "@/features/module1/components/agenda-tab";
 import {
   createDispatchStatusForm,
@@ -32,6 +31,7 @@ import { ReceptionistModal } from "@/features/module1/components/receptionist-mo
 import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useAppointmentAdmin } from "@/features/module1/hooks/use-appointment-admin";
+import { useAgendaInteractions } from "@/features/module1/hooks/use-agenda-interactions";
 import { useClinicalSession } from "@/features/module1/hooks/use-clinical-session";
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
@@ -48,7 +48,6 @@ import {
   slotLabels,
 } from "@/features/module1/console-config";
 import {
-  addDays,
   appointmentTypeLabel,
   calendarRangeLabel,
   communicationKindLabel,
@@ -59,7 +58,6 @@ import {
   formatDate,
   formatDateTime,
   hasAnyRole,
-  lastDispatchStatus,
   nowPlusMinutes,
   reminderLeadTimeLabel,
   reviewReasonLabel,
@@ -914,58 +912,21 @@ export function ClinicalConsole() {
     }));
   }, [confirmationTemplate, templateForm.body]);
 
-  const calendarMetrics = (appointment: Appointment) => {
-    const start = new Date(appointment.scheduled_start);
-    const end = new Date(appointment.scheduled_end);
-    const startMinutes = start.getHours() * 60 + start.getMinutes();
-    const endMinutes = end.getHours() * 60 + end.getMinutes();
-    const dayStart = 6 * 60;
-    const dayEnd = 20 * 60;
-    const clampedStart = Math.max(startMinutes, dayStart);
-    const clampedEnd = Math.min(endMinutes, dayEnd);
-    const rowStart = Math.max(2, Math.floor((clampedStart - dayStart) / 30) + 2);
-    const rowEnd = Math.max(rowStart + 1, Math.ceil((clampedEnd - dayStart) / 30) + 2);
-    return { rowStart, rowEnd };
-  };
-
-  const goToPreviousRange = () => {
-    setCalendarDate((current) => {
-      if (calendarView === "dia") {
-        return addDays(current, -1);
-      }
-      if (calendarView === "semana") {
-        return addDays(current, -7);
-      }
-      return new Date(current.getFullYear(), current.getMonth() - 1, 1);
-    });
-  };
-
-  const goToNextRange = () => {
-    setCalendarDate((current) => {
-      if (calendarView === "dia") {
-        return addDays(current, 1);
-      }
-      if (calendarView === "semana") {
-        return addDays(current, 7);
-      }
-      return new Date(current.getFullYear(), current.getMonth() + 1, 1);
-    });
-  };
-
-  const goToToday = () => setCalendarDate(startOfDay(new Date()));
-
-  const focusedAppointment = useMemo(
-    () => filteredAppointments.find((appointment) => appointment.id === expandedAppointmentId) ?? null,
-    [expandedAppointmentId, filteredAppointments],
-  );
-
-  const renderAppointmentBadges = (appointment: Appointment) => {
-    const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
-    const latestMessageStatus = lastDispatchStatus(relatedDispatches);
-    const reviewItem = reviewQueueByAppointmentId.get(appointment.id);
-
-    return <AppointmentBadges appointment={appointment} latestMessageStatus={latestMessageStatus} reviewItem={reviewItem} />;
-  };
+  const {
+    calendarMetrics,
+    focusedAppointment,
+    goToNextRange,
+    goToPreviousRange,
+    goToToday,
+    renderAppointmentBadges,
+  } = useAgendaInteractions({
+    appointmentReviewItemsByAppointmentId: reviewQueueByAppointmentId,
+    calendarView,
+    communicationDispatches,
+    expandedAppointmentId,
+    filteredAppointments,
+    setCalendarDate,
+  });
 
   const renderAgendaTab = () => (
     <AgendaTab
