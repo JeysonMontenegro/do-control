@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { AgendaTab } from "@/features/module1/components/agenda-tab";
 import {
   createDispatchStatusForm,
   createEmailTemplateForm,
@@ -12,20 +11,11 @@ import {
   createReminderRuleForm,
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
+import { ConsoleAuthShell } from "@/features/module1/components/console-auth-shell";
 import { ConsoleMainContent } from "@/features/module1/components/console-main-content";
 import { ConsoleModals } from "@/features/module1/components/console-modals";
-import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
-import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
-import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
-import { DoctorsSection } from "@/features/module1/components/doctors-section";
-import { EncountersTab } from "@/features/module1/components/encounters-tab";
-import { GestionHub } from "@/features/module1/components/gestion-hub";
-import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { LoginPanel } from "@/features/module1/components/login-panel";
-import { MessagesTab } from "@/features/module1/components/messages-tab";
-import { PatientsTab } from "@/features/module1/components/patients-tab";
 import { PagerBar } from "@/features/module1/components/pager-bar";
-import { PendingReviewTab } from "@/features/module1/components/pending-review-tab";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useAppointmentAdmin } from "@/features/module1/hooks/use-appointment-admin";
 import { useAgendaInteractions } from "@/features/module1/hooks/use-agenda-interactions";
@@ -591,47 +581,9 @@ export function ClinicalConsole() {
           tone={getMessageTone(message)}
         />
       ) : (
-        <section className="app-shell-auth">
-          <ConsoleSidebar
-            activeTab={activeTab}
-            appointmentCount={filteredAppointments.length}
-            canViewGestion={canViewGestion}
-            canViewMessages={canViewMessages}
-            canViewReviewQueue={canViewReviewQueue}
-            currentRoles={currentRoles}
-            isAdmin={isAdmin}
-            logout={logout}
-            onTabChange={setActiveTab}
-            patientCount={filteredPatients.length}
-            reviewCount={appointmentReviewItems.length}
-            tabs={consoleTabs}
-          />
-
-          <div className="app-content">
-            <ConsoleTopbar
-              activeTabLabel={consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda"}
-              currentUserDisplay={currentUserDisplay}
-              doctorFilter={doctorFilter}
-              isReceptionist={isReceptionist}
-              onDoctorFilterChange={setDoctorFilter}
-              onSearchChange={setTopbarSearch}
-              searchValue={topbarSearch}
-              selectedDoctor={selectedDoctor}
-              visibleDoctors={availableDoctors}
-            />
-
-            {message ? <p className={`message-box message-box-${getMessageTone(message)}`}>{message}</p> : null}
-            {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}
-            {!loading ? (
-              <ConsoleOverviewStrip
-                activeReviewItems={appointmentReviewItems.length}
-                encountersCount={filteredEncounters.length}
-                filteredAppointmentsCount={filteredAppointments.length}
-                filteredPatientsCount={filteredPatients.length}
-                globalSearch={topbarSearch.trim()}
-              />
-            ) : null}
-
+        <ConsoleAuthShell
+          loading={loading}
+          mainContent={
             <ConsoleMainContent
               activeTab={activeTab}
               agendaTabProps={{
@@ -866,52 +818,88 @@ export function ClinicalConsole() {
                 resolveReviewItem,
               }}
             />
-          </div>
-          <ConsoleModals
-            dispatchStatusModalProps={{
-              activeDispatch,
-              closeDispatchStatusModal,
-              dispatchStatusForm,
-              setDispatchStatusForm,
-              submitDispatchStatusUpdate,
-            }}
-            patientActionModalProps={{
-              activeSectionAction,
-              availableDoctors,
-              patientEditForm,
-              patientForm,
-              setActiveSectionAction,
-              setPatientEditForm,
-              setPatientForm,
-              submitPatient,
-              submitPatientUpdate,
-            }}
-            receptionistModalProps={{
-              editingReceptionistId,
-              filteredDoctorOptions,
-              isAdmin,
-              receptionistDoctorSearch,
-              receptionistForm,
-              resetReceptionistForm,
-              setReceptionistDoctorSearch,
-              setReceptionistForm,
-              showReceptionistModal,
-              submitReceptionist,
-            }}
-            reviewResolutionModalProps={{
-              activeReviewItem,
-              allAppointments: data.appointments,
-              allPatients: data.patients,
-              availableDoctors,
-              closeReviewResolutionModal,
-              reviewAppointmentOptions,
-              reviewPatientOptions,
-              reviewResolutionForm,
-              setReviewResolutionForm,
-              submitReviewResolution,
-            }}
-          />
-        </section>
+          }
+          message={message}
+          messageTone={getMessageTone(message)}
+          modalContent={
+            <ConsoleModals
+              dispatchStatusModalProps={{
+                activeDispatch,
+                closeDispatchStatusModal,
+                dispatchStatusForm,
+                setDispatchStatusForm,
+                submitDispatchStatusUpdate,
+              }}
+              patientActionModalProps={{
+                activeSectionAction,
+                availableDoctors,
+                patientEditForm,
+                patientForm,
+                setActiveSectionAction,
+                setPatientEditForm,
+                setPatientForm,
+                submitPatient,
+                submitPatientUpdate,
+              }}
+              receptionistModalProps={{
+                editingReceptionistId,
+                filteredDoctorOptions,
+                isAdmin,
+                receptionistDoctorSearch,
+                receptionistForm,
+                resetReceptionistForm,
+                setReceptionistDoctorSearch,
+                setReceptionistForm,
+                showReceptionistModal,
+                submitReceptionist,
+              }}
+              reviewResolutionModalProps={{
+                activeReviewItem,
+                allAppointments: data.appointments,
+                allPatients: data.patients,
+                availableDoctors,
+                closeReviewResolutionModal,
+                reviewAppointmentOptions,
+                reviewPatientOptions,
+                reviewResolutionForm,
+                setReviewResolutionForm,
+                submitReviewResolution,
+              }}
+            />
+          }
+          overviewStripProps={{
+            activeReviewItems: appointmentReviewItems.length,
+            encountersCount: filteredEncounters.length,
+            filteredAppointmentsCount: filteredAppointments.length,
+            filteredPatientsCount: filteredPatients.length,
+            globalSearch: topbarSearch.trim(),
+          }}
+          sidebarProps={{
+            activeTab,
+            appointmentCount: filteredAppointments.length,
+            canViewGestion,
+            canViewMessages,
+            canViewReviewQueue,
+            currentRoles,
+            isAdmin,
+            logout,
+            onTabChange: setActiveTab,
+            patientCount: filteredPatients.length,
+            reviewCount: appointmentReviewItems.length,
+            tabs: consoleTabs,
+          }}
+          topbarProps={{
+            activeTabLabel: consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda",
+            currentUserDisplay,
+            doctorFilter,
+            isReceptionist,
+            onDoctorFilterChange: setDoctorFilter,
+            onSearchChange: setTopbarSearch,
+            searchValue: topbarSearch,
+            selectedDoctor,
+            visibleDoctors: availableDoctors,
+          }}
+        />
       )}
     </main>
   );
