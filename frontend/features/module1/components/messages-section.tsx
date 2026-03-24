@@ -2,6 +2,7 @@
 
 import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
+import { SearchableSelect } from "@/features/module1/components/form-fields";
 import type { ConsoleTab } from "@/features/module1/console-config";
 import {
   appointmentTypeLabel,
@@ -83,6 +84,12 @@ export function MessagesSection({
   toggleDispatchAttempts,
   updateDispatchStatus,
 }: MessagesSectionProps) {
+  const patientOptions = data.patients.map((patient) => ({
+    value: String(patient.id),
+    label: `${patient.first_name} ${patient.last_name}`,
+    description: patient.medical_record_number,
+    keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
+  }));
   const activeDispatchFilters = [
     dispatchFilters.status_filter ? { label: "Estado", value: dispatchStatusLabel(dispatchFilters.status_filter) } : null,
     dispatchFilters.channel ? { label: "Canal", value: dispatchFilters.channel } : null,
@@ -139,14 +146,14 @@ export function MessagesSection({
             </div>
             <label>
               <span>Paciente seleccionado</span>
-              <select value={selectedPatientId} onChange={(event) => setSelectedPatientId(event.target.value)}>
-                <option value="">Seleccionar paciente</option>
-                {data.patients.map((patient) => (
-                  <option key={`message-patient-${patient.id}`} value={patient.id}>
-                    {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={selectedPatientId}
+                onChange={setSelectedPatientId}
+                options={patientOptions}
+                placeholder="Seleccionar paciente"
+                clearLabel="Seleccionar paciente"
+                searchPlaceholder="Buscar paciente"
+              />
             </label>
             <p className="empty-state">
               Esta vista muestra el histórico del paciente seleccionado.

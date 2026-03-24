@@ -5,7 +5,7 @@ import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
 import type { CalendarView } from "@/features/module1/console-config";
 import { calendarRangeLabel, formatDateTime } from "@/features/module1/console-utils";
-import { DateField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { DateField, RequiredLabel, SearchableSelect } from "@/features/module1/components/form-fields";
 import {
   appointmentStatusLabel,
   appointmentTypeLabel,
@@ -132,6 +132,16 @@ export function AgendaSection({
   submitAppointment,
   updateAppointmentStatus,
 }: AgendaSectionProps) {
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
+  const patientOptions = data.patients.map((patient) => ({
+    value: String(patient.id),
+    label: `${patient.first_name} ${patient.last_name}`,
+    description: patient.medical_record_number,
+    keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
+  }));
   const activeAgendaFilters = [
     doctorFilter && selectedDoctor ? { label: "Doctor", value: `${selectedDoctor.first_name} ${selectedDoctor.last_name}` } : null,
     appointmentFilter !== "all"
@@ -363,19 +373,23 @@ export function AgendaSection({
           </div>
           <div className="toolbar-inline">
             {isAdmin ? (
-              <select value={doctorFilter} onChange={(event) => onDoctorFilterChange(event.target.value)}>
-                <option value="">Todos los doctores</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`doctor-filter-${doctor.id}`} value={doctor.id}>{doctor.first_name} {doctor.last_name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={doctorFilter}
+                onChange={onDoctorFilterChange}
+                options={doctorOptions}
+                placeholder="Todos los doctores"
+                clearLabel="Todos los doctores"
+                searchPlaceholder="Buscar doctor"
+              />
             ) : canChooseAmongMultipleDoctors && availableDoctors.length > 1 ? (
-              <select value={doctorFilter} onChange={(event) => onDoctorFilterChange(event.target.value)}>
-                <option value="">Selecciona doctor</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`doctor-scope-${doctor.id}`} value={doctor.id}>{doctor.first_name} {doctor.last_name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={doctorFilter}
+                onChange={onDoctorFilterChange}
+                options={doctorOptions}
+                placeholder="Selecciona doctor"
+                clearLabel="Selecciona doctor"
+                searchPlaceholder="Buscar doctor"
+              />
             ) : !isAdmin && availableDoctors.length > 1 ? (
               <div className="context-pill">Hay varios doctores asignados. Contacta al administrador para habilitar visibilidad.</div>
             ) : selectedDoctor ? (
@@ -425,22 +439,26 @@ export function AgendaSection({
               <h3>Nueva cita</h3>
               <label>
                 <RequiredLabel>Paciente</RequiredLabel>
-                <select value={appointmentForm.patient_id} onChange={(event) => onAppointmentPatientChange(event.target.value)} required>
-                  <option value="">Seleccionar</option>
-                  {data.patients.map((patient) => (
-                    <option key={`appointment-patient-${patient.id}`} value={patient.id}>{patient.first_name} {patient.last_name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={appointmentForm.patient_id}
+                  onChange={onAppointmentPatientChange}
+                  options={patientOptions}
+                  placeholder="Seleccionar paciente"
+                  searchPlaceholder="Buscar paciente"
+                  required
+                />
               </label>
               {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
                   <RequiredLabel>Doctor</RequiredLabel>
-                  <select value={appointmentForm.doctor_id} onChange={(event) => onAppointmentDoctorChange(event.target.value)} required>
-                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`appointment-doctor-${doctor.id}`} value={doctor.id}>{doctor.first_name} {doctor.last_name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={appointmentForm.doctor_id}
+                    onChange={onAppointmentDoctorChange}
+                    options={doctorOptions}
+                    placeholder={isAdmin ? "Seleccionar doctor" : "Selecciona doctor"}
+                    searchPlaceholder="Buscar doctor"
+                    required
+                  />
                 </label>
               ) : !isAdmin && availableDoctors.length > 1 ? (
                 <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>

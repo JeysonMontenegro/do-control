@@ -1,6 +1,7 @@
 "use client";
 
 import { CONFIRMATION_TEMPLATE_KEY } from "@/features/module1/console-config";
+import { SearchableSelect } from "@/features/module1/components/form-fields";
 import { reminderLeadTimeLabel } from "@/features/module1/console-utils";
 import type { Doctor, ReminderRule } from "@/features/module1/types";
 
@@ -44,6 +45,10 @@ export function GestionRemindersSection({
   submitReminderRule,
   toggleReminderRule,
 }: GestionRemindersSectionProps) {
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Solo Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
   const scopedReminderRules = reminderRules.filter(
     (rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId,
   );
@@ -86,17 +91,14 @@ export function GestionRemindersSection({
           {isAdmin ? (
             <label>
               <span>Alcance</span>
-              <select
+              <SearchableSelect
                 value={reminderRuleForm.doctor_id}
-                onChange={(event) => setReminderRuleForm((current) => ({ ...current, doctor_id: event.target.value }))}
-              >
-                <option value="">General para toda la clinica</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`reminder-doctor-${doctor.id}`} value={doctor.id}>
-                    Solo Dr. {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setReminderRuleForm((current) => ({ ...current, doctor_id: value }))}
+                options={doctorOptions}
+                placeholder="General para toda la clinica"
+                clearLabel="General para toda la clinica"
+                searchPlaceholder="Buscar doctor"
+              />
             </label>
           ) : selectedDoctor ? (
             <label>

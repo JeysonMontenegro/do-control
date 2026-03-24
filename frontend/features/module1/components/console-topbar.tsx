@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableSelect } from "@/features/module1/components/form-fields";
 import type { Doctor } from "@/features/module1/types";
 
 type ConsoleTopbarProps = {
@@ -25,6 +26,11 @@ export function ConsoleTopbar({
   selectedDoctor,
   visibleDoctors,
 }: ConsoleTopbarProps) {
+  const doctorOptions = visibleDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Gestionando pacientes de Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
+
   return (
     <header className="topbar">
       <div className="topbar-copy">
@@ -40,13 +46,13 @@ export function ConsoleTopbar({
           </div>
         ) : null}
         {isReceptionist && visibleDoctors.length > 1 ? (
-          <select value={doctorFilter} onChange={(event) => onDoctorFilterChange(event.target.value)}>
-            {visibleDoctors.map((doctor) => (
-              <option key={`topbar-doctor-${doctor.id}`} value={doctor.id}>
-                Gestionando pacientes de Dr. {doctor.first_name} {doctor.last_name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={doctorFilter}
+            onChange={onDoctorFilterChange}
+            options={doctorOptions}
+            placeholder="Selecciona doctor"
+            searchPlaceholder="Buscar doctor"
+          />
         ) : null}
         <label className="topbar-search-shell">
           <span className="topbar-search-label">Busqueda global</span>

@@ -2,6 +2,7 @@
 
 import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
+import { SearchableSelect } from "@/features/module1/components/form-fields";
 import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { formatDateTime } from "@/features/module1/console-utils";
 import type { Doctor, Encounter, Patient, PatientSummary } from "@/features/module1/types";
@@ -55,6 +56,10 @@ export function PatientsSection({
   onShowCreatePatient,
   setExpandedEncounterId,
 }: PatientsSectionProps) {
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
   const selectedDoctorLabel = doctorFilter
     ? availableDoctors.find((doctor) => String(doctor.id) === doctorFilter)
     : null;
@@ -69,14 +74,14 @@ export function PatientsSection({
           </div>
           <div className="section-tools-panel">
             {isAdmin || (isReceptionist && availableDoctors.length > 1) ? (
-              <select value={doctorFilter} onChange={(event) => onPatientDoctorFilterChange(event.target.value)}>
-                <option value="">{isAdmin ? "Todos los doctores" : "Todos mis doctores"}</option>
-                {availableDoctors.map((doctor) => (
-                  <option key={`patient-doctor-filter-${doctor.id}`} value={doctor.id}>
-                    Dr. {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={doctorFilter}
+                onChange={onPatientDoctorFilterChange}
+                options={doctorOptions}
+                placeholder={isAdmin ? "Todos los doctores" : "Todos mis doctores"}
+                clearLabel={isAdmin ? "Todos los doctores" : "Todos mis doctores"}
+                searchPlaceholder="Buscar doctor"
+              />
             ) : null}
             {canManagePatients ? (
               <button type="button" className="secondary-button" onClick={onShowCreatePatient}>

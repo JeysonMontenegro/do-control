@@ -2,7 +2,7 @@
 
 import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
-import { DateField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { DateField, RequiredLabel, SearchableSelect } from "@/features/module1/components/form-fields";
 import { encounterTypeLabel, formatDateTime } from "@/features/module1/console-utils";
 import type {
   Appointment,
@@ -95,6 +95,16 @@ export function EncountersSection({
   submitAttachment,
   submitEncounter,
 }: EncountersSectionProps) {
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
+  const patientOptions = patients.map((patient) => ({
+    value: String(patient.id),
+    label: `${patient.first_name} ${patient.last_name}`,
+    description: patient.medical_record_number,
+    keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
+  }));
   const selectedFilterDoctor = doctorFilter
     ? availableDoctors.find((doctor) => String(doctor.id) === doctorFilter) ?? null
     : null;
@@ -111,6 +121,16 @@ export function EncountersSection({
     }
     return true;
   });
+  const appointmentOptions = availableAppointments.map((appointment) => ({
+    value: String(appointment.id),
+    label: appointment.patient_name ?? `Paciente ${appointment.patient_id}`,
+    description: formatDateTime(appointment.scheduled_start),
+  }));
+  const attachmentEncounterOptions = (selectedSummary?.encounters ?? []).map((encounter) => ({
+    value: String(encounter.id),
+    label: encounterTypeLabel(encounter.encounter_type),
+    description: formatDateTime(encounter.encounter_date),
+  }));
 
   return (
     <section className="tab-layout">
@@ -126,34 +146,26 @@ export function EncountersSection({
             <div className="two-column-grid">
               <label>
                 <RequiredLabel>Paciente</RequiredLabel>
-                <select
+                <SearchableSelect
                   value={encounterForm.patient_id}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, patient_id: event.target.value }))}
+                  onChange={(value) => setEncounterForm((current) => ({ ...current, patient_id: value }))}
+                  options={patientOptions}
+                  placeholder="Seleccionar paciente"
+                  searchPlaceholder="Buscar paciente"
                   required
-                >
-                  <option value="">Seleccionar</option>
-                  {patients.map((patient) => (
-                    <option key={`encounter-patient-${patient.id}`} value={patient.id}>
-                      {patient.first_name} {patient.last_name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               {isAdmin || (canChooseAmongMultipleDoctors && availableDoctors.length > 1) ? (
                 <label>
                   <RequiredLabel>Doctor</RequiredLabel>
-                  <select
+                  <SearchableSelect
                     value={encounterForm.doctor_id}
-                    onChange={(event) => setEncounterForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                    onChange={(value) => setEncounterForm((current) => ({ ...current, doctor_id: value }))}
+                    options={doctorOptions}
+                    placeholder={isAdmin ? "Seleccionar doctor" : "Selecciona doctor"}
+                    searchPlaceholder="Buscar doctor"
                     required
-                  >
-                    <option value="">{isAdmin ? "Seleccionar" : "Selecciona doctor"}</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`encounter-doctor-${doctor.id}`} value={doctor.id}>
-                        {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
               ) : !isAdmin && availableDoctors.length > 1 ? (
                 <p className="empty-state">No puedes elegir entre varios doctores hasta que administración habilite esa visibilidad.</p>
@@ -165,17 +177,14 @@ export function EncountersSection({
               ) : null}
               <label>
                 <span>Cita relacionada</span>
-                <select
+                <SearchableSelect
                   value={encounterForm.appointment_id}
-                  onChange={(event) => setEncounterForm((current) => ({ ...current, appointment_id: event.target.value }))}
-                >
-                  <option value="">Sin cita</option>
-                  {availableAppointments.map((appointment) => (
-                    <option key={`encounter-appointment-${appointment.id}`} value={appointment.id}>
-                      {appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · {formatDateTime(appointment.scheduled_start)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setEncounterForm((current) => ({ ...current, appointment_id: value }))}
+                  options={appointmentOptions}
+                  placeholder="Sin cita"
+                  clearLabel="Sin cita"
+                  searchPlaceholder="Buscar cita"
+                />
               </label>
               <DateField
                 label="Fecha"
@@ -326,14 +335,14 @@ export function EncountersSection({
             <h2>Consultas recientes</h2>
           </div>
           {isAdmin || (isReceptionist && availableDoctors.length > 1) ? (
-            <select value={doctorFilter} onChange={(event) => onEncounterDoctorFilterChange(event.target.value)}>
-              <option value="">{isAdmin ? "Todos los doctores" : "Todos mis doctores"}</option>
-              {availableDoctors.map((doctor) => (
-                <option key={`encounter-filter-${doctor.id}`} value={doctor.id}>
-                  Dr. {doctor.first_name} {doctor.last_name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={doctorFilter}
+              onChange={onEncounterDoctorFilterChange}
+              options={doctorOptions}
+              placeholder={isAdmin ? "Todos los doctores" : "Todos mis doctores"}
+              clearLabel={isAdmin ? "Todos los doctores" : "Todos mis doctores"}
+              searchPlaceholder="Buscar doctor"
+            />
           ) : null}
         </div>
         <ActiveFiltersBar
@@ -392,14 +401,14 @@ export function EncountersSection({
             </label>
             <label>
               <span>Consulta</span>
-              <select value={attachmentEncounterId} onChange={(event) => setAttachmentEncounterId(event.target.value)}>
-                <option value="">Sin consulta</option>
-                {selectedSummary.encounters.map((encounter) => (
-                  <option key={`attachment-encounter-${encounter.id}`} value={encounter.id}>
-                    {encounterTypeLabel(encounter.encounter_type)} · {formatDateTime(encounter.encounter_date)}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={attachmentEncounterId}
+                onChange={setAttachmentEncounterId}
+                options={attachmentEncounterOptions}
+                placeholder="Sin consulta"
+                clearLabel="Sin consulta"
+                searchPlaceholder="Buscar consulta"
+              />
             </label>
             <label>
               <span>Archivo</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
+import { PhoneField, RequiredLabel, SearchableSelect } from "@/features/module1/components/form-fields";
 import type { Doctor } from "@/features/module1/types";
 
 type PatientAction = "patient_create" | "patient_edit" | null;
@@ -51,6 +51,11 @@ export function PatientActionModal({
   submitPatient,
   submitPatientUpdate,
 }: PatientActionModalProps) {
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
+
   if (!activeSectionAction) {
     return null;
   }
@@ -72,18 +77,14 @@ export function PatientActionModal({
             <div className="three-column-grid">
               <label>
                 <RequiredLabel>Doctor responsable</RequiredLabel>
-                <select
+                <SearchableSelect
                   value={patientForm.doctor_id}
-                  onChange={(event) => setPatientForm((current) => ({ ...current, doctor_id: event.target.value }))}
+                  onChange={(value) => setPatientForm((current) => ({ ...current, doctor_id: value }))}
+                  options={doctorOptions}
+                  placeholder="Selecciona doctor"
+                  searchPlaceholder="Buscar doctor"
                   required
-                >
-                  <option value="">Selecciona doctor</option>
-                  {availableDoctors.map((doctor) => (
-                    <option key={`patient-create-doctor-${doctor.id}`} value={doctor.id}>
-                      Dr. {doctor.first_name} {doctor.last_name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               <label>
                 <span>Expediente</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableSelect } from "@/features/module1/components/form-fields";
 import { formatDateTime, reviewReasonLabel } from "@/features/module1/console-utils";
 import type { Appointment, AppointmentReviewItem, Doctor, Patient } from "@/features/module1/types";
 
@@ -40,6 +41,22 @@ export function ReviewResolutionModal({
   if (!activeReviewItem) {
     return null;
   }
+
+  const effectivePatientOptions = (reviewPatientOptions.length ? reviewPatientOptions : allPatients).map((patient) => ({
+    value: String(patient.id),
+    label: `${patient.first_name} ${patient.last_name}`,
+    description: patient.medical_record_number,
+    keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
+  }));
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
+  const effectiveAppointmentOptions = (reviewAppointmentOptions.length ? reviewAppointmentOptions : allAppointments).map((appointment) => ({
+    value: String(appointment.id),
+    label: appointment.patient_name ?? `Paciente ${appointment.patient_id}`,
+    description: formatDateTime(appointment.scheduled_start),
+  }));
 
   const actionLabel =
     reviewResolutionForm.action === "create_appointment"
@@ -89,45 +106,26 @@ export function ReviewResolutionModal({
             <>
               <label>
                 <span>Paciente</span>
-                <select
+                <SearchableSelect
                   value={reviewResolutionForm.patient_id}
-                  onChange={(event) =>
-                    setReviewResolutionForm((current) => ({ ...current, patient_id: event.target.value }))
-                  }
+                  onChange={(value) => setReviewResolutionForm((current) => ({ ...current, patient_id: value }))}
+                  options={effectivePatientOptions}
+                  placeholder="Seleccionar paciente"
+                  searchPlaceholder="Buscar paciente"
                   required
-                >
-                  <option value="">Seleccionar paciente</option>
-                  {reviewPatientOptions.map((patient) => (
-                    <option key={`review-patient-${patient.id}`} value={patient.id}>
-                      {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                    </option>
-                  ))}
-                  {!reviewPatientOptions.length
-                    ? allPatients.map((patient) => (
-                        <option key={`review-patient-fallback-${patient.id}`} value={patient.id}>
-                          {patient.first_name} {patient.last_name} · {patient.medical_record_number}
-                        </option>
-                      ))
-                    : null}
-                </select>
+                />
               </label>
               {activeReviewItem.doctor_id === null ? (
                 <label>
                   <span>Doctor</span>
-                  <select
+                  <SearchableSelect
                     value={reviewResolutionForm.doctor_id}
-                    onChange={(event) =>
-                      setReviewResolutionForm((current) => ({ ...current, doctor_id: event.target.value }))
-                    }
+                    onChange={(value) => setReviewResolutionForm((current) => ({ ...current, doctor_id: value }))}
+                    options={doctorOptions}
+                    placeholder="Seleccionar doctor"
+                    searchPlaceholder="Buscar doctor"
                     required
-                  >
-                    <option value="">Seleccionar doctor</option>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`review-doctor-${doctor.id}`} value={doctor.id}>
-                        {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
               ) : (
                 <label>
@@ -141,27 +139,14 @@ export function ReviewResolutionModal({
           {reviewResolutionForm.action === "link_existing" ? (
             <label>
               <span>Cita existente</span>
-              <select
+              <SearchableSelect
                 value={reviewResolutionForm.appointment_id}
-                onChange={(event) =>
-                  setReviewResolutionForm((current) => ({ ...current, appointment_id: event.target.value }))
-                }
+                onChange={(value) => setReviewResolutionForm((current) => ({ ...current, appointment_id: value }))}
+                options={effectiveAppointmentOptions}
+                placeholder="Seleccionar cita"
+                searchPlaceholder="Buscar cita"
                 required
-              >
-                <option value="">Seleccionar cita</option>
-                {reviewAppointmentOptions.map((appointment) => (
-                  <option key={`review-appointment-${appointment.id}`} value={appointment.id}>
-                    {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
-                  </option>
-                ))}
-                {!reviewAppointmentOptions.length
-                  ? allAppointments.map((appointment) => (
-                      <option key={`review-appointment-fallback-${appointment.id}`} value={appointment.id}>
-                        {(appointment.patient_name ?? `Paciente ${appointment.patient_id}`)} · {formatDateTime(appointment.scheduled_start)}
-                      </option>
-                    ))
-                  : null}
-              </select>
+              />
             </label>
           ) : null}
 
