@@ -24,6 +24,7 @@ import { useClinicalSession } from "@/features/module1/hooks/use-clinical-sessio
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useClinicalDataLoader } from "@/features/module1/hooks/use-clinical-data-loader";
 import { useClinicalFormPrefills } from "@/features/module1/hooks/use-clinical-form-prefills";
+import { useClinicalNavigation } from "@/features/module1/hooks/use-clinical-navigation";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
 import { useEncounterAttachmentAdmin } from "@/features/module1/hooks/use-encounter-attachment-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
@@ -582,6 +583,21 @@ export function ClinicalConsole() {
     setEncounterForm,
   });
 
+  const {
+    clearPatientFocus,
+    goToAgenda,
+    goToAgendaAppointment,
+    goToEncounters,
+    goToMessages,
+    goToMessagesForAppointment,
+    goToPatient,
+  } = useClinicalNavigation({
+    setActiveTab,
+    setMessagesSubtab,
+    setSelectedPatientId,
+    toggleAppointmentHistory,
+  });
+
   return (
     <main className="page-shell">
       {!isAuthenticated ? (
@@ -599,7 +615,7 @@ export function ClinicalConsole() {
             currentUserDisplay,
             globalSearch: topbarSearch,
             onClearAgendaFilter: () => setAppointmentFilter("all"),
-            onClearPatientFocus: () => setSelectedPatientId(""),
+            onClearPatientFocus: clearPatientFocus,
             onClearSearch: () => setTopbarSearch(""),
             selectedDoctor,
             selectedSummary,
@@ -644,16 +660,8 @@ export function ClinicalConsole() {
                 onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
                 onCalendarViewChange: setCalendarView,
                 onDoctorFilterChange: setDoctorFilter,
-                onGoToMessagesForAppointment: (appointmentId, patientId) => {
-                  setSelectedPatientId(String(patientId));
-                  setMessagesSubtab("citas");
-                  setActiveTab("mensajes");
-                  toggleAppointmentHistory(appointmentId);
-                },
-                onGoToPatient: (patientId) => {
-                  setSelectedPatientId(String(patientId));
-                  setActiveTab("pacientes");
-                },
+                onGoToMessagesForAppointment: goToMessagesForAppointment,
+                onGoToPatient: goToPatient,
                 onSelectAppointment: toggleAppointmentHistory,
                 openDispatchAttempts: toggleDispatchAttempts,
                 reminderNow: sendAppointmentReminderNow,
@@ -709,14 +717,8 @@ export function ClinicalConsole() {
                 prescriptionItems,
                 selectedDoctor,
                 selectedSummary,
-                onGoToAgendaAppointment: (appointmentId) => {
-                  setActiveTab("agenda");
-                  toggleAppointmentHistory(appointmentId);
-                },
-                onGoToPatient: (patientId) => {
-                  setSelectedPatientId(String(patientId));
-                  setActiveTab("pacientes");
-                },
+                onGoToAgendaAppointment: goToAgendaAppointment,
+                onGoToPatient: goToPatient,
                 setAttachmentEncounterId,
                 setAttachmentFile,
                 setAttachmentType,
@@ -759,10 +761,7 @@ export function ClinicalConsole() {
                   setShowReceptionistModal(true);
                 },
                 onEditReceptionist: startReceptionistEdit,
-                onGoToAgendaAppointment: (appointmentId) => {
-                  setActiveTab("agenda");
-                  toggleAppointmentHistory(appointmentId);
-                },
+                onGoToAgendaAppointment: goToAgendaAppointment,
                 onGestionSubtabChange: setGestionSubtab,
                 onProfilePhotoChange: setProfilePhotoFile,
                 onSelectReceptionist: setSelectedReceptionistId,
@@ -830,13 +829,10 @@ export function ClinicalConsole() {
                 expandedEncounterId,
                 isAdmin,
                 onEditSelectedPatient: () => selectedSummary && setActiveSectionAction("patient_edit"),
-                onGoToAgenda: () => setActiveTab("agenda"),
-                onGoToAgendaFromPatient: (appointmentId) => {
-                  setActiveTab("agenda");
-                  toggleAppointmentHistory(appointmentId);
-                },
-                onGoToEncounters: () => setActiveTab("consultas"),
-                onGoToMessages: () => setActiveTab("mensajes"),
+                onGoToAgenda: goToAgenda,
+                onGoToAgendaFromPatient: goToAgendaAppointment,
+                onGoToEncounters: goToEncounters,
+                onGoToMessages: goToMessages,
                 onOpenAttachment: openAttachment,
                 onPatientSearchChange: setPatientSearch,
                 onSelectPatient: setSelectedPatientId,
@@ -852,10 +848,7 @@ export function ClinicalConsole() {
                 appointmentReviewItems,
                 communicationDispatches,
                 filteredAppointments,
-                onGoToAgendaAppointment: (appointmentId) => {
-                  setActiveTab("agenda");
-                  toggleAppointmentHistory(appointmentId);
-                },
+                onGoToAgendaAppointment: goToAgendaAppointment,
                 renderAppointmentBadges,
                 reviewQueueByAppointmentId,
                 resolveReviewItem,
