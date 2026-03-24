@@ -1534,14 +1534,23 @@ select.compact-input:hover {
 
   .app-sidebar {
     padding: 12px;
-    gap: 12px;
+    gap: 10px;
     position: sticky;
     top: 0;
     z-index: 12;
   }
 
+  .sidebar-brand {
+    gap: 2px;
+  }
+
   .sidebar-brand h1 {
-    font-size: 1.15rem;
+    font-size: 1rem;
+  }
+
+  .sidebar-brand span,
+  .sidebar-brand .eyebrow {
+    font-size: 0.74rem;
   }
 
   .sidebar-nav {
@@ -1564,11 +1573,15 @@ select.compact-input:hover {
     min-width: max-content;
     white-space: nowrap;
     scroll-snap-align: start;
-    padding: 10px 14px;
+    padding: 9px 12px;
     border-color: rgba(255, 255, 255, 0.14);
     background: rgba(255, 255, 255, 0.06);
     color: rgba(245, 248, 255, 0.92);
     font-weight: 600;
+  }
+
+  .sidebar-link span {
+    display: none;
   }
 
   .sidebar-link-active {
@@ -1584,15 +1597,33 @@ select.compact-input:hover {
   }
 
   .sidebar-stat {
-    padding: 8px 10px;
+    padding: 7px 9px;
   }
 
   .sidebar-stat strong {
-    font-size: 1rem;
+    font-size: 0.92rem;
+  }
+
+  .sidebar-stat span {
+    font-size: 0.72rem;
+  }
+
+  .sidebar-role-pills {
+    gap: 6px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .sidebar-role-pill {
+    white-space: nowrap;
+    font-size: 0.72rem;
+    padding: 5px 9px;
   }
 
   .sidebar-logout {
     margin-top: 0;
+    padding: 8px 10px;
   }
 
   .app-content {
@@ -1621,6 +1652,9 @@ select.compact-input:hover {
   .topbar {
     padding: 12px;
     gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 11;
   }
 
   .topbar-copy h2 {
@@ -1695,6 +1729,15 @@ select.compact-input:hover {
     flex-wrap: wrap;
     overflow-x: visible;
     padding-bottom: 0;
+  }
+
+  .section-tools-panel {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .active-filters-bar {
+    padding: 10px 12px;
   }
 
   .filter-chip,

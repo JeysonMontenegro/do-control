@@ -1,5 +1,6 @@
 "use client";
 
+import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { DateField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { encounterTypeLabel, formatDateTime } from "@/features/module1/console-utils";
@@ -32,16 +33,19 @@ type EncountersSectionProps = {
   availableDoctors: Doctor[];
   canChooseAmongMultipleDoctors: boolean;
   canManageEncounters: boolean;
+  doctorFilter: string;
   diagnoses: Diagnosis[];
   downloadingAttachmentId: number | null;
   encounters: Encounter[];
   encounterForm: EncounterForm;
   examOrders: ExamOrder[];
   isAdmin: boolean;
+  isReceptionist: boolean;
   prescriptionItems: PrescriptionItem[];
   patients: Patient[];
   selectedDoctor: Doctor | null;
   selectedSummary: PatientSummary | null;
+  onEncounterDoctorFilterChange: (value: string) => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGoToPatient: (patientId: number) => void;
   setAttachmentEncounterId: React.Dispatch<React.SetStateAction<string>>;
@@ -64,16 +68,19 @@ export function EncountersSection({
   availableDoctors,
   canChooseAmongMultipleDoctors,
   canManageEncounters,
+  doctorFilter,
   diagnoses,
   downloadingAttachmentId,
   encounters,
   encounterForm,
   examOrders,
   isAdmin,
+  isReceptionist,
   prescriptionItems,
   patients,
   selectedDoctor,
   selectedSummary,
+  onEncounterDoctorFilterChange,
   onGoToAgendaAppointment,
   onGoToPatient,
   setAttachmentEncounterId,
@@ -88,6 +95,10 @@ export function EncountersSection({
   submitAttachment,
   submitEncounter,
 }: EncountersSectionProps) {
+  const selectedFilterDoctor = doctorFilter
+    ? availableDoctors.find((doctor) => String(doctor.id) === doctorFilter) ?? null
+    : null;
+
   const availableAppointments = appointments.filter((appointment) => {
     if (appointment.status === "cancelled" || appointment.confirmation_status === "cancelled") {
       return false;
@@ -314,7 +325,23 @@ export function EncountersSection({
             <p className="eyebrow">Historial</p>
             <h2>Consultas recientes</h2>
           </div>
+          {isAdmin || (isReceptionist && availableDoctors.length > 1) ? (
+            <select value={doctorFilter} onChange={(event) => onEncounterDoctorFilterChange(event.target.value)}>
+              <option value="">{isAdmin ? "Todos los doctores" : "Todos mis doctores"}</option>
+              {availableDoctors.map((doctor) => (
+                <option key={`encounter-filter-${doctor.id}`} value={doctor.id}>
+                  Dr. {doctor.first_name} {doctor.last_name}
+                </option>
+              ))}
+            </select>
+          ) : null}
         </div>
+        <ActiveFiltersBar
+          items={selectedFilterDoctor ? [{ label: "Doctor", value: `Dr. ${selectedFilterDoctor.first_name} ${selectedFilterDoctor.last_name}` }] : []}
+          onClearAll={doctorFilter ? () => onEncounterDoctorFilterChange("") : undefined}
+          resultsLabel="consultas visibles"
+          resultsValue={encounters.length}
+        />
         <div className="table-list">
           {encounters.length ? (
             encounters.map((encounter) => (
