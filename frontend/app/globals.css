@@ -491,6 +491,11 @@ select.compact-input:hover {
   font-weight: 700;
 }
 
+.sidebar-link-compact,
+.sidebar-logout-compact {
+  display: none;
+}
+
 .sidebar-link span {
   color: rgba(235, 243, 255, 0.72);
   font-size: 0.79rem;
@@ -1644,9 +1649,10 @@ select.compact-input:hover {
   }
 
   .app-shell-auth {
-    grid-template-columns: 1fr;
+    grid-template-columns: 82px minmax(0, 1fr);
     gap: 8px;
     min-height: 100vh;
+    align-items: start;
   }
 
   .app-sidebar,
@@ -1654,36 +1660,42 @@ select.compact-input:hover {
   .section-card,
   .hero,
   .card {
-    border-radius: 0;
+    border-radius: 18px;
   }
 
   .app-sidebar {
-    padding: 12px;
-    gap: 10px;
+    min-height: 100vh;
+    padding: 12px 6px;
+    gap: 12px;
     position: sticky;
     top: 0;
     z-index: 12;
+    border-radius: 0 20px 20px 0;
   }
 
   .sidebar-brand {
     gap: 2px;
+    justify-items: center;
+    text-align: center;
   }
 
   .sidebar-brand h1 {
-    font-size: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.05;
   }
 
   .sidebar-brand span,
   .sidebar-brand .eyebrow {
-    font-size: 0.74rem;
+    display: none;
   }
 
   .sidebar-nav {
-    display: flex;
+    display: grid;
     gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scroll-snap-type: x proximity;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-content: start;
+    padding-right: 2px;
   }
 
   .sidebar-nav::-webkit-scrollbar,
@@ -1694,19 +1706,32 @@ select.compact-input:hover {
   }
 
   .sidebar-link {
-    width: auto;
-    min-width: max-content;
-    white-space: nowrap;
-    scroll-snap-align: start;
-    padding: 9px 12px;
+    width: 100%;
+    min-width: 0;
+    min-height: 58px;
+    white-space: normal;
+    justify-items: center;
+    text-align: center;
+    padding: 10px 8px;
     border-color: rgba(255, 255, 255, 0.14);
     background: rgba(255, 255, 255, 0.06);
     color: rgba(245, 248, 255, 0.92);
     font-weight: 600;
   }
 
+  .sidebar-link-full,
   .sidebar-link span {
     display: none;
+  }
+
+  .sidebar-link-compact,
+  .sidebar-logout-compact {
+    display: block;
+  }
+
+  .sidebar-link-compact {
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
   }
 
   .sidebar-link-active {
@@ -1717,12 +1742,14 @@ select.compact-input:hover {
   }
 
   .sidebar-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 8px;
   }
 
   .sidebar-stat {
-    padding: 7px 9px;
+    justify-items: center;
+    text-align: center;
+    padding: 8px 6px;
   }
 
   .sidebar-stat strong {
@@ -1730,25 +1757,21 @@ select.compact-input:hover {
   }
 
   .sidebar-stat span {
-    font-size: 0.72rem;
+    display: none;
   }
 
   .sidebar-role-pills {
-    gap: 6px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 2px;
-  }
-
-  .sidebar-role-pill {
-    white-space: nowrap;
-    font-size: 0.72rem;
-    padding: 5px 9px;
+    display: none;
   }
 
   .sidebar-logout {
     margin-top: 0;
-    padding: 8px 10px;
+    min-height: 46px;
+    padding: 10px 8px;
+  }
+
+  .sidebar-logout-full {
+    display: none;
   }
 
   .app-content {

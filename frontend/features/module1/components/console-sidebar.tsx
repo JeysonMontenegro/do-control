@@ -52,7 +52,8 @@ export function ConsoleSidebar({
               className={`sidebar-link ${activeTab === tab.id ? "sidebar-link-active" : ""}`}
               onClick={() => onTabChange(tab.id)}
             >
-              <strong>{tab.label}</strong>
+              <strong className="sidebar-link-full">{tab.label}</strong>
+              <strong className="sidebar-link-compact">{getCompactTabLabel(tab.id)}</strong>
               <span>{getTabSupportText(tab.id)}</span>
             </button>
           ))}
@@ -82,7 +83,8 @@ export function ConsoleSidebar({
       </div>
 
       <button type="button" className="secondary-button sidebar-logout" onClick={logout}>
-        Cerrar sesion
+        <span className="sidebar-logout-full">Cerrar sesion</span>
+        <span className="sidebar-logout-compact">Salir</span>
       </button>
     </aside>
   );
@@ -106,5 +108,26 @@ function getTabSupportText(tab: ConsoleTab) {
       return "Configuracion y operacion";
     default:
       return "";
+  }
+}
+
+function getCompactTabLabel(tab: ConsoleTab) {
+  switch (tab) {
+    case "agenda":
+      return "Ag";
+    case "doctores":
+      return "Dr";
+    case "pacientes":
+      return "Px";
+    case "consultas":
+      return "Cx";
+    case "mensajes":
+      return "Ms";
+    case "pendientes":
+      return "Pd";
+    case "gestion":
+      return "Gt";
+    default:
+      return "--";
   }
 }
