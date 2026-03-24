@@ -23,9 +23,9 @@ import { EncountersSection } from "@/features/module1/components/encounters-sect
 import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { LoginPanel } from "@/features/module1/components/login-panel";
-import { MessagesSection } from "@/features/module1/components/messages-section";
+import { MessagesTab } from "@/features/module1/components/messages-tab";
 import { PatientActionModal } from "@/features/module1/components/patient-action-modal";
-import { PatientsSection } from "@/features/module1/components/patients-section";
+import { PatientsTab } from "@/features/module1/components/patients-tab";
 import { PagerBar } from "@/features/module1/components/pager-bar";
 import { PendingReviewTab } from "@/features/module1/components/pending-review-tab";
 import { ReceptionistModal } from "@/features/module1/components/receptionist-modal";
@@ -1017,19 +1017,19 @@ export function ClinicalConsole() {
   );
 
   const renderPacientesTab = () => (
-    <PatientsSection
+    <PatientsTab
       canManagePatients={canManagePatients}
       expandedEncounterId={expandedEncounterId}
       isAdmin={isAdmin}
-      onEditPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
-      onGoToAgendaAppointment={(appointmentId) => {
+      onEditSelectedPatient={() => selectedSummary && setActiveSectionAction("patient_edit")}
+      onGoToAgendaFromPatient={(appointmentId) => {
         setActiveTab("agenda");
         toggleAppointmentHistory(appointmentId);
       }}
       onOpenAttachment={openAttachment}
       onPatientSearchChange={setPatientSearch}
       onSelectPatient={setSelectedPatientId}
-      onShowCreatePatient={() => setActiveSectionAction("patient_create")}
+      onShowCreatePatientModal={() => setActiveSectionAction("patient_create")}
       patientSearch={patientSearch}
       patients={filteredPatients}
       selectedPatientId={selectedPatientId}
@@ -1072,7 +1072,7 @@ export function ClinicalConsole() {
   );
 
   const renderMensajesTab = () => (
-    <MessagesSection
+    <MessagesTab
       canViewGlobalCommunications={canViewGlobalCommunications}
       communicationDispatchSummary={communicationDispatchSummary}
       communicationDispatches={communicationDispatches}
