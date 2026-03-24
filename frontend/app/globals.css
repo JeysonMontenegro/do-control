@@ -1,23 +1,23 @@
 :root {
-  --bg: #eef4fa;
+  --bg: #ecf3f8;
   --panel: #ffffff;
-  --panel-soft: #f7fbff;
-  --sidebar: #10283d;
-  --sidebar-soft: #1d4665;
-  --text: #24364a;
-  --muted: #6c8299;
-  --line: rgba(36, 54, 74, 0.1);
-  --line-strong: rgba(36, 54, 74, 0.18);
-  --accent: #2b6ef3;
-  --accent-strong: #1d57c2;
-  --accent-soft: #e8f0ff;
-  --teal: #167a72;
-  --teal-soft: #e5f7f4;
-  --warning: #f0a43a;
-  --warning-soft: #fff1dc;
-  --danger: #cf5e4e;
-  --danger-soft: #fff0ec;
-  --shadow: 0 20px 48px rgba(27, 57, 94, 0.08);
+  --panel-soft: #f4f9ff;
+  --sidebar: #0d2336;
+  --sidebar-soft: #17415d;
+  --text: #1f3142;
+  --muted: #60788f;
+  --line: rgba(31, 49, 66, 0.1);
+  --line-strong: rgba(31, 49, 66, 0.18);
+  --accent: #0f6c78;
+  --accent-strong: #0a5560;
+  --accent-soft: #e1f4f6;
+  --teal: #177a68;
+  --teal-soft: #e3f5ef;
+  --warning: #d99028;
+  --warning-soft: #fff1d7;
+  --danger: #c55645;
+  --danger-soft: #fdece8;
+  --shadow: 0 22px 52px rgba(18, 43, 68, 0.08);
 }
 
 * {
@@ -31,9 +31,9 @@ body {
   font-family: "Segoe UI", Tahoma, sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(43, 110, 243, 0.12), transparent 28%),
-    radial-gradient(circle at top right, rgba(22, 122, 114, 0.1), transparent 24%),
-    linear-gradient(180deg, #f5f8fc 0%, #e9f0f8 100%);
+    radial-gradient(circle at top left, rgba(15, 108, 120, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(23, 122, 104, 0.12), transparent 24%),
+    linear-gradient(180deg, #f6fafc 0%, #e7eef4 100%);
   overflow-x: hidden;
 }
 
@@ -81,7 +81,7 @@ textarea {
   justify-items: start;
   max-width: 720px;
   margin: 9vh auto 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f4fbfc 100%);
 }
 
 .hero h1,
@@ -137,7 +137,7 @@ textarea {
 .toolbar-inline select {
   width: 100%;
   border-radius: 12px;
-  border: 1px solid #d8e3f2;
+  border: 1px solid #d2dfea;
   padding: 10px 12px;
   background: #fff;
   color: var(--text);
@@ -176,8 +176,8 @@ select.compact-input:hover {
 .login-form input:focus,
 .toolbar-inline select:focus {
   outline: none;
-  border-color: rgba(43, 110, 243, 0.34);
-  box-shadow: 0 0 0 3px rgba(43, 110, 243, 0.1);
+  border-color: rgba(15, 108, 120, 0.34);
+  box-shadow: 0 0 0 3px rgba(15, 108, 120, 0.12);
 }
 
 .search-input {
