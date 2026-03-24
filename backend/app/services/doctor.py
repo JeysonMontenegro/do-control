@@ -9,9 +9,11 @@ from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.doctor import AssignedReceptionistRead, DoctorCreate, DoctorRead, DoctorUpdate
 from app.services.audit import create_audit_log
+from app.services.doctor_scope import scoped_doctor_ids_for_user
 from app.services.email_service import EmailService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password
+from app.services.service_utils import sync_doctor_primary_phone
 
 
 class DoctorService:
@@ -95,14 +97,7 @@ class DoctorService:
         ]
 
     def accessible_doctor_ids(self, current_user) -> set[int] | None:
-        role_names = self._role_names(current_user)
-        if "admin" in role_names:
-            return None
-        if "doctor" in role_names:
-            return {doctor.id for doctor in self.repository.list_for_linked_user(current_user.id)}
-        if "receptionist" in role_names:
-            return {doctor.id for doctor in self.repository.list_for_receptionist_user(current_user.id)}
-        return set()
+        return scoped_doctor_ids_for_user(current_user)
 
     def create_doctor(self, payload: DoctorCreate) -> Doctor:
         data = payload.model_dump()
@@ -148,14 +143,11 @@ class DoctorService:
         doctor = self.repository.create(Doctor(**data, linked_user_id=user.id))
         if clinics_payload:
             self.repository.replace_clinics(doctor, [DoctorClinic(**clinic_data) for clinic_data in clinics_payload])
-        self.repository.add_phone_number(
-            DoctorPhoneNumber(
-                doctor_id=doctor.id,
-                phone_number=primary_phone,
-                is_primary=True,
-                is_active=True,
-                channel_type=phone_channel_type,
-            )
+        sync_doctor_primary_phone(
+            doctor_repository=self.repository,
+            user=user,
+            phone_number=primary_phone,
+            channel_type=phone_channel_type,
         )
         create_audit_log(
             self.db,
@@ -197,22 +189,17 @@ class DoctorService:
                 raise ValidationError("A user with that phone number already exists.")
             if self.repository.phone_number_in_use(primary_phone, exclude_linked_user_id=doctor.linked_user_id):
                 raise ValidationError("A doctor with that phone number already exists.")
-            self.repository.deactivate_primary_phone_numbers(doctor.id)
-            self.repository.add_phone_number(
-                DoctorPhoneNumber(
-                    doctor_id=doctor.id,
-                    phone_number=primary_phone,
-                    is_primary=True,
-                    is_active=True,
-                    channel_type="whatsapp",
-                )
-            )
             self.user_repository.sync_primary_phone_number(
                 doctor.linked_user.id,
                 primary_phone,
                 phone_type="mobile",
                 is_verified=False,
                 can_talk_to_bot=True,
+            )
+            sync_doctor_primary_phone(
+                doctor_repository=self.repository,
+                user=doctor.linked_user,
+                phone_number=primary_phone,
             )
 
         if first_name is not None:

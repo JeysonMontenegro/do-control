@@ -29,7 +29,7 @@ class Patient(TimestampMixin, Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     medical_record_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     first_name: Mapped[str] = mapped_column(String(100))

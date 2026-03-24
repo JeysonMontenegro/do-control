@@ -10,6 +10,7 @@ from app.repositories.user import UserRepository
 from app.schemas.appointment import AppointmentCreate, AppointmentHistoryRead, AppointmentRead, AppointmentStatusUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import ConflictError, NotFoundError, ValidationError
+from app.services.service_utils import resolve_actor_user_id
 
 
 class AppointmentService:
@@ -19,12 +20,6 @@ class AppointmentService:
         self.doctor_repository = DoctorRepository(db)
         self.patient_repository = PatientRepository(db)
         self.user_repository = UserRepository(db)
-
-    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
-        if not actor_identifier or "@" not in actor_identifier:
-            return None
-        user = self.user_repository.get_by_email(actor_identifier)
-        return user.id if user is not None else None
 
     def _serialize_appointment(self, appointment: Appointment) -> AppointmentRead:
         patient_name = None
@@ -56,10 +51,19 @@ class AppointmentService:
     def create_appointment(self, payload: AppointmentCreate, *, accessible_doctor_ids: set[int] | None = None) -> AppointmentRead:
         if payload.scheduled_end <= payload.scheduled_start:
             raise ValidationError("Appointment end time must be after start time.")
+        appointment_type = payload.appointment_type.strip()
+        if not appointment_type:
+            raise ValidationError("Appointment type is required.")
+        source = payload.source.strip()
+        if not source:
+            raise ValidationError("Appointment source is required.")
+        reason = payload.reason.strip() if payload.reason is not None else None
+        created_by = payload.created_by.strip() if payload.created_by is not None else None
         if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
             raise ValidationError("You cannot create appointments for that doctor.")
 
-        if self.patient_repository.get(payload.patient_id) is None:
+        patient = self.patient_repository.get(payload.patient_id)
+        if patient is None:
             raise NotFoundError("Patient not found.")
 
         doctor = self.doctor_repository.get(payload.doctor_id)
@@ -67,16 +71,27 @@ class AppointmentService:
             raise NotFoundError("Doctor not found.")
         if not doctor.is_active:
             raise ValidationError("Cannot create appointments for an inactive doctor.")
+        if patient.owner_doctor_id != payload.doctor_id and not self.patient_repository.is_assigned_to_doctor(payload.patient_id, payload.doctor_id):
+            raise ValidationError("Patient is not assigned to the selected doctor.")
 
         if self.repository.has_overlap(payload.doctor_id, payload.scheduled_start, payload.scheduled_end):
             raise ConflictError("Doctor already has an appointment in that time range.")
 
         self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
 
+        appointment_data = payload.model_dump()
+        appointment_data.update(
+            {
+                "appointment_type": appointment_type,
+                "reason": reason,
+                "source": source,
+                "created_by": created_by,
+            }
+        )
         appointment = Appointment(
-            **payload.model_dump(),
+            **appointment_data,
             owner_doctor_id=payload.doctor_id,
-            created_by_user_id=self._resolve_actor_user_id(payload.created_by),
+            created_by_user_id=resolve_actor_user_id(self.user_repository, created_by),
         )
         created = self.repository.create(appointment)
         self.repository.add_history(
@@ -85,8 +100,8 @@ class AppointmentService:
                 old_status=None,
                 new_status=created.status,
                 change_reason="appointment created",
-                changed_by=payload.created_by,
-                changed_by_user_id=self._resolve_actor_user_id(payload.created_by),
+                changed_by=created_by,
+                changed_by_user_id=resolve_actor_user_id(self.user_repository, created_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )
@@ -165,7 +180,7 @@ class AppointmentService:
                 new_status=appointment.status,
                 change_reason="cancelled from integration flow",
                 changed_by=changed_by,
-                changed_by_user_id=self._resolve_actor_user_id(changed_by),
+                changed_by_user_id=resolve_actor_user_id(self.user_repository, changed_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )
@@ -208,21 +223,25 @@ class AppointmentService:
             raise NotFoundError("Appointment not found.")
         if accessible_doctor_ids is not None and appointment.doctor_id not in accessible_doctor_ids:
             raise ValidationError("You cannot update appointments for that doctor.")
+        if not payload.status.strip():
+            raise ValidationError("Appointment status is required.")
+        change_reason = payload.change_reason.strip() if payload.change_reason is not None else None
+        changed_by = payload.changed_by.strip() if payload.changed_by is not None else None
 
         old_status = appointment.status
-        appointment.status = payload.status
-        if payload.status == "confirmed":
+        appointment.status = payload.status.strip()
+        if appointment.status == "confirmed":
             appointment.confirmation_status = "confirmed"
-        elif payload.status == "cancelled":
+        elif appointment.status == "cancelled":
             appointment.confirmation_status = "cancelled"
         self.repository.add_history(
             AppointmentHistory(
                 appointment_id=appointment.id,
                 old_status=old_status,
-                new_status=payload.status,
-                change_reason=payload.change_reason,
-                changed_by=payload.changed_by,
-                changed_by_user_id=self._resolve_actor_user_id(payload.changed_by),
+                new_status=appointment.status,
+                change_reason=change_reason,
+                changed_by=changed_by,
+                changed_by_user_id=resolve_actor_user_id(self.user_repository, changed_by),
                 created_at=datetime.now(timezone.utc),
             ),
         )

@@ -2,16 +2,68 @@ from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
 from app.models.patient_phone_number import PatientPhoneNumber
+from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate, PatientSummaryRead, PatientUpdate
 from app.services.audit import create_audit_log
-from app.services.errors import ConflictError, NotFoundError
+from app.services.errors import ConflictError, NotFoundError, ValidationError
 
 
 class PatientService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = PatientRepository(db)
+        self.doctor_repository = DoctorRepository(db)
+
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @classmethod
+    def _normalize_required_text(cls, value: str, *, field_label: str) -> str:
+        normalized = cls._normalize_optional_text(value)
+        if normalized is None:
+            raise ValidationError(f"{field_label} is required.")
+        return normalized
+
+    def _normalize_patient_payload(self, data: dict, *, partial: bool) -> dict:
+        normalized = dict(data)
+        required_fields = {
+            "first_name": "First name",
+            "last_name": "Last name",
+            "primary_phone": "Primary phone",
+        }
+        optional_text_fields = (
+            "middle_name",
+            "second_last_name",
+            "married_name",
+            "sex",
+            "national_id",
+            "tax_id",
+            "secondary_phone",
+            "address",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "allergies",
+            "chronic_conditions",
+            "blood_type",
+            "notes",
+        )
+
+        for field_name, label in required_fields.items():
+            if field_name in normalized:
+                normalized[field_name] = self._normalize_required_text(normalized[field_name], field_label=label)
+            elif not partial:
+                raise ValidationError(f"{label} is required.")
+
+        for field_name in optional_text_fields:
+            if field_name in normalized:
+                normalized[field_name] = self._normalize_optional_text(normalized[field_name])
+
+        return normalized
 
     @staticmethod
     def _resolve_scoped_doctor_id(accessible_doctor_ids: set[int] | None, requested_doctor_id: int | None) -> int | None:
@@ -26,10 +78,15 @@ class PatientService:
         raise ConflictError("Debe seleccionar el doctor que está gestionando.")
 
     def create_patient(self, payload: PatientCreate, *, accessible_doctor_ids: set[int] | None = None) -> Patient:
-        data = payload.model_dump()
+        data = self._normalize_patient_payload(payload.model_dump(), partial=False)
         scoped_doctor_id = self._resolve_scoped_doctor_id(accessible_doctor_ids, data.pop("doctor_id", None))
         if scoped_doctor_id is None:
             raise ConflictError("Debe seleccionar el doctor responsable del paciente.")
+        doctor = self.doctor_repository.get(scoped_doctor_id)
+        if doctor is None:
+            raise NotFoundError("Doctor not found.")
+        if not doctor.is_active:
+            raise ValidationError("Cannot create patients for an inactive doctor.")
         data["medical_record_number"] = data.get("medical_record_number") or self.repository.next_medical_record_number()
         patient = Patient(**data, owner_doctor_id=scoped_doctor_id)
         duplicate = self.repository.find_duplicate(patient)
@@ -105,8 +162,9 @@ class PatientService:
     ) -> Patient:
         patient = self.get_patient(patient_id, accessible_doctor_ids=accessible_doctor_ids, doctor_id=doctor_id)
         before = {"is_active": patient.is_active, "primary_phone": patient.primary_phone}
-        new_primary_phone = payload.model_dump(exclude_unset=True).get("primary_phone")
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        updates = self._normalize_patient_payload(payload.model_dump(exclude_unset=True), partial=True)
+        new_primary_phone = updates.get("primary_phone")
+        for field, value in updates.items():
             setattr(patient, field, value)
         if new_primary_phone and new_primary_phone != before["primary_phone"]:
             self._replace_primary_phone(patient, new_primary_phone)

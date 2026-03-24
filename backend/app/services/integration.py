@@ -47,6 +47,7 @@ from app.services.encounter import EncounterService
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.patient import PatientService
 from app.services.phone_number import normalize_phone_number
+from app.services.doctor_scope import scoped_doctor_ids_for_user
 
 
 class IntegrationService:
@@ -297,15 +298,7 @@ class IntegrationService:
         requester = self.user_repository.get_by_phone_number(requester_phone_number)
         if requester is None:
             return None
-
-        role_names = {user_role.role.name for user_role in requester.roles}
-        if "admin" in role_names:
-            return None
-        if "doctor" in role_names:
-            return {doctor.id for doctor in self.doctor_service.repository.list_for_linked_user(requester.id)}
-        if "receptionist" in role_names:
-            return {doctor.id for doctor in self.doctor_service.repository.list_for_receptionist_user(requester.id)}
-        return set()
+        return scoped_doctor_ids_for_user(requester)
 
     def _requester_accessible_doctors(self, requester_phone_number: str | None) -> list[Doctor] | None:
         accessible_doctor_ids = self._requester_accessible_doctor_ids(requester_phone_number)

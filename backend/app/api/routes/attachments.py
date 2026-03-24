@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
 from app.schemas.file_attachment import FileAttachmentDownloadRead, FileAttachmentRead
+from app.services.doctor import DoctorService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.file_attachment import FileAttachmentService
 
@@ -18,10 +19,11 @@ async def upload_attachment(
     uploaded_by: str | None = Form(default=None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor")),
+    current_user=Depends(require_roles("admin", "doctor")),
 ) -> FileAttachmentRead:
     try:
         content = await file.read()
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
         return FileAttachmentService(db).upload_attachment(
             patient_id=patient_id,
             encounter_id=encounter_id,
@@ -30,6 +32,7 @@ async def upload_attachment(
             content_type=file.content_type,
             content=content,
             uploaded_by=uploaded_by,
+            accessible_doctor_ids=accessible_doctor_ids,
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -42,10 +45,15 @@ def get_attachment_download_url(
     attachment_id: int,
     requested_by: str | None = None,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> FileAttachmentDownloadRead:
     try:
-        return FileAttachmentService(db).get_download_url(attachment_id, requested_by=requested_by)
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return FileAttachmentService(db).get_download_url(
+            attachment_id,
+            requested_by=requested_by,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -55,12 +63,14 @@ def download_attachment_content(
     attachment_id: int,
     requested_by: str | None = None,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> StreamingResponse:
     try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
         attachment, stream = FileAttachmentService(db).get_attachment_content(
             attachment_id,
             requested_by=requested_by,
+            accessible_doctor_ids=accessible_doctor_ids,
         )
         media_type = attachment.content_type or "application/octet-stream"
         headers = {

@@ -6,6 +6,7 @@ from app.repositories.doctor import DoctorRepository
 from app.repositories.reminder_rule import ReminderRuleRepository
 from app.schemas.reminder_rule import ReminderRuleCreate, ReminderRuleUpdate
 from app.services.audit import create_audit_log
+from app.services.doctor_scope import scoped_doctor_ids_for_user
 from app.services.errors import NotFoundError, ValidationError
 
 
@@ -15,27 +16,11 @@ class ReminderRuleService:
         self.repository = ReminderRuleRepository(db)
         self.doctor_repository = DoctorRepository(db)
 
-    def _scoped_doctor_ids(self, current_user: User) -> set[int] | None:
-        roles = {user_role.role.name for user_role in current_user.roles}
-        if "admin" in roles:
-            return None
-        if "doctor" in roles:
-            if current_user.doctor_profile is None:
-                return set()
-            return {current_user.doctor_profile.id}
-        if "receptionist" in roles:
-            return {
-                assignment.doctor_id
-                for assignment in current_user.doctor_staff_assignments
-                if assignment.is_active and assignment.assignment_type == "receptionist"
-            }
-        return set()
-
     def list_rules(self, *, current_user: User) -> list[ReminderRule]:
-        return self.repository.list(doctor_ids=self._scoped_doctor_ids(current_user))
+        return self.repository.list(doctor_ids=scoped_doctor_ids_for_user(current_user))
 
     def create_rule(self, payload: ReminderRuleCreate, *, current_user: User) -> ReminderRule:
-        scoped_doctor_ids = self._scoped_doctor_ids(current_user)
+        scoped_doctor_ids = scoped_doctor_ids_for_user(current_user)
         if scoped_doctor_ids is not None:
             if payload.doctor_id is None or payload.doctor_id not in scoped_doctor_ids:
                 raise ValidationError("You can only create reminder rules for your own doctor scope.")
@@ -58,7 +43,7 @@ class ReminderRuleService:
         rule = self.repository.get(reminder_rule_id)
         if rule is None:
             raise NotFoundError("Reminder rule not found.")
-        scoped_doctor_ids = self._scoped_doctor_ids(current_user)
+        scoped_doctor_ids = scoped_doctor_ids_for_user(current_user)
         if scoped_doctor_ids is not None and rule.doctor_id not in scoped_doctor_ids:
             raise NotFoundError("Reminder rule not found.")
 

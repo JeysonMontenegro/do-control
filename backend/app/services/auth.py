@@ -3,13 +3,12 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.models.doctor_phone_number import DoctorPhoneNumber
 from app.repositories.doctor import DoctorRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import AuthProfileRead, AuthProfileUpdate, LoginResponse
 from app.services.errors import ValidationError
-from app.services.phone_number import phone_number_candidates
 from app.services.security import create_access_token, hash_password, verify_password
+from app.services.service_utils import sync_doctor_primary_phone
 from app.services.storage import StorageService
 
 
@@ -35,32 +34,6 @@ class AuthService:
             phone_number=user.primary_phone_number,
             profile_photo_url=self._profile_photo_url(user.profile_photo_storage_key),
             roles=roles,
-        )
-
-    def _sync_doctor_profile_phone(self, user, phone_number: str | None) -> None:
-        doctor = user.doctor_profile
-        if doctor is None:
-            return
-        for phone in doctor.phone_numbers:
-            phone.is_primary = False
-            if phone_number is None:
-                phone.is_active = False
-        if phone_number is None:
-            return
-        candidates = phone_number_candidates(phone_number)
-        existing_phone = next((phone for phone in doctor.phone_numbers if phone.phone_number in candidates), None)
-        if existing_phone is not None:
-            existing_phone.is_primary = True
-            existing_phone.is_active = True
-            return
-        doctor.phone_numbers.append(
-            DoctorPhoneNumber(
-                doctor_id=doctor.id,
-                phone_number=phone_number,
-                is_primary=True,
-                is_active=True,
-                channel_type="whatsapp",
-            )
         )
 
     def login(self, email: str, password: str) -> LoginResponse:
@@ -133,7 +106,11 @@ class AuthService:
                 can_talk_to_bot=bool(normalized_phone),
             )
 
-        self._sync_doctor_profile_phone(user, user.primary_phone_number)
+        sync_doctor_primary_phone(
+            doctor_repository=self.doctor_repository,
+            user=user,
+            phone_number=user.primary_phone_number,
+        )
         self.repository.db.commit()
         self.repository.db.refresh(user)
         return self._serialize_profile(user)

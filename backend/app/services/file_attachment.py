@@ -13,6 +13,7 @@ from app.repositories.user import UserRepository
 from app.schemas.file_attachment import FileAttachmentDownloadRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
+from app.services.service_utils import resolve_actor_user_id
 from app.services.storage import StorageService
 
 
@@ -25,11 +26,19 @@ class FileAttachmentService:
         self.storage = StorageService()
         self.user_repository = UserRepository(db)
 
-    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
-        if not actor_identifier or "@" not in actor_identifier:
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
             return None
-        user = self.user_repository.get_by_email(actor_identifier)
-        return user.id if user is not None else None
+        normalized = value.strip()
+        return normalized or None
+
+    @classmethod
+    def _normalize_required_text(cls, value: str, *, field_label: str) -> str:
+        normalized = cls._normalize_optional_text(value)
+        if normalized is None:
+            raise ValidationError(f"{field_label} is required.")
+        return normalized
 
     def upload_attachment(
         self,
@@ -41,9 +50,19 @@ class FileAttachmentService:
         content_type: str | None,
         content: bytes,
         uploaded_by: str | None,
+        accessible_doctor_ids: set[int] | None = None,
     ) -> FileAttachment:
+        normalized_file_type = self._normalize_required_text(file_type, field_label="File type")
+        normalized_file_name = self._normalize_required_text(file_name, field_label="File name")
+        normalized_content_type = self._normalize_optional_text(content_type)
+        normalized_uploaded_by = self._normalize_optional_text(uploaded_by)
+        if not content:
+            raise ValidationError("Attachment content is required.")
+
         patient = self.patient_repository.get(patient_id)
         if patient is None:
+            raise NotFoundError("Patient not found.")
+        if accessible_doctor_ids is not None and patient.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Patient not found.")
 
         owner_doctor_id = patient.owner_doctor_id
@@ -53,25 +72,27 @@ class FileAttachmentService:
                 raise NotFoundError("Encounter not found.")
             if encounter.patient_id != patient_id:
                 raise ValidationError("Encounter does not belong to the selected patient.")
+            if accessible_doctor_ids is not None and encounter.doctor_id not in accessible_doctor_ids:
+                raise NotFoundError("Encounter not found.")
             owner_doctor_id = encounter.owner_doctor_id or encounter.doctor_id or owner_doctor_id
 
-        suffix = Path(file_name).suffix
+        suffix = Path(normalized_file_name).suffix
         key = f"patients/{patient_id}/{uuid4()}{suffix}"
         self.storage.ensure_bucket()
-        self.storage.upload_bytes(key=key, content=content, content_type=content_type)
+        self.storage.upload_bytes(key=key, content=content, content_type=normalized_content_type)
 
         attachment = self.repository.create(
             FileAttachment(
                 patient_id=patient_id,
                 owner_doctor_id=owner_doctor_id,
                 encounter_id=encounter_id,
-                file_type=file_type,
-                file_name=file_name,
+                file_type=normalized_file_type,
+                file_name=normalized_file_name,
                 storage_key=key,
-                content_type=content_type,
+                content_type=normalized_content_type,
                 file_size=len(content),
-                uploaded_by=uploaded_by,
-                uploaded_by_user_id=self._resolve_actor_user_id(uploaded_by),
+                uploaded_by=normalized_uploaded_by,
+                uploaded_by_user_id=resolve_actor_user_id(self.user_repository, normalized_uploaded_by),
             )
         )
         create_audit_log(
@@ -79,16 +100,24 @@ class FileAttachmentService:
             action="upload",
             entity_type="file_attachment",
             entity_id=str(attachment.id),
-            actor_id=uploaded_by,
-            after_data={"patient_id": patient_id, "encounter_id": encounter_id, "file_type": file_type},
+            actor_id=normalized_uploaded_by,
+            after_data={"patient_id": patient_id, "encounter_id": encounter_id, "file_type": normalized_file_type},
         )
         self.db.commit()
         self.db.refresh(attachment)
         return attachment
 
-    def get_download_url(self, attachment_id: int, *, requested_by: str | None = None) -> FileAttachmentDownloadRead:
+    def get_download_url(
+        self,
+        attachment_id: int,
+        *,
+        requested_by: str | None = None,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> FileAttachmentDownloadRead:
         attachment = self.repository.get(attachment_id)
         if attachment is None:
+            raise NotFoundError("Attachment not found.")
+        if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Attachment not found.")
 
         expires_in_seconds = 900
@@ -112,9 +141,17 @@ class FileAttachmentService:
             expires_in_seconds=expires_in_seconds,
         )
 
-    def get_attachment_content(self, attachment_id: int, *, requested_by: str | None = None) -> tuple[FileAttachment, object]:
+    def get_attachment_content(
+        self,
+        attachment_id: int,
+        *,
+        requested_by: str | None = None,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> tuple[FileAttachment, object]:
         attachment = self.repository.get(attachment_id)
         if attachment is None:
+            raise NotFoundError("Attachment not found.")
+        if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Attachment not found.")
 
         response = self.storage.get_object(key=attachment.storage_key)

@@ -11,6 +11,7 @@ from app.repositories.user import UserRepository
 from app.schemas.encounter import EncounterCreate, EncounterUpdate
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
+from app.services.service_utils import resolve_actor_user_id
 
 
 class EncounterService:
@@ -22,18 +23,35 @@ class EncounterService:
         self.appointment_repository = AppointmentRepository(db)
         self.user_repository = UserRepository(db)
 
-    def _resolve_actor_user_id(self, actor_identifier: str | None) -> int | None:
-        if not actor_identifier or "@" not in actor_identifier:
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
             return None
-        user = self.user_repository.get_by_email(actor_identifier)
-        return user.id if user is not None else None
+        normalized = value.strip()
+        return normalized or None
 
-    def create_encounter(self, payload: EncounterCreate) -> Encounter:
-        if self.patient_repository.get(payload.patient_id) is None:
+    @classmethod
+    def _normalize_required_text(cls, value: str, *, field_label: str) -> str:
+        normalized = cls._normalize_optional_text(value)
+        if normalized is None:
+            raise ValidationError(f"{field_label} is required.")
+        return normalized
+
+    def create_encounter(self, payload: EncounterCreate, *, accessible_doctor_ids: set[int] | None = None) -> Encounter:
+        if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot create encounters for that doctor.")
+
+        patient = self.patient_repository.get(payload.patient_id)
+        if patient is None:
             raise NotFoundError("Patient not found.")
 
-        if self.doctor_repository.get(payload.doctor_id) is None:
+        doctor = self.doctor_repository.get(payload.doctor_id)
+        if doctor is None:
             raise NotFoundError("Doctor not found.")
+        if not doctor.is_active:
+            raise ValidationError("Cannot create encounters for an inactive doctor.")
+        if patient.owner_doctor_id != payload.doctor_id and not self.patient_repository.is_assigned_to_doctor(payload.patient_id, payload.doctor_id):
+            raise ValidationError("Patient is not assigned to the selected doctor.")
 
         if payload.appointment_id is not None:
             appointment = self.appointment_repository.get(payload.appointment_id)
@@ -41,6 +59,10 @@ class EncounterService:
                 raise NotFoundError("Appointment not found.")
             if appointment.patient_id != payload.patient_id:
                 raise ValidationError("Appointment does not belong to the selected patient.")
+            if appointment.doctor_id != payload.doctor_id:
+                raise ValidationError("Appointment does not belong to the selected doctor.")
+            if getattr(appointment, "encounter", None) is not None:
+                raise ValidationError("Appointment already has an encounter.")
 
         self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
 
@@ -50,17 +72,17 @@ class EncounterService:
             owner_doctor_id=payload.doctor_id,
             appointment_id=payload.appointment_id,
             encounter_date=payload.encounter_date,
-            encounter_type=payload.encounter_type,
-            chief_complaint=payload.chief_complaint,
-            present_illness=payload.present_illness,
-            relevant_history=payload.relevant_history,
-            vital_signs=payload.vital_signs,
-            physical_exam=payload.physical_exam,
-            clinical_impression=payload.clinical_impression,
-            treatment_plan=payload.treatment_plan,
-            follow_up_notes=payload.follow_up_notes,
-            created_by=payload.created_by,
-            created_by_user_id=self._resolve_actor_user_id(payload.created_by),
+            encounter_type=self._normalize_required_text(payload.encounter_type, field_label="Encounter type"),
+            chief_complaint=self._normalize_required_text(payload.chief_complaint, field_label="Chief complaint"),
+            present_illness=self._normalize_optional_text(payload.present_illness),
+            relevant_history=self._normalize_optional_text(payload.relevant_history),
+            vital_signs=self._normalize_optional_text(payload.vital_signs),
+            physical_exam=self._normalize_optional_text(payload.physical_exam),
+            clinical_impression=self._normalize_optional_text(payload.clinical_impression),
+            treatment_plan=self._normalize_optional_text(payload.treatment_plan),
+            follow_up_notes=self._normalize_optional_text(payload.follow_up_notes),
+            created_by=self._normalize_optional_text(payload.created_by),
+            created_by_user_id=resolve_actor_user_id(self.user_repository, self._normalize_optional_text(payload.created_by)),
         )
 
         encounter.diagnoses = [
@@ -112,12 +134,24 @@ class EncounterService:
         self.db.refresh(created)
         return created
 
-    def list_encounters(self) -> list[Encounter]:
-        return self.repository.list()
+    def list_encounters(self, *, accessible_doctor_ids: set[int] | None = None) -> list[Encounter]:
+        encounters = self.repository.list()
+        if accessible_doctor_ids is not None:
+            encounters = [encounter for encounter in encounters if encounter.doctor_id in accessible_doctor_ids]
+        return encounters
 
-    def update_encounter(self, encounter_id: int, payload: EncounterUpdate, *, updated_by: str | None = None) -> Encounter:
+    def update_encounter(
+        self,
+        encounter_id: int,
+        payload: EncounterUpdate,
+        *,
+        updated_by: str | None = None,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> Encounter:
         encounter = self.repository.get(encounter_id)
         if encounter is None:
+            raise NotFoundError("Encounter not found.")
+        if accessible_doctor_ids is not None and encounter.doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Encounter not found.")
 
         if encounter.status == "closed":
@@ -128,7 +162,24 @@ class EncounterService:
             "chief_complaint": encounter.chief_complaint,
             "treatment_plan": encounter.treatment_plan,
         }
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        updates = payload.model_dump(exclude_unset=True)
+        if "encounter_type" in updates:
+            updates["encounter_type"] = self._normalize_required_text(updates["encounter_type"], field_label="Encounter type")
+        if "chief_complaint" in updates:
+            updates["chief_complaint"] = self._normalize_required_text(updates["chief_complaint"], field_label="Chief complaint")
+        for field_name in (
+            "present_illness",
+            "relevant_history",
+            "vital_signs",
+            "physical_exam",
+            "clinical_impression",
+            "treatment_plan",
+            "follow_up_notes",
+        ):
+            if field_name in updates:
+                updates[field_name] = self._normalize_optional_text(updates[field_name])
+
+        for field, value in updates.items():
             setattr(encounter, field, value)
         create_audit_log(
             self.db,
@@ -147,9 +198,17 @@ class EncounterService:
         self.db.refresh(encounter)
         return encounter
 
-    def close_encounter(self, encounter_id: int, *, closed_by: str | None = None) -> Encounter:
+    def close_encounter(
+        self,
+        encounter_id: int,
+        *,
+        closed_by: str | None = None,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> Encounter:
         encounter = self.repository.get(encounter_id)
         if encounter is None:
+            raise NotFoundError("Encounter not found.")
+        if accessible_doctor_ids is not None and encounter.doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Encounter not found.")
 
         if encounter.status == "closed":

@@ -8,6 +8,7 @@ from app.repositories.appointment_review_item import AppointmentReviewItemReposi
 from app.services.appointment import AppointmentService
 from app.schemas.appointment_review_item import AppointmentReviewItemRead
 from app.services.audit import create_audit_log
+from app.services.doctor_scope import scoped_doctor_ids_for_user
 from app.services.errors import NotFoundError, ValidationError
 
 
@@ -16,22 +17,6 @@ class AppointmentReviewItemService:
         self.db = db
         self.repository = AppointmentReviewItemRepository(db)
         self.appointment_service = AppointmentService(db)
-
-    def _scoped_doctor_ids(self, current_user: User) -> set[int] | None:
-        roles = {user_role.role.name for user_role in current_user.roles}
-        if "admin" in roles:
-            return None
-        if "doctor" in roles:
-            if current_user.doctor_profile is None:
-                return set()
-            return {current_user.doctor_profile.id}
-        if "receptionist" in roles:
-            return {
-                assignment.doctor_id
-                for assignment in current_user.doctor_staff_assignments
-                if assignment.is_active and assignment.assignment_type == "receptionist"
-            }
-        return set()
 
     def create_item(
         self,
@@ -85,7 +70,7 @@ class AppointmentReviewItemService:
         review_status: str | None = "pending_review",
         limit: int = 100,
     ) -> list[AppointmentReviewItemRead]:
-        doctor_ids = self._scoped_doctor_ids(current_user)
+        doctor_ids = scoped_doctor_ids_for_user(current_user)
         return [
             AppointmentReviewItemRead.model_validate(item)
             for item in self.repository.list(review_status=review_status, limit=limit, doctor_ids=doctor_ids)
@@ -96,7 +81,7 @@ class AppointmentReviewItemService:
         if item is None:
             raise NotFoundError("Appointment review item not found.")
 
-        doctor_ids = self._scoped_doctor_ids(current_user)
+        doctor_ids = scoped_doctor_ids_for_user(current_user)
         if doctor_ids is not None and (item.doctor_id is None or item.doctor_id not in doctor_ids):
             raise NotFoundError("Appointment review item not found.")
 
