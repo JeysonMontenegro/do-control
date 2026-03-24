@@ -1500,12 +1500,12 @@ select.compact-input:hover {
 
   .agenda-shell,
   .month-grid {
-    overflow-x: auto;
+    display: none;
   }
 
-  .agenda-shell-week,
-  .agenda-shell-day {
-    min-width: 780px;
+  .mobile-agenda-list {
+    display: grid;
+    gap: 10px;
   }
 }
 
@@ -1820,13 +1820,7 @@ select.compact-input:hover {
     margin: 0 12px;
   }
 
-  .agenda-shell,
-  .month-grid {
-    display: none;
-  }
-
   .mobile-agenda-list {
-    display: grid;
     gap: 10px;
   }
 }
