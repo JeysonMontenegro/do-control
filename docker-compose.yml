@@ -41,10 +41,9 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "13000:3000"
-    command: sh -c "npm run build && npm run start"
+    command: sh -c "npm run dev"
 
 volumes:
   postgres_data:
