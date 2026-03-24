@@ -745,6 +745,35 @@ select.compact-input:hover {
   color: var(--muted);
 }
 
+.empty-state-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px dashed #cddbef;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96) 0%, rgba(241, 247, 255, 0.96) 100%);
+}
+
+.empty-state-panel-warning {
+  border-color: rgba(240, 164, 58, 0.34);
+  background: linear-gradient(180deg, rgba(255, 248, 235, 0.98) 0%, rgba(255, 244, 222, 0.98) 100%);
+}
+
+.empty-state-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.empty-state-copy h3,
+.empty-state-copy p {
+  margin: 0;
+}
+
+.empty-state-copy p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .agenda-shell {
   border: 1px solid #dbe6f6;
   border-radius: 22px;

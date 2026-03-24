@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { formatDateTime } from "@/features/module1/console-utils";
 import type { Encounter, Patient, PatientSummary } from "@/features/module1/types";
@@ -62,41 +63,59 @@ export function PatientsSection({
           </div>
         </div>
         <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Expediente</th>
-                <th>Paciente</th>
-                <th>{isAdmin ? "Doctor(es)" : "Doctor"}</th>
-                <th>Teléfono</th>
-                <th>Creado</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patients.map((patient) => (
-                <tr
-                  key={`patient-${patient.id}`}
-                  className={selectedPatientId === String(patient.id) ? "table-row-active" : ""}
-                  onClick={() => onSelectPatient(String(patient.id))}
-                >
-                  <td>{patient.medical_record_number}</td>
-                  <td>
-                    {patient.first_name} {patient.last_name}
-                  </td>
-                  <td>
-                    {patient.assigned_doctors?.length
-                      ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
-                      : "Sin asignación"}
-                  </td>
-                  <td>{patient.primary_phone}</td>
-                  <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
-                  <td>{patient.is_active ? "Activo" : "Inactivo"}</td>
+          {patients.length ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Expediente</th>
+                  <th>Paciente</th>
+                  <th>{isAdmin ? "Doctor(es)" : "Doctor"}</th>
+                  <th>Teléfono</th>
+                  <th>Creado</th>
+                  <th>Estado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {!patients.length ? <p className="empty-state">No hay pacientes en la vista actual.</p> : null}
+              </thead>
+              <tbody>
+                {patients.map((patient) => (
+                  <tr
+                    key={`patient-${patient.id}`}
+                    className={selectedPatientId === String(patient.id) ? "table-row-active" : ""}
+                    onClick={() => onSelectPatient(String(patient.id))}
+                  >
+                    <td>{patient.medical_record_number}</td>
+                    <td>
+                      {patient.first_name} {patient.last_name}
+                    </td>
+                    <td>
+                      {patient.assigned_doctors?.length
+                        ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
+                        : "Sin asignación"}
+                    </td>
+                    <td>{patient.primary_phone}</td>
+                    <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
+                    <td>{patient.is_active ? "Activo" : "Inactivo"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <EmptyStatePanel
+              actionLabel={patientSearch.trim() ? "Limpiar busqueda" : canManagePatients ? "Agregar paciente" : undefined}
+              body={
+                patientSearch.trim()
+                  ? "No hubo coincidencias con el filtro actual. Limpia la busqueda o intenta con telefono, DPI o expediente."
+                  : "Todavia no hay pacientes visibles en este contexto. Puedes registrar uno nuevo o cambiar el contexto operativo."
+              }
+              onAction={
+                patientSearch.trim()
+                  ? () => onPatientSearchChange("")
+                  : canManagePatients
+                    ? onShowCreatePatient
+                    : undefined
+              }
+              title={patientSearch.trim() ? "No encontramos pacientes para ese filtro" : "Esta vista todavia no tiene pacientes"}
+            />
+          )}
         </div>
       </article>
       <PatientSummarySection

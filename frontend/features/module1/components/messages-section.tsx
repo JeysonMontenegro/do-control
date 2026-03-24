@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import type { ConsoleTab } from "@/features/module1/console-config";
 import {
   appointmentTypeLabel,
@@ -192,12 +193,22 @@ export function MessagesSection({
                       </div>
                     ))
                   ) : (
-                    <p className="empty-state">Este paciente todavía no tiene comunicaciones registradas.</p>
+                    <EmptyStatePanel
+                      body="Cuando este paciente tenga recordatorios, confirmaciones o seguimientos enviados, apareceran aqui."
+                      eyebrow="Timeline"
+                      title="Este paciente todavia no tiene comunicaciones"
+                    />
                   )}
                 </div>
               </>
             ) : (
-              <p className="empty-state">Selecciona un paciente en la pestaña Pacientes para ver su timeline de comunicaciones.</p>
+              <EmptyStatePanel
+                actionLabel="Ir a Pacientes"
+                body="Necesitas enfocar un paciente para revisar su timeline y sus mensajes relacionados."
+                eyebrow="Paciente"
+                onAction={() => setActiveTab("pacientes")}
+                title="Selecciona un paciente para ver su timeline"
+              />
             )}
           </article>
         </>
@@ -234,11 +245,21 @@ export function MessagesSection({
                   );
                 })
               ) : (
-                <p className="empty-state">Este paciente no tiene citas registradas.</p>
+                <EmptyStatePanel
+                  body="Todavia no hay citas ligadas a este paciente, por lo que no hay mensajes que relacionar contra agenda."
+                  eyebrow="Citas"
+                  title="Este paciente no tiene citas registradas"
+                />
               )}
             </div>
           ) : (
-            <p className="empty-state">Selecciona un paciente para relacionar mensajes con sus citas.</p>
+            <EmptyStatePanel
+              actionLabel="Ir a Pacientes"
+              body="Primero enfoca un paciente para poder cruzar sus mensajes con citas y confirmaciones."
+              eyebrow="Relacion"
+              onAction={() => setActiveTab("pacientes")}
+              title="Selecciona un paciente para relacionar mensajes con citas"
+            />
           )}
         </article>
       ) : null}
@@ -298,49 +319,60 @@ export function MessagesSection({
             />
           </div>
           <div className="table-list">
-            {communicationDispatches.map((dispatch) => (
-              <div className="simple-list-item" key={`dispatch-${dispatch.id}`}>
-                <strong>{dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {communicationKindLabel(dispatch)}</strong>
-                <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
-                <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
-                <span>{dispatch.error_message ?? dispatch.rendered_message ?? "Sin observación."}</span>
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
-                    {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
-                  </button>
-                  {isAdmin && dispatch.status !== "delivered" ? (
-                    <button type="button" className="success-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
-                      Marcar entregado
+            {communicationDispatches.length ? (
+              communicationDispatches.map((dispatch) => (
+                <div className="simple-list-item" key={`dispatch-${dispatch.id}`}>
+                  <strong>{dispatch.patient_name ?? `Paciente ${dispatch.patient_id}`} · {communicationKindLabel(dispatch)}</strong>
+                  <span>{dispatch.doctor_name ?? "Sin doctor"} · {formatDateTime(dispatch.created_at)}</span>
+                  <span>{dispatchStatusLabel(dispatch.status)} · {dispatch.recipient_phone}</span>
+                  <span>{dispatch.error_message ?? dispatch.rendered_message ?? "Sin observación."}</span>
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => toggleDispatchAttempts(dispatch.id)}>
+                      {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
                     </button>
-                  ) : null}
-                  {isAdmin && dispatch.status !== "failed" ? (
-                    <button type="button" className="danger-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
-                      Marcar fallido
-                    </button>
-                  ) : null}
-                  {isAdmin && dispatch.status === "failed" ? (
-                    <button type="button" className="success-button" onClick={() => requeueDispatch(dispatch.id)}>
-                      Reenviar
-                    </button>
+                    {isAdmin && dispatch.status !== "delivered" ? (
+                      <button type="button" className="success-button" onClick={() => updateDispatchStatus(dispatch.id, "delivered")}>
+                        Marcar entregado
+                      </button>
+                    ) : null}
+                    {isAdmin && dispatch.status !== "failed" ? (
+                      <button type="button" className="danger-button" onClick={() => updateDispatchStatus(dispatch.id, "failed")}>
+                        Marcar fallido
+                      </button>
+                    ) : null}
+                    {isAdmin && dispatch.status === "failed" ? (
+                      <button type="button" className="success-button" onClick={() => requeueDispatch(dispatch.id)}>
+                        Reenviar
+                      </button>
+                    ) : null}
+                  </div>
+                  {expandedDispatchId === dispatch.id ? (
+                    <div className="attempt-list">
+                      {dispatchAttempts[dispatch.id]?.length ? (
+                        dispatchAttempts[dispatch.id].map((attempt) => (
+                          <div className="timeline-item" key={`dispatch-attempt-${attempt.id}`}>
+                            <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
+                            <span>{formatDateTime(attempt.attempted_at)}</span>
+                            <span>{attempt.error_message ?? "Sin error"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="empty-state">Sin intentos registrados.</p>
+                      )}
+                    </div>
                   ) : null}
                 </div>
-                {expandedDispatchId === dispatch.id ? (
-                  <div className="attempt-list">
-                    {dispatchAttempts[dispatch.id]?.length ? (
-                      dispatchAttempts[dispatch.id].map((attempt) => (
-                        <div className="timeline-item" key={`dispatch-attempt-${attempt.id}`}>
-                          <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
-                          <span>{formatDateTime(attempt.attempted_at)}</span>
-                          <span>{attempt.error_message ?? "Sin error"}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-state">Sin intentos registrados.</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              ))
+            ) : (
+              <EmptyStatePanel
+                actionLabel={isAdmin ? "Generar ahora" : undefined}
+                body="No hay comunicaciones que coincidan con los filtros actuales. Ajusta los filtros o genera nuevos despachos."
+                eyebrow="Operacion"
+                onAction={isAdmin ? generateDispatchesNow : undefined}
+                title="No hay comunicaciones para esta vista"
+                tone="warning"
+              />
+            )}
           </div>
         </article>
       ) : null}

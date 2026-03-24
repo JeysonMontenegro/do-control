@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import {
   appointmentStatusLabel,
   appointmentTypeLabel,
@@ -211,7 +212,11 @@ export function PatientSummarySection({
           </div>
         </div>
       ) : (
-        <p className="empty-state">Selecciona un paciente para ver su expediente.</p>
+        <EmptyStatePanel
+          body="Abre un paciente desde el listado para ver citas, consultas, adjuntos y acciones clínicas relacionadas."
+          eyebrow="Expediente"
+          title="Todavia no hay un paciente enfocado"
+        />
       )}
     </article>
   );

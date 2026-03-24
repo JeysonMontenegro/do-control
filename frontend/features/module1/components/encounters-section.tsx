@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { DateField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { encounterTypeLabel, formatDateTime } from "@/features/module1/console-utils";
 import type {
@@ -295,7 +296,12 @@ export function EncountersSection({
             <button type="submit">Guardar consulta</button>
           </form>
         ) : (
-          <p className="empty-state">Tu perfil puede revisar consultas, pero no registrar nuevas.</p>
+          <EmptyStatePanel
+            body="Tu perfil conserva acceso de lectura al historial clinico, pero no puede crear consultas nuevas desde este tab."
+            eyebrow="Permisos"
+            title="Solo puedes revisar consultas"
+            tone="warning"
+          />
         )}
       </article>
       <article className="card section-card">
@@ -306,20 +312,28 @@ export function EncountersSection({
           </div>
         </div>
         <div className="table-list">
-          {encounters.map((encounter) => (
-            <div className="simple-list-item" key={`encounter-${encounter.id}`}>
-              <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
-              <span>{formatDateTime(encounter.encounter_date)}</span>
-              <span>{encounter.chief_complaint}</span>
-              {encounter.status !== "closed" && canManageEncounters ? (
-                <div className="row-actions">
-                  <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
-                    Cerrar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
+          {encounters.length ? (
+            encounters.map((encounter) => (
+              <div className="simple-list-item" key={`encounter-${encounter.id}`}>
+                <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
+                <span>{formatDateTime(encounter.encounter_date)}</span>
+                <span>{encounter.chief_complaint}</span>
+                {encounter.status !== "closed" && canManageEncounters ? (
+                  <div className="row-actions">
+                    <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
+                      Cerrar
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <EmptyStatePanel
+              body="Cuando registres o recibas consultas dentro del contexto actual, apareceran aqui junto con sus adjuntos."
+              eyebrow="Historial"
+              title="Todavia no hay consultas visibles"
+            />
+          )}
         </div>
         {selectedSummary ? (
           <form className="form-card compact-form" onSubmit={submitAttachment}>
@@ -350,23 +364,37 @@ export function EncountersSection({
             </label>
             <button type="submit">Adjuntar</button>
             <div className="table-list">
-              {selectedSummary.attachments.map((attachment) => (
-                <div className="simple-list-item" key={`attachment-${attachment.id}`}>
-                  <strong>{attachment.file_name}</strong>
-                  <span>{attachment.file_type}</span>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => openAttachment(attachment.id)}
-                    disabled={downloadingAttachmentId === attachment.id}
-                  >
-                    {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
-                  </button>
-                </div>
-              ))}
+              {selectedSummary.attachments.length ? (
+                selectedSummary.attachments.map((attachment) => (
+                  <div className="simple-list-item" key={`attachment-${attachment.id}`}>
+                    <strong>{attachment.file_name}</strong>
+                    <span>{attachment.file_type}</span>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => openAttachment(attachment.id)}
+                      disabled={downloadingAttachmentId === attachment.id}
+                    >
+                      {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <EmptyStatePanel
+                  body="Este paciente aun no tiene adjuntos ligados a sus consultas. Puedes cargar resultados o documentos clinicos desde este mismo panel."
+                  eyebrow="Adjuntos"
+                  title="Todavia no hay archivos para este paciente"
+                />
+              )}
             </div>
           </form>
-        ) : null}
+        ) : (
+          <EmptyStatePanel
+            body="Selecciona un paciente desde la pestaña Pacientes para adjuntar archivos a una consulta existente."
+            eyebrow="Adjuntos"
+            title="Necesitas enfocar un paciente para gestionar documentos"
+          />
+        )}
       </article>
     </section>
   );
