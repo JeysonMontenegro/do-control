@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AgendaTab } from "@/features/module1/components/agenda-tab";
 import {
@@ -37,10 +37,12 @@ import { useClinicalSession } from "@/features/module1/hooks/use-clinical-sessio
 import { useClinicalConsoleDerived } from "@/features/module1/hooks/use-clinical-console-derived";
 import { useClinicalDataLoader } from "@/features/module1/hooks/use-clinical-data-loader";
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
+import { useEncounterAttachmentAdmin } from "@/features/module1/hooks/use-encounter-attachment-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
 import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
 import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
 import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
+import { useReminderAdmin } from "@/features/module1/hooks/use-reminder-admin";
 import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
 import {
   CONFIRMATION_TEMPLATE_KEY,
@@ -58,7 +60,6 @@ import {
   confirmationLabel,
   dispatchStatusLabel,
   encounterTypeLabel,
-  combineDisplayDateTimeToIso,
   formatDate,
   formatDateTime,
   hasAnyRole,
@@ -72,11 +73,9 @@ import {
 } from "@/features/module1/console-utils";
 import { getMessageTone } from "@/features/module1/message-utils";
 import { getFirstExamOrderId } from "@/features/module1/review-utils";
-import { apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/api";
 import type {
   Appointment,
   AppointmentReviewItem,
-  AttachmentDownload,
   CommunicationDispatchGeneration,
   CommunicationDispatch,
   CommunicationDispatchSummary,
@@ -280,204 +279,6 @@ export function ClinicalConsole() {
     setClinicSetting,
     setMessage,
   });
-
-  async function submitEncounter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await apiPost<Encounter>("/api/encounters", {
-        ...encounterForm,
-        patient_id: Number(encounterForm.patient_id),
-        doctor_id: Number(encounterForm.doctor_id),
-        appointment_id: encounterForm.appointment_id ? Number(encounterForm.appointment_id) : null,
-        encounter_date: combineDisplayDateTimeToIso(encounterForm.encounter_date, encounterForm.encounter_time),
-        diagnoses: diagnoses
-          .filter((item) => item.diagnosis_text.trim())
-          .map((item) => ({
-            ...item,
-            diagnosis_code: item.diagnosis_code || null,
-            notes: item.notes || null,
-          })),
-        prescription: prescriptionItems.some((item) => item.medication_name.trim())
-          ? {
-              notes: null,
-              items: prescriptionItems
-                .filter((item) => item.medication_name.trim())
-                .map((item) => ({
-                  ...item,
-                  dosage: item.dosage || null,
-                  frequency: item.frequency || null,
-                  duration: item.duration || null,
-                  instructions: item.instructions || null,
-                })),
-            }
-          : null,
-        exam_orders: examOrders
-          .filter((item) => item.exam_name.trim())
-          .map((item) => ({
-            ...item,
-            exam_category: item.exam_category || null,
-            instructions: item.instructions || null,
-          })),
-      });
-      await loadData();
-      setEncounterForm((current) => ({ ...current, chief_complaint: "", appointment_id: "" }));
-      setDiagnoses([{ diagnosis_text: "", diagnosis_code: null, is_primary: true, notes: null }]);
-      setPrescriptionItems([{ medication_name: "", dosage: null, frequency: null, duration: null, instructions: null }]);
-      setExamOrders([{ exam_name: "", exam_category: null, instructions: null }]);
-      setSelectedPatientId(encounterForm.patient_id);
-      setMessage("Consulta registrada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo registrar la consulta.");
-    }
-  }
-
-  async function closeEncounter(encounterId: number) {
-    setMessage("");
-    try {
-      await apiPatch<Encounter>(`/api/encounters/${encounterId}/close`, {
-        closed_by: "frontend-demo",
-      });
-      await loadData();
-      if (selectedPatientId) {
-        await refreshSelectedSummary();
-      }
-      setMessage(`Consulta ${encounterId} cerrada.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo cerrar la consulta.");
-    }
-  }
-
-  async function submitAttachment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    if (!selectedPatientId || !attachmentFile) {
-      setMessage("Selecciona un paciente y un archivo.");
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append("patient_id", selectedPatientId);
-      if (attachmentEncounterId) {
-        formData.append("encounter_id", attachmentEncounterId);
-      }
-      formData.append("file_type", attachmentType);
-      formData.append("uploaded_by", "frontend-demo");
-      formData.append("file", attachmentFile);
-
-      await apiPostForm("/api/attachments", formData);
-
-      setAttachmentFile(null);
-      setAttachmentEncounterId("");
-      if (selectedPatientId) {
-        await refreshSelectedSummary();
-      }
-      setMessage("Documento adjuntado.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo adjuntar el archivo.");
-    }
-  }
-
-  async function openAttachment(attachmentId: number) {
-    setMessage("");
-    setDownloadingAttachmentId(attachmentId);
-    try {
-      const download = await apiGet<AttachmentDownload>(
-        `/api/attachments/${attachmentId}/download?requested_by=frontend-demo`,
-      );
-      window.open(download.download_url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo abrir el archivo.");
-    } finally {
-      setDownloadingAttachmentId(null);
-    }
-  }
-
-  async function submitReminderRule(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await apiPost<ReminderRule>("/api/reminder-rules", {
-        doctor_id: reminderRuleForm.doctor_id ? Number(reminderRuleForm.doctor_id) : null,
-        channel: reminderRuleForm.channel,
-        trigger_type: reminderRuleForm.trigger_type,
-        minutes_before: Number(reminderRuleForm.minutes_before),
-        template_key: reminderRuleForm.template_key,
-        is_active: reminderRuleForm.is_active,
-      });
-      setReminderRuleForm(createReminderRuleForm());
-      await loadData();
-      setMessage("Regla de recordatorio creada.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo crear la regla.");
-    }
-  }
-
-  async function activateDefault24HourReminder() {
-    setMessage("");
-    try {
-      const templatePayload = {
-        doctor_id: null,
-        channel: "whatsapp",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        title: templateForm.title || DEFAULT_CONFIRMATION_TITLE,
-        body: templateForm.body || DEFAULT_CONFIRMATION_BODY,
-        is_active: true,
-      };
-
-      const generalConfirmationTemplate = communicationTemplates.find(
-        (template) => template.template_key === CONFIRMATION_TEMPLATE_KEY && template.doctor_id === null,
-      );
-
-      if (generalConfirmationTemplate) {
-        await apiPatch<CommunicationTemplate>(`/api/communication-templates/${generalConfirmationTemplate.id}`, templatePayload);
-      } else {
-        await apiPost<CommunicationTemplate>("/api/communication-templates", templatePayload);
-      }
-
-      const generalRule = reminderRules.find((rule) => rule.doctor_id === null && rule.trigger_type === "before_appointment");
-      const rulePayload = {
-        doctor_id: null,
-        channel: "whatsapp",
-        trigger_type: "before_appointment",
-        minutes_before: 1440,
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        is_active: true,
-      };
-
-      if (generalRule) {
-        await apiPatch<ReminderRule>(`/api/reminder-rules/${generalRule.id}`, rulePayload);
-      } else {
-        await apiPost<ReminderRule>("/api/reminder-rules", rulePayload);
-      }
-
-      setReminderRuleForm((current) => ({
-        ...current,
-        doctor_id: "",
-        minutes_before: "1440",
-        template_key: CONFIRMATION_TEMPLATE_KEY,
-        is_active: true,
-      }));
-      await loadData();
-      setMessage("La regla general de 24 horas quedó activa.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo activar la regla general de 24 horas.");
-    }
-  }
-
-  async function toggleReminderRule(rule: ReminderRule) {
-    setMessage("");
-    try {
-      await apiPatch<ReminderRule>(`/api/reminder-rules/${rule.id}`, {
-        is_active: !rule.is_active,
-      });
-      await loadData();
-      setMessage(`Regla ${rule.is_active ? "desactivada" : "activada"}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar la regla.");
-    }
-  }
 
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
   const inactiveReceptionists = useMemo(() => receptionists.filter((receptionist) => !receptionist.is_active), [receptionists]);
@@ -732,6 +533,38 @@ export function ClinicalConsole() {
     setSelectedPatientDispatches,
     setSelectedPatientId,
     setSelectedSummary,
+  });
+
+  const { closeEncounter, openAttachment, submitAttachment, submitEncounter } = useEncounterAttachmentAdmin({
+    attachmentEncounterId,
+    attachmentFile,
+    attachmentType,
+    diagnoses,
+    encounterForm,
+    examOrders,
+    loadData,
+    prescriptionItems,
+    refreshSelectedSummary,
+    selectedPatientId,
+    setAttachmentEncounterId,
+    setAttachmentFile,
+    setDiagnoses,
+    setDownloadingAttachmentId,
+    setEncounterForm,
+    setExamOrders,
+    setMessage,
+    setPrescriptionItems,
+    setSelectedPatientId,
+  });
+
+  const { activateDefault24HourReminder, submitReminderRule, toggleReminderRule } = useReminderAdmin({
+    communicationTemplates,
+    loadData,
+    reminderRuleForm,
+    reminderRules,
+    setMessage,
+    setReminderRuleForm,
+    templateForm,
   });
 
   const {
