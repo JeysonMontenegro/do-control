@@ -16,7 +16,10 @@ type PatientsSectionProps = {
   selectedSummary: PatientSummary | null;
   sortedPatientEncounters: Encounter[];
   onEditPatient: () => void;
+  onGoToAgenda: () => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
+  onGoToEncounters: () => void;
+  onGoToMessages: () => void;
   onOpenAttachment: (attachmentId: number) => void;
   onPatientSearchChange: (value: string) => void;
   onSelectPatient: (patientId: string) => void;
@@ -34,7 +37,10 @@ export function PatientsSection({
   selectedSummary,
   sortedPatientEncounters,
   onEditPatient,
+  onGoToAgenda,
   onGoToAgendaAppointment,
+  onGoToEncounters,
+  onGoToMessages,
   onOpenAttachment,
   onPatientSearchChange,
   onSelectPatient,
@@ -129,7 +135,10 @@ export function PatientsSection({
         canManagePatients={canManagePatients}
         expandedEncounterId={expandedEncounterId}
         onEditPatient={onEditPatient}
+        onGoToAgenda={onGoToAgenda}
         onGoToAgendaAppointment={onGoToAgendaAppointment}
+        onGoToEncounters={onGoToEncounters}
+        onGoToMessages={onGoToMessages}
         onOpenAttachment={onOpenAttachment}
         selectedSummary={selectedSummary}
         setExpandedEncounterId={setExpandedEncounterId}

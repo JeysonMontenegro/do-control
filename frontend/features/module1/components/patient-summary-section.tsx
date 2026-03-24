@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
+import { PatientWorkspaceShortcuts } from "@/features/module1/components/patient-workspace-shortcuts";
 import {
   appointmentStatusLabel,
   appointmentTypeLabel,
@@ -14,7 +15,10 @@ type PatientSummarySectionProps = {
   canManagePatients: boolean;
   expandedEncounterId: number | null;
   onEditPatient: () => void;
+  onGoToAgenda: () => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
+  onGoToEncounters: () => void;
+  onGoToMessages: () => void;
   onOpenAttachment: (attachmentId: number) => void;
   selectedSummary: PatientSummary | null;
   setExpandedEncounterId: React.Dispatch<React.SetStateAction<number | null>>;
@@ -25,7 +29,10 @@ export function PatientSummarySection({
   canManagePatients,
   expandedEncounterId,
   onEditPatient,
+  onGoToAgenda,
   onGoToAgendaAppointment,
+  onGoToEncounters,
+  onGoToMessages,
   onOpenAttachment,
   selectedSummary,
   setExpandedEncounterId,
@@ -69,6 +76,16 @@ export function PatientSummarySection({
               <span>Consultas</span>
             </div>
           </div>
+          <PatientWorkspaceShortcuts
+            appointmentsCount={selectedSummary.appointments.length}
+            encountersCount={selectedSummary.encounters.length}
+            messagesCount={selectedSummary.attachments.length}
+            onGoToAgenda={() =>
+              selectedSummary.appointments.length ? onGoToAgendaAppointment(selectedSummary.appointments[0].id) : onGoToAgenda()
+            }
+            onGoToEncounters={onGoToEncounters}
+            onGoToMessages={onGoToMessages}
+          />
           <div className="detail-panel compact-panel">
             <strong>Datos principales</strong>
             <div className="two-column-grid">

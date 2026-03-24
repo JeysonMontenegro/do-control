@@ -800,10 +800,13 @@ export function ClinicalConsole() {
                 expandedEncounterId,
                 isAdmin,
                 onEditSelectedPatient: () => selectedSummary && setActiveSectionAction("patient_edit"),
+                onGoToAgenda: () => setActiveTab("agenda"),
                 onGoToAgendaFromPatient: (appointmentId) => {
                   setActiveTab("agenda");
                   toggleAppointmentHistory(appointmentId);
                 },
+                onGoToEncounters: () => setActiveTab("consultas"),
+                onGoToMessages: () => setActiveTab("mensajes"),
                 onOpenAttachment: openAttachment,
                 onPatientSearchChange: setPatientSearch,
                 onSelectPatient: setSelectedPatientId,
