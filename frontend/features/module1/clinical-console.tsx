@@ -12,8 +12,8 @@ import {
   createReminderRuleForm,
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
-import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
 import { ConsoleMainContent } from "@/features/module1/components/console-main-content";
+import { ConsoleModals } from "@/features/module1/components/console-modals";
 import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
 import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
@@ -23,12 +23,9 @@ import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { LoginPanel } from "@/features/module1/components/login-panel";
 import { MessagesTab } from "@/features/module1/components/messages-tab";
-import { PatientActionModal } from "@/features/module1/components/patient-action-modal";
 import { PatientsTab } from "@/features/module1/components/patients-tab";
 import { PagerBar } from "@/features/module1/components/pager-bar";
 import { PendingReviewTab } from "@/features/module1/components/pending-review-tab";
-import { ReceptionistModal } from "@/features/module1/components/receptionist-modal";
-import { ReviewResolutionModal } from "@/features/module1/components/review-resolution-modal";
 import { useCommunicationsConsole } from "@/features/module1/hooks/use-communications-console";
 import { useAppointmentAdmin } from "@/features/module1/hooks/use-appointment-admin";
 import { useAgendaInteractions } from "@/features/module1/hooks/use-agenda-interactions";
@@ -870,47 +867,49 @@ export function ClinicalConsole() {
               }}
             />
           </div>
-          <PatientActionModal
-            activeSectionAction={activeSectionAction}
-            availableDoctors={availableDoctors}
-            patientEditForm={patientEditForm}
-            patientForm={patientForm}
-            setActiveSectionAction={setActiveSectionAction}
-            setPatientEditForm={setPatientEditForm}
-            setPatientForm={setPatientForm}
-            submitPatient={submitPatient}
-            submitPatientUpdate={submitPatientUpdate}
-          />
-          <ReviewResolutionModal
-            activeReviewItem={activeReviewItem}
-            allAppointments={data.appointments}
-            allPatients={data.patients}
-            availableDoctors={availableDoctors}
-            closeReviewResolutionModal={closeReviewResolutionModal}
-            reviewAppointmentOptions={reviewAppointmentOptions}
-            reviewPatientOptions={reviewPatientOptions}
-            reviewResolutionForm={reviewResolutionForm}
-            setReviewResolutionForm={setReviewResolutionForm}
-            submitReviewResolution={submitReviewResolution}
-          />
-          <DispatchStatusModal
-            activeDispatch={activeDispatch}
-            closeDispatchStatusModal={closeDispatchStatusModal}
-            dispatchStatusForm={dispatchStatusForm}
-            setDispatchStatusForm={setDispatchStatusForm}
-            submitDispatchStatusUpdate={submitDispatchStatusUpdate}
-          />
-          <ReceptionistModal
-            editingReceptionistId={editingReceptionistId}
-            filteredDoctorOptions={filteredDoctorOptions}
-            isAdmin={isAdmin}
-            receptionistDoctorSearch={receptionistDoctorSearch}
-            receptionistForm={receptionistForm}
-            resetReceptionistForm={resetReceptionistForm}
-            setReceptionistDoctorSearch={setReceptionistDoctorSearch}
-            setReceptionistForm={setReceptionistForm}
-            showReceptionistModal={showReceptionistModal}
-            submitReceptionist={submitReceptionist}
+          <ConsoleModals
+            dispatchStatusModalProps={{
+              activeDispatch,
+              closeDispatchStatusModal,
+              dispatchStatusForm,
+              setDispatchStatusForm,
+              submitDispatchStatusUpdate,
+            }}
+            patientActionModalProps={{
+              activeSectionAction,
+              availableDoctors,
+              patientEditForm,
+              patientForm,
+              setActiveSectionAction,
+              setPatientEditForm,
+              setPatientForm,
+              submitPatient,
+              submitPatientUpdate,
+            }}
+            receptionistModalProps={{
+              editingReceptionistId,
+              filteredDoctorOptions,
+              isAdmin,
+              receptionistDoctorSearch,
+              receptionistForm,
+              resetReceptionistForm,
+              setReceptionistDoctorSearch,
+              setReceptionistForm,
+              showReceptionistModal,
+              submitReceptionist,
+            }}
+            reviewResolutionModalProps={{
+              activeReviewItem,
+              allAppointments: data.appointments,
+              allPatients: data.patients,
+              availableDoctors,
+              closeReviewResolutionModal,
+              reviewAppointmentOptions,
+              reviewPatientOptions,
+              reviewResolutionForm,
+              setReviewResolutionForm,
+              submitReviewResolution,
+            }}
           />
         </section>
       )}
