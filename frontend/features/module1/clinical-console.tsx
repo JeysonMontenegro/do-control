@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
-import { AgendaSection } from "@/features/module1/components/agenda-section";
+import { AgendaTab } from "@/features/module1/components/agenda-tab";
 import {
   createDispatchStatusForm,
   createEmailTemplateForm,
@@ -19,7 +19,7 @@ import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
 import { ConsoleContentRouter } from "@/features/module1/components/console-content-router";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
-import { EncountersSection } from "@/features/module1/components/encounters-section";
+import { EncountersTab } from "@/features/module1/components/encounters-tab";
 import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import { LoginPanel } from "@/features/module1/components/login-panel";
@@ -968,7 +968,7 @@ export function ClinicalConsole() {
   };
 
   const renderAgendaTab = () => (
-    <AgendaSection
+    <AgendaTab
       agendaDays={agendaDays}
       allowMultiDoctorVisibility={allowMultiDoctorVisibility}
       appointmentDispatches={appointmentDispatches}
@@ -995,13 +995,13 @@ export function ClinicalConsole() {
       goToToday={goToToday}
       isAdmin={isAdmin}
       monthDays={monthDays}
-      onAppointmentDoctorChange={(value) => setAppointmentForm((current) => ({ ...current, doctor_id: value }))}
-      onAppointmentEndDateChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value }))}
-      onAppointmentEndTimeChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value }))}
+      onAppointmentDoctorFieldChange={(value) => setAppointmentForm((current) => ({ ...current, doctor_id: value }))}
+      onAppointmentEndDateFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value }))}
+      onAppointmentEndTimeFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value }))}
       onAppointmentFilterChange={setAppointmentFilter}
-      onAppointmentPatientChange={(value) => setAppointmentForm((current) => ({ ...current, patient_id: value }))}
-      onAppointmentStartDateChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value }))}
-      onAppointmentStartTimeChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value }))}
+      onAppointmentPatientFieldChange={(value) => setAppointmentForm((current) => ({ ...current, patient_id: value }))}
+      onAppointmentStartDateFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value }))}
+      onAppointmentStartTimeFieldChange={(value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value }))}
       onCalendarViewChange={setCalendarView}
       onDoctorFilterChange={setDoctorFilter}
       onSelectAppointment={toggleAppointmentHistory}
@@ -1040,7 +1040,7 @@ export function ClinicalConsole() {
   );
 
   const renderConsultasTab = () => (
-    <EncountersSection
+    <EncountersTab
       appointments={filteredAppointments}
       attachmentEncounterId={attachmentEncounterId}
       attachmentType={attachmentType}
