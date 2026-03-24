@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AppointmentBadges } from "@/features/module1/components/appointment-badges";
 import { AgendaSection } from "@/features/module1/components/agenda-section";
-import { AgendaCalendar } from "@/features/module1/components/agenda-calendar";
 import {
   createDispatchStatusForm,
   createEmailTemplateForm,
@@ -15,6 +14,9 @@ import {
   createTemplateForm,
 } from "@/features/module1/clinical-console-defaults";
 import { DispatchStatusModal } from "@/features/module1/components/dispatch-status-modal";
+import { ConsoleOverviewStrip } from "@/features/module1/components/console-overview-strip";
+import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
+import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersSection } from "@/features/module1/components/encounters-section";
 import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
@@ -799,10 +801,25 @@ export function ClinicalConsole() {
       ),
     [appointmentReviewItems],
   );
+  const normalizedGlobalSearch = useMemo(() => topbarSearch.trim().toLowerCase(), [topbarSearch]);
   const filteredAppointments = useMemo(() => {
     return data.appointments.filter((appointment) => {
       if (doctorFilter && String(appointment.doctor_id) !== doctorFilter) {
         return false;
+      }
+      if (normalizedGlobalSearch) {
+        const haystack = [
+          appointment.patient_name ?? "",
+          appointment.doctor_name ?? "",
+          appointment.reason ?? "",
+          appointment.appointment_type,
+          appointment.source,
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(normalizedGlobalSearch)) {
+          return false;
+        }
       }
 
       const relatedDispatches = communicationDispatches.filter((dispatch) => dispatch.appointment_id === appointment.id);
@@ -826,7 +843,7 @@ export function ClinicalConsole() {
       }
       return true;
     });
-  }, [appointmentFilter, communicationDispatches, data.appointments, doctorFilter, reviewQueueByAppointmentId]);
+  }, [appointmentFilter, communicationDispatches, data.appointments, doctorFilter, normalizedGlobalSearch, reviewQueueByAppointmentId]);
   const agendaDays = useMemo(() => {
     if (calendarView === "dia") {
       return [startOfDay(calendarDate)];
@@ -975,7 +992,42 @@ export function ClinicalConsole() {
     );
   }, [selectedSummary]);
 
-  const selectedPatient = selectedSummary?.patient ?? null;
+  const filteredPatients = useMemo(() => {
+    if (!normalizedGlobalSearch) {
+      return data.patients;
+    }
+    return data.patients.filter((patient) => {
+      const haystack = [
+        patient.medical_record_number,
+        patient.first_name,
+        patient.last_name,
+        patient.primary_phone,
+        patient.national_id ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedGlobalSearch);
+    });
+  }, [data.patients, normalizedGlobalSearch]);
+
+  const filteredEncounters = useMemo(() => {
+    if (!normalizedGlobalSearch) {
+      return data.encounters;
+    }
+    return data.encounters.filter((encounter) => {
+      const patient = data.patients.find((item) => item.id === encounter.patient_id);
+      const haystack = [
+        encounter.encounter_type,
+        encounter.chief_complaint,
+        patient?.first_name ?? "",
+        patient?.last_name ?? "",
+        patient?.medical_record_number ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedGlobalSearch);
+    });
+  }, [data.encounters, data.patients, normalizedGlobalSearch]);
 
   useEffect(() => {
     if (!currentRoles.includes("doctor") || !selectedDoctor) {
@@ -1090,7 +1142,7 @@ export function ClinicalConsole() {
       canChooseAmongMultipleDoctors={canChooseAmongMultipleDoctors}
       canManageAppointments={canManageAppointments}
       canViewGlobalCommunications={canViewGlobalCommunications}
-      data={{ appointments: data.appointments, encounters: data.encounters, patients: data.patients }}
+      data={{ appointments: filteredAppointments, encounters: filteredEncounters, patients: filteredPatients }}
       dispatchAttempts={dispatchAttempts}
       doctorFilter={doctorFilter}
       expandedDispatchId={expandedDispatchId}
@@ -1137,7 +1189,7 @@ export function ClinicalConsole() {
       onSelectPatient={setSelectedPatientId}
       onShowCreatePatient={() => setActiveSectionAction("patient_create")}
       patientSearch={patientSearch}
-      patients={data.patients}
+      patients={filteredPatients}
       selectedPatientId={selectedPatientId}
       selectedSummary={selectedSummary}
       setExpandedEncounterId={setExpandedEncounterId}
@@ -1147,7 +1199,7 @@ export function ClinicalConsole() {
 
   const renderConsultasTab = () => (
     <EncountersSection
-      appointments={data.appointments}
+      appointments={filteredAppointments}
       attachmentEncounterId={attachmentEncounterId}
       attachmentType={attachmentType}
       availableDoctors={availableDoctors}
@@ -1156,12 +1208,12 @@ export function ClinicalConsole() {
       closeEncounter={closeEncounter}
       diagnoses={diagnoses}
       downloadingAttachmentId={downloadingAttachmentId}
-      encounters={data.encounters}
+      encounters={filteredEncounters}
       encounterForm={encounterForm}
       examOrders={examOrders}
       isAdmin={isAdmin}
       openAttachment={openAttachment}
-      patients={data.patients}
+      patients={filteredPatients}
       prescriptionItems={prescriptionItems}
       selectedDoctor={selectedDoctor}
       selectedSummary={selectedSummary}
@@ -1182,7 +1234,7 @@ export function ClinicalConsole() {
       canViewGlobalCommunications={canViewGlobalCommunications}
       communicationDispatchSummary={communicationDispatchSummary}
       communicationDispatches={communicationDispatches}
-      data={{ patients: data.patients }}
+      data={{ patients: filteredPatients }}
       dispatchAttempts={dispatchAttempts}
       dispatchFilters={dispatchFilters}
       expandedDispatchId={expandedDispatchId}
@@ -1481,76 +1533,45 @@ export function ClinicalConsole() {
         />
       ) : (
         <section className="app-shell-auth">
-          <aside className="app-sidebar">
-            <div className="sidebar-brand">
-              <p className="eyebrow">Do-Control</p>
-              <h1>Panel médico</h1>
-              <span>{currentRoles.join(", ")}</span>
-            </div>
-            <nav className="sidebar-nav">
-              {consoleTabs
-                .filter((tab) => tab.id !== "doctores" || isAdmin)
-                .filter((tab) => tab.id !== "gestion" || canViewGestion)
-                .filter((tab) => tab.id !== "mensajes" || canViewMessages)
-                .filter((tab) => tab.id !== "pendientes" || canViewReviewQueue)
-                .map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={`sidebar-link ${activeTab === tab.id ? "sidebar-link-active" : ""}`}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-            </nav>
-            <div className="sidebar-summary">
-              <div className="sidebar-stat">
-                <strong>{data.appointments.length}</strong>
-                <span>Citas</span>
-              </div>
-              <div className="sidebar-stat">
-                <strong>{data.patients.length}</strong>
-                <span>Pacientes</span>
-              </div>
-              <div className="sidebar-stat">
-                <strong>{appointmentReviewItems.length}</strong>
-                <span>Seguimiento</span>
-              </div>
-            </div>
-            <button type="button" className="secondary-button sidebar-logout" onClick={logout}>
-              Cerrar sesión
-            </button>
-          </aside>
+          <ConsoleSidebar
+            activeTab={activeTab}
+            appointmentCount={filteredAppointments.length}
+            canViewGestion={canViewGestion}
+            canViewMessages={canViewMessages}
+            canViewReviewQueue={canViewReviewQueue}
+            currentRoles={currentRoles}
+            isAdmin={isAdmin}
+            logout={logout}
+            onTabChange={setActiveTab}
+            patientCount={filteredPatients.length}
+            reviewCount={appointmentReviewItems.length}
+            tabs={consoleTabs}
+          />
 
           <div className="app-content">
-            <header className="topbar">
-              <div className="topbar-copy">
-                <p className="eyebrow">Vista actual</p>
-                <h2>{consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda"}</h2>
-                <span>{currentUserDisplay}</span>
-              </div>
-              <div className="topbar-actions">
-                {isReceptionist && availableDoctors.length > 1 ? (
-                  <select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)}>
-                    {availableDoctors.map((doctor) => (
-                      <option key={`topbar-doctor-${doctor.id}`} value={doctor.id}>
-                        Gestionando pacientes de Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                <input
-                  className="search-input topbar-search"
-                  placeholder="Buscar paciente o expediente"
-                  value={topbarSearch}
-                  onChange={(event) => setTopbarSearch(event.target.value)}
-                />
-              </div>
-            </header>
+            <ConsoleTopbar
+              activeTabLabel={consoleTabs.find((tab) => tab.id === activeTab)?.label ?? "Agenda"}
+              currentUserDisplay={currentUserDisplay}
+              doctorFilter={doctorFilter}
+              isReceptionist={isReceptionist}
+              onDoctorFilterChange={setDoctorFilter}
+              onSearchChange={setTopbarSearch}
+              searchValue={topbarSearch}
+              selectedDoctor={selectedDoctor}
+              visibleDoctors={availableDoctors}
+            />
 
             {message ? <p className={`message-box message-box-${getMessageTone(message)}`}>{message}</p> : null}
             {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}
+            {!loading ? (
+              <ConsoleOverviewStrip
+                activeReviewItems={appointmentReviewItems.length}
+                encountersCount={filteredEncounters.length}
+                filteredAppointmentsCount={filteredAppointments.length}
+                filteredPatientsCount={filteredPatients.length}
+                globalSearch={topbarSearch.trim()}
+              />
+            ) : null}
 
             {renderActiveTab()}
           </div>

@@ -2,8 +2,8 @@
   --bg: #eef4fa;
   --panel: #ffffff;
   --panel-soft: #f7fbff;
-  --sidebar: #15324a;
-  --sidebar-soft: #1f4668;
+  --sidebar: #10283d;
+  --sidebar-soft: #1d4665;
   --text: #24364a;
   --muted: #6c8299;
   --line: rgba(36, 54, 74, 0.1);
@@ -11,6 +11,8 @@
   --accent: #2b6ef3;
   --accent-strong: #1d57c2;
   --accent-soft: #e8f0ff;
+  --teal: #167a72;
+  --teal-soft: #e5f7f4;
   --warning: #f0a43a;
   --warning-soft: #fff1dc;
   --danger: #cf5e4e;
@@ -28,7 +30,10 @@ body {
   min-height: 100%;
   font-family: "Segoe UI", Tahoma, sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #f5f8fc 0%, #e9f0f8 100%);
+  background:
+    radial-gradient(circle at top left, rgba(43, 110, 243, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(22, 122, 114, 0.1), transparent 24%),
+    linear-gradient(180deg, #f5f8fc 0%, #e9f0f8 100%);
   overflow-x: hidden;
 }
 
@@ -319,13 +324,15 @@ select.compact-input:hover {
 }
 
 .app-sidebar {
-  background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-soft) 100%);
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 32%),
+    linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-soft) 100%);
   color: #f5f8ff;
   border-color: rgba(255, 255, 255, 0.08);
-  padding: 18px 14px;
+  padding: 20px 16px;
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 18px;
 }
 
 .sidebar-brand {
@@ -357,9 +364,21 @@ select.compact-input:hover {
 .sidebar-link {
   width: 100%;
   text-align: left;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   color: #edf4ff;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-link strong {
+  font-size: 0.97rem;
+  font-weight: 700;
+}
+
+.sidebar-link span {
+  color: rgba(235, 243, 255, 0.72);
+  font-size: 0.79rem;
 }
 
 .sidebar-link:hover,
@@ -374,8 +393,9 @@ select.compact-input:hover {
 }
 
 .sidebar-link-active {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.09));
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-stat {
@@ -396,6 +416,22 @@ select.compact-input:hover {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #fff;
+}
+
+.sidebar-role-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sidebar-role-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(245, 248, 255, 0.92);
+  font-size: 0.78rem;
+  text-transform: capitalize;
 }
 
 .success-button {
@@ -422,7 +458,8 @@ select.compact-input:hover {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(242, 248, 255, 0.96));
 }
 
 .topbar-copy {
@@ -443,10 +480,26 @@ select.compact-input:hover {
 .topbar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .topbar-search {
   min-width: 320px;
+}
+
+.topbar-search-shell {
+  display: grid;
+  gap: 6px;
+}
+
+.topbar-search-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .headline-strip {
@@ -459,10 +512,10 @@ select.compact-input:hover {
 .metric-card {
   display: grid;
   gap: 4px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid #dbe6f6;
-  background: linear-gradient(180deg, #f9fbff 0%, #eef4ff 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(238, 244, 255, 0.95) 100%);
 }
 
 .headline-card strong,
@@ -1168,6 +1221,17 @@ select.compact-input:hover {
   border: 1px solid #d8e3f2;
   color: var(--accent-strong);
   white-space: nowrap;
+}
+
+.context-pill-strong {
+  background: linear-gradient(180deg, rgba(22, 122, 114, 0.12), rgba(22, 122, 114, 0.06));
+  border-color: rgba(22, 122, 114, 0.2);
+  color: #14655f;
+}
+
+.console-search-banner {
+  border-style: dashed;
+  background: linear-gradient(135deg, rgba(232, 240, 255, 0.86), rgba(229, 247, 244, 0.84));
 }
 
 .compact-panel {
