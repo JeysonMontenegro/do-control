@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useEffect } from "react";
 
 import { combineDisplayDateTimeToIso } from "@/features/module1/console-utils";
 import { apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/api";
@@ -34,6 +34,9 @@ type UseEncounterAttachmentAdminParams = {
   prescriptionItems: PrescriptionItem[];
   refreshSelectedSummary: () => Promise<unknown>;
   selectedPatientId: string;
+  selectedSummary: {
+    encounters: Encounter[];
+  } | null;
   setAttachmentEncounterId: React.Dispatch<React.SetStateAction<string>>;
   setAttachmentFile: React.Dispatch<React.SetStateAction<File | null>>;
   setDiagnoses: React.Dispatch<React.SetStateAction<Diagnosis[]>>;
@@ -56,6 +59,7 @@ export function useEncounterAttachmentAdmin({
   prescriptionItems,
   refreshSelectedSummary,
   selectedPatientId,
+  selectedSummary,
   setAttachmentEncounterId,
   setAttachmentFile,
   setDiagnoses,
@@ -66,11 +70,19 @@ export function useEncounterAttachmentAdmin({
   setPrescriptionItems,
   setSelectedPatientId,
 }: UseEncounterAttachmentAdminParams) {
+  useEffect(() => {
+    if (!selectedSummary?.encounters.length || attachmentEncounterId) {
+      return;
+    }
+
+    setAttachmentEncounterId(String(selectedSummary.encounters[0].id));
+  }, [attachmentEncounterId, selectedSummary, setAttachmentEncounterId]);
+
   async function submitEncounter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     try {
-      await apiPost<Encounter>("/api/encounters", {
+      const createdEncounter = await apiPost<Encounter>("/api/encounters", {
         ...encounterForm,
         patient_id: Number(encounterForm.patient_id),
         doctor_id: Number(encounterForm.doctor_id),
@@ -106,11 +118,16 @@ export function useEncounterAttachmentAdmin({
           })),
       });
       await loadData();
-      setEncounterForm((current) => ({ ...current, chief_complaint: "", appointment_id: "" }));
+      setEncounterForm((current) => ({
+        ...current,
+        chief_complaint: "",
+        appointment_id: "",
+      }));
       setDiagnoses([{ diagnosis_text: "", diagnosis_code: null, is_primary: true, notes: null }]);
       setPrescriptionItems([{ medication_name: "", dosage: null, frequency: null, duration: null, instructions: null }]);
       setExamOrders([{ exam_name: "", exam_category: null, instructions: null }]);
       setSelectedPatientId(encounterForm.patient_id);
+      setAttachmentEncounterId(String(createdEncounter.id));
       setMessage("Consulta registrada.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo registrar la consulta.");
@@ -154,7 +171,6 @@ export function useEncounterAttachmentAdmin({
       await apiPostForm("/api/attachments", formData);
 
       setAttachmentFile(null);
-      setAttachmentEncounterId("");
       if (selectedPatientId) {
         await refreshSelectedSummary();
       }

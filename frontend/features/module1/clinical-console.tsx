@@ -534,6 +534,7 @@ export function ClinicalConsole() {
     prescriptionItems,
     refreshSelectedSummary,
     selectedPatientId,
+    selectedSummary,
     setAttachmentEncounterId,
     setAttachmentFile,
     setDiagnoses,
