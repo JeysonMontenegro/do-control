@@ -14,6 +14,11 @@ from app.schemas.integration import (
     CommunicationDispatchStatusUpdate,
     DoctorMatchRequest,
     DoctorMatchResponse,
+    EmailWhitelistAddressMutation,
+    EmailWhitelistAddressMutationRead,
+    EmailWhitelistAllowedRead,
+    EmailWhitelistStateRead,
+    EmailWhitelistToggle,
     DoctorScheduleAppointmentRead,
     DoctorVerificationRead,
     IntegrationUserVerificationRead,
@@ -23,6 +28,11 @@ from app.schemas.integration import (
     IntegrationPatientCreateResponse,
     IntegrationPatientPhoneUpdateRequest,
     IntegrationPatientPhoneUpdateResponse,
+    MessagingWhitelistAllowedRead,
+    MessagingWhitelistPhoneMutation,
+    MessagingWhitelistPhoneMutationRead,
+    MessagingWhitelistStateRead,
+    MessagingWhitelistToggle,
     PatientMatchRequest,
     PatientMatchResponse,
     PendingAppointmentRead,
@@ -31,7 +41,9 @@ from app.schemas.integration import (
     ProposedAppointmentResponse,
 )
 from app.services.errors import ConflictError, NotFoundError, ValidationError
+from app.services.email_whitelist import EmailWhitelistService
 from app.services.integration import IntegrationService
+from app.services.messaging_whitelist import MessagingWhitelistService
 
 router = APIRouter()
 
@@ -212,5 +224,108 @@ def update_communication_dispatch_status(
         return IntegrationService(db).update_dispatch_status(dispatch_id, payload)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/messaging/can-send", response_model=MessagingWhitelistAllowedRead)
+def can_send_message(
+    phone: str = Query(...),
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> MessagingWhitelistAllowedRead:
+    return MessagingWhitelistService(db).can_send(phone)
+
+
+@router.get("/messaging/whitelist", response_model=MessagingWhitelistStateRead)
+def get_messaging_whitelist(
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> MessagingWhitelistStateRead:
+    return MessagingWhitelistService(db).get_state()
+
+
+@router.put("/messaging/whitelist", response_model=MessagingWhitelistStateRead)
+def update_messaging_whitelist(
+    payload: MessagingWhitelistToggle,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> MessagingWhitelistStateRead:
+    return MessagingWhitelistService(db).update_enabled(payload)
+
+
+@router.post("/messaging/whitelist/phones", response_model=MessagingWhitelistPhoneMutationRead)
+def add_messaging_whitelist_phone(
+    payload: MessagingWhitelistPhoneMutation,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> MessagingWhitelistPhoneMutationRead:
+    try:
+        return MessagingWhitelistService(db).add_phone(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.delete("/messaging/whitelist/phones/{phone}", response_model=MessagingWhitelistPhoneMutationRead)
+def remove_messaging_whitelist_phone(
+    phone: str,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> MessagingWhitelistPhoneMutationRead:
+    try:
+        return MessagingWhitelistService(db).remove_phone(phone)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/email/can-send", response_model=EmailWhitelistAllowedRead)
+def can_send_email(
+    email: str = Query(...),
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> EmailWhitelistAllowedRead:
+    try:
+        return EmailWhitelistService(db).can_send(email)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/email/whitelist", response_model=EmailWhitelistStateRead)
+def get_email_whitelist(
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> EmailWhitelistStateRead:
+    return EmailWhitelistService(db).get_state()
+
+
+@router.put("/email/whitelist", response_model=EmailWhitelistStateRead)
+def update_email_whitelist(
+    payload: EmailWhitelistToggle,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> EmailWhitelistStateRead:
+    return EmailWhitelistService(db).update_enabled(payload)
+
+
+@router.post("/email/whitelist/addresses", response_model=EmailWhitelistAddressMutationRead)
+def add_email_whitelist_address(
+    payload: EmailWhitelistAddressMutation,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> EmailWhitelistAddressMutationRead:
+    try:
+        return EmailWhitelistService(db).add_address(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.delete("/email/whitelist/addresses/{email}", response_model=EmailWhitelistAddressMutationRead)
+def remove_email_whitelist_address(
+    email: str,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> EmailWhitelistAddressMutationRead:
+    try:
+        return EmailWhitelistService(db).remove_address(email)
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

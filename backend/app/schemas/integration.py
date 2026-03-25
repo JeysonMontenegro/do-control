@@ -104,6 +104,50 @@ class IntegrationPatientPhoneUpdateResponse(BaseModel):
     previous_phone: str | None = None
 
 
+class MessagingWhitelistAllowedRead(BaseModel):
+    allowed: bool
+
+
+class MessagingWhitelistStateRead(BaseModel):
+    enabled: bool
+    phones: list[str] = []
+
+
+class MessagingWhitelistToggle(BaseModel):
+    enabled: bool
+
+
+class MessagingWhitelistPhoneMutation(BaseModel):
+    phone: str
+
+
+class MessagingWhitelistPhoneMutationRead(BaseModel):
+    added: str | None = None
+    removed: str | None = None
+
+
+class EmailWhitelistAllowedRead(BaseModel):
+    allowed: bool
+
+
+class EmailWhitelistStateRead(BaseModel):
+    enabled: bool
+    addresses: list[str] = []
+
+
+class EmailWhitelistToggle(BaseModel):
+    enabled: bool
+
+
+class EmailWhitelistAddressMutation(BaseModel):
+    email: str
+
+
+class EmailWhitelistAddressMutationRead(BaseModel):
+    added: str | None = None
+    removed: str | None = None
+
+
 class ProposedAppointmentRequest(BaseModel):
     patient_name: str
     phone_number: str

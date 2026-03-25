@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -17,3 +17,7 @@ class ClinicSetting(TimestampMixin, Base):
     admin_invite_email_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     manual_test_email_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     manual_resend_email_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    email_whitelist_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    email_whitelist_addresses: Mapped[str] = mapped_column(Text, default="", server_default="")
+    messaging_whitelist_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    messaging_whitelist_phones: Mapped[str] = mapped_column(Text, default="", server_default="")

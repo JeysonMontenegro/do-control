@@ -14,6 +14,7 @@ from app.repositories.user import UserRepository
 from app.repositories.user_action_token import UserActionTokenRepository
 from app.schemas.auth_email import AdminInviteRequest
 from app.services.audit import create_audit_log
+from app.services.email_whitelist import EmailWhitelistService
 from app.services.email_template import EmailTemplateService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.security import hash_password, verify_password
@@ -44,6 +45,12 @@ class EmailService:
 
     def _clinic_setting(self):
         return self.clinic_setting_repository.get_singleton()
+
+    def _email_whitelist_allows(self, email: str) -> bool:
+        try:
+            return EmailWhitelistService(self.db).can_send(email).allowed
+        except ValidationError:
+            return False
 
     def _process_enabled(self, process_key: str) -> bool:
         clinic_setting = self._clinic_setting()
@@ -114,7 +121,11 @@ class EmailService:
             )
         )
         try:
-            if process_key and not self._process_enabled(process_key):
+            if not self._email_whitelist_allows(to_email):
+                provider_message_id = None
+                dispatch.status = "skipped"
+                dispatch.error_message = "Recipient email is blocked by whitelist."
+            elif process_key and not self._process_enabled(process_key):
                 provider_message_id = None
                 dispatch.status = "skipped"
                 dispatch.error_message = f"Email process '{process_key}' is disabled by clinic settings."
