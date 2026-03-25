@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -22,6 +23,7 @@ from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 
 APPOINTMENT_CONFIRMATION_TEMPLATE_KEY = "appointment_confirmation_doctor"
+GUATEMALA_TIMEZONE = ZoneInfo("America/Guatemala")
 
 
 class CommunicationDispatchService:
@@ -93,8 +95,9 @@ class CommunicationDispatchService:
         if dispatch.appointment_id is not None:
             appointment = self.appointment_repository.get(dispatch.appointment_id)
             if appointment is not None:
-                appointment_date = appointment.scheduled_start.strftime("%Y-%m-%d")
-                appointment_time = appointment.scheduled_start.strftime("%H:%M UTC")
+                local_start = appointment.scheduled_start.astimezone(GUATEMALA_TIMEZONE)
+                appointment_date = local_start.strftime("%Y-%m-%d")
+                appointment_time = local_start.strftime("%H:%M")
 
         return (
             template.body
