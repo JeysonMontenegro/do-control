@@ -36,6 +36,8 @@ type AgendaSectionProps = {
     scheduled_start_time: string;
     scheduled_end_date: string;
     scheduled_end_time: string;
+    appointment_type: string;
+    reason: string;
     notify_patient: boolean;
   };
   appointmentHistory: Record<number, AppointmentHistory[]>;
@@ -69,8 +71,10 @@ type AgendaSectionProps = {
   onAppointmentFilterChange: (value: "all" | "ws" | "confirmed" | "pending_confirmation" | "needs_attention") => void;
   onAppointmentNotifyPatientChange: (value: boolean) => void;
   onAppointmentPatientChange: (value: string) => void;
+  onAppointmentReasonChange: (value: string) => void;
   onAppointmentStartDateChange: (value: string) => void;
   onAppointmentStartTimeChange: (value: string) => void;
+  onAppointmentTypeChange: (value: string) => void;
   onCalendarViewChange: (value: CalendarView) => void;
   onCloseFocusedAppointment: () => void;
   onDoctorFilterChange: (value: string) => void;
@@ -120,8 +124,10 @@ export function AgendaSection({
   onAppointmentFilterChange,
   onAppointmentNotifyPatientChange,
   onAppointmentPatientChange,
+  onAppointmentReasonChange,
   onAppointmentStartDateChange,
   onAppointmentStartTimeChange,
+  onAppointmentTypeChange,
   onCalendarViewChange,
   onCloseFocusedAppointment,
   onDoctorFilterChange,
@@ -137,6 +143,18 @@ export function AgendaSection({
   submitAppointment,
   updateAppointmentStatus,
 }: AgendaSectionProps) {
+  const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+  const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
+  const splitTimeValue = (value: string) => {
+    const [hour = "00", minute = "00"] = value.split(":");
+    return { hour, minute };
+  };
+  const updateTimePart = (value: string, part: "hour" | "minute", nextValue: string) => {
+    const current = splitTimeValue(value);
+    const hour = part === "hour" ? nextValue : current.hour;
+    const minute = part === "minute" ? nextValue : current.minute;
+    return `${hour}:${minute}`;
+  };
   const doctorOptions = availableDoctors.map((doctor) => ({
     value: String(doctor.id),
     label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
@@ -172,6 +190,8 @@ export function AgendaSection({
       .filter((item) => item.existing_appointment_id !== null)
       .map((item) => [item.existing_appointment_id as number, item]),
   );
+  const startTimeParts = splitTimeValue(appointmentForm.scheduled_start_time);
+  const endTimeParts = splitTimeValue(appointmentForm.scheduled_end_time);
 
   const renderFocusedAppointment = () => {
     if (!focusedAppointment) {
@@ -325,53 +345,6 @@ export function AgendaSection({
 
   return (
     <section className="tab-layout">
-      <section className="headline-strip span-three">
-        <div className="headline-card" title="Cantidad de citas mostradas según la vista del calendario y filtros activos.">
-          <strong>{filteredAppointments.length}</strong>
-          <span>Citas visibles</span>
-        </div>
-        <div className="headline-card" title="Citas que todavía están pendientes de confirmación manual o por integración.">
-          <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
-          <span>Por confirmar</span>
-        </div>
-        <div className="headline-card" title="Total de consultas clínicas registradas en el sistema.">
-          <strong>{data.encounters.length}</strong>
-          <span>Consultas</span>
-        </div>
-        <div className="headline-card" title="Archivos clínicos del paciente seleccionado actualmente.">
-          <strong>{selectedSummary?.attachments.length ?? 0}</strong>
-          <span>Archivos</span>
-        </div>
-      </section>
-      <article className="card section-card span-three">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Resumen</p>
-            <h2>Vista rápida</h2>
-          </div>
-        </div>
-        <div className="summary-grid">
-          <div className="metric-card" title="Cantidad de citas visibles dentro de la vista actual del calendario.">
-            <strong>{filteredAppointments.length}</strong>
-            <span>Citas en la vista actual</span>
-          </div>
-          <div className="metric-card" title="Citas que siguen pendientes de confirmar.">
-            <strong>{filteredAppointments.filter((item) => item.confirmation_status === "pending").length}</strong>
-            <span>Pendientes de confirmar</span>
-          </div>
-          <div className="metric-card" title="Casos enviados a revisión manual que aún requieren una decisión.">
-            <strong>{appointmentReviewItems.length}</strong>
-            <span>Casos por revisar</span>
-          </div>
-        </div>
-        <div className="calendar-legend">
-          <span className="legend-title">Colores</span>
-          <span className="legend-item"><span className="legend-swatch legend-swatch-default" />Cita normal</span>
-          <span className="legend-item"><span className="legend-swatch legend-swatch-confirmed" />Cita confirmada</span>
-          <span className="legend-item"><span className="legend-swatch legend-swatch-ws" />Cita desde WhatsApp</span>
-          <span className="legend-item"><span className="legend-swatch legend-swatch-cancelled" />Cita cancelada</span>
-        </div>
-      </article>
       <article className="card section-card span-two">
         <div className="subsection-header">
           <div>
@@ -495,15 +468,79 @@ export function AgendaSection({
                   <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
                 </label>
               ) : null}
-              <DateField label="Inicio" value={appointmentForm.scheduled_start_date} onChange={onAppointmentStartDateChange} required />
+              <DateField label="Fecha" value={appointmentForm.scheduled_start_date} onChange={onAppointmentStartDateChange} required />
+              <label>
+                <RequiredLabel>Tipo de cita</RequiredLabel>
+                <select value={appointmentForm.appointment_type} onChange={(event) => onAppointmentTypeChange(event.target.value)} required>
+                  <option value="first_consultation">Primera consulta</option>
+                  <option value="follow_up">Seguimiento</option>
+                  <option value="checkup">Chequeo</option>
+                  <option value="procedure">Procedimiento</option>
+                  <option value="virtual_consultation">Consulta virtual</option>
+                </select>
+              </label>
               <label>
                 <RequiredLabel>Hora inicio</RequiredLabel>
-                <input type="time" value={appointmentForm.scheduled_start_time} onChange={(event) => onAppointmentStartTimeChange(event.target.value)} required />
+                <div className="time-field-grid">
+                  <select
+                    value={startTimeParts.hour}
+                    onChange={(event) => onAppointmentStartTimeChange(updateTimePart(appointmentForm.scheduled_start_time, "hour", event.target.value))}
+                    required
+                  >
+                    {hourOptions.map((hour) => (
+                      <option key={`start-hour-${hour}`} value={hour}>
+                        {hour}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={startTimeParts.minute}
+                    onChange={(event) => onAppointmentStartTimeChange(updateTimePart(appointmentForm.scheduled_start_time, "minute", event.target.value))}
+                    required
+                  >
+                    {minuteOptions.map((minute) => (
+                      <option key={`start-minute-${minute}`} value={minute}>
+                        {minute}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </label>
-              <DateField label="Fin" value={appointmentForm.scheduled_end_date} onChange={onAppointmentEndDateChange} required />
               <label>
                 <RequiredLabel>Hora fin</RequiredLabel>
-                <input type="time" value={appointmentForm.scheduled_end_time} onChange={(event) => onAppointmentEndTimeChange(event.target.value)} required />
+                <div className="time-field-grid">
+                  <select
+                    value={endTimeParts.hour}
+                    onChange={(event) => onAppointmentEndTimeChange(updateTimePart(appointmentForm.scheduled_end_time, "hour", event.target.value))}
+                    required
+                  >
+                    {hourOptions.map((hour) => (
+                      <option key={`end-hour-${hour}`} value={hour}>
+                        {hour}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={endTimeParts.minute}
+                    onChange={(event) => onAppointmentEndTimeChange(updateTimePart(appointmentForm.scheduled_end_time, "minute", event.target.value))}
+                    required
+                  >
+                    {minuteOptions.map((minute) => (
+                      <option key={`end-minute-${minute}`} value={minute}>
+                        {minute}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <label className="span-two">
+                <span>Motivo de la cita</span>
+                <textarea
+                  value={appointmentForm.reason}
+                  onChange={(event) => onAppointmentReasonChange(event.target.value)}
+                  placeholder="Ejemplo: control de presión arterial, revisión de resultados, seguimiento de síntomas."
+                  rows={3}
+                />
               </label>
               <label className="checkbox-field">
                 <span>Notificar al paciente por WhatsApp</span>

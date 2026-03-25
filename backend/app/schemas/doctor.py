@@ -22,6 +22,7 @@ class DoctorCreate(BaseModel):
     first_name: str
     last_name: str
     gender: str | None = None
+    doctor_title: str | None = None
     date_of_birth: date | None = None
     license_number: str | None = None
     specialty: str | None = None
@@ -36,6 +37,7 @@ class DoctorUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     gender: str | None = None
+    doctor_title: str | None = None
     date_of_birth: date | None = None
     license_number: str | None = None
     specialty: str | None = None
@@ -52,6 +54,7 @@ class DoctorRead(BaseModel):
     first_name: str
     last_name: str
     gender: str | None
+    doctor_title: str | None
     date_of_birth: date | None
     license_number: str | None
     specialty: str | None

@@ -75,8 +75,8 @@ export default async function PublicAppointmentPage({ params }: { params: Promis
         <article className="public-appointment-card">
           <div className="public-appointment-topline">
             <div>
-              <span className="public-appointment-label">Profesional</span>
-              <strong>{card.doctor_name}</strong>
+              <span className="public-appointment-label">Doctor tratante</span>
+              <strong>{[card.doctor_title?.trim(), card.doctor_name].filter(Boolean).join(" ")}</strong>
               {card.doctor_specialty ? <small>{card.doctor_specialty}</small> : null}
             </div>
             <span className={`public-appointment-status ${statusTone(card.status_label)}`}>{card.status_label}</span>

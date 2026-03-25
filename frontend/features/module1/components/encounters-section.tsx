@@ -43,6 +43,7 @@ type EncountersSectionProps = {
   isReceptionist: boolean;
   prescriptionItems: PrescriptionItem[];
   patients: Patient[];
+  selectedPatientId: string;
   selectedDoctor: Doctor | null;
   selectedSummary: PatientSummary | null;
   onEncounterDoctorFilterChange: (value: string) => void;
@@ -56,6 +57,7 @@ type EncountersSectionProps = {
   setExamOrders: React.Dispatch<React.SetStateAction<ExamOrder[]>>;
   setPrescriptionItems: React.Dispatch<React.SetStateAction<PrescriptionItem[]>>;
   closeEncounter: (encounterId: number) => void;
+  deleteAttachment: (attachmentId: number) => void;
   openAttachment: (attachmentId: number) => void;
   submitAttachment: (event: React.FormEvent<HTMLFormElement>) => void;
   submitEncounter: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -78,6 +80,7 @@ export function EncountersSection({
   isReceptionist,
   prescriptionItems,
   patients,
+  selectedPatientId,
   selectedDoctor,
   selectedSummary,
   onEncounterDoctorFilterChange,
@@ -91,6 +94,7 @@ export function EncountersSection({
   setExamOrders,
   setPrescriptionItems,
   closeEncounter,
+  deleteAttachment,
   openAttachment,
   submitAttachment,
   submitEncounter,
@@ -131,6 +135,7 @@ export function EncountersSection({
     label: encounterTypeLabel(encounter.encounter_type),
     description: formatDateTime(encounter.encounter_date),
   }));
+  const attachmentPatientId = selectedPatientId || encounterForm.patient_id;
 
   return (
     <section className="tab-layout">
@@ -148,7 +153,9 @@ export function EncountersSection({
                 <RequiredLabel>Paciente</RequiredLabel>
                 <SearchableSelect
                   value={encounterForm.patient_id}
-                  onChange={(value) => setEncounterForm((current) => ({ ...current, patient_id: value }))}
+                  onChange={(value) => {
+                    setEncounterForm((current) => ({ ...current, patient_id: value, appointment_id: "" }));
+                  }}
                   options={patientOptions}
                   placeholder="Seleccionar paciente"
                   searchPlaceholder="Buscar paciente"
@@ -186,6 +193,20 @@ export function EncountersSection({
                   searchPlaceholder="Buscar cita"
                 />
               </label>
+              <label>
+                <RequiredLabel>Tipo de consulta</RequiredLabel>
+                <select
+                  value={encounterForm.encounter_type}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, encounter_type: event.target.value }))}
+                  required
+                >
+                  <option value="general_consultation">Consulta general</option>
+                  <option value="first_consultation">Primera consulta</option>
+                  <option value="follow_up">Seguimiento</option>
+                  <option value="virtual_consultation">Consulta virtual</option>
+                  <option value="emergency_consultation">Emergencia</option>
+                </select>
+              </label>
               <DateField
                 label="Fecha"
                 value={encounterForm.encounter_date}
@@ -202,51 +223,110 @@ export function EncountersSection({
                 />
               </label>
             </div>
-            <label>
-              <RequiredLabel>Motivo de consulta</RequiredLabel>
-              <textarea
-                value={encounterForm.chief_complaint}
-                onChange={(event) => setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))}
-                required
-              />
-            </label>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Diagnósticos</h3>
+            <section className="clinical-form-section">
+              <div className="clinical-form-section-header">
+                <div>
+                  <p className="eyebrow">Paso 1</p>
+                  <h3>Motivo clínico</h3>
+                </div>
+                <span>Escribe lo esencial que te trajo a consulta.</span>
+              </div>
+              <label>
+                <RequiredLabel>Motivo de consulta</RequiredLabel>
+                <textarea
+                  value={encounterForm.chief_complaint}
+                  onChange={(event) => setEncounterForm((current) => ({ ...current, chief_complaint: event.target.value }))}
+                  required
+                  placeholder="Ejemplo: dolor abdominal de 3 días, náusea, sin fiebre."
+                />
+              </label>
+            </section>
+
+            <section className="clinical-form-section">
+              <div className="clinical-form-section-header">
+                <div>
+                  <p className="eyebrow">Paso 2</p>
+                  <h3>Impresión diagnóstica</h3>
+                </div>
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={() => setDiagnoses((current) => [...current, { diagnosis_text: "", diagnosis_code: null, is_primary: false, notes: null }])}
                 >
-                  Agregar
+                  Agregar diagnóstico
                 </button>
               </div>
-              {diagnoses.map((diagnosis, index) => (
-                <div className="stacked-fields" key={`diagnosis-${index}`}>
-                  <input
-                    placeholder="Diagnóstico"
-                    value={diagnosis.diagnosis_text}
-                    onChange={(event) =>
-                      setDiagnoses((current) =>
-                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_text: event.target.value } : item)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Código"
-                    value={diagnosis.diagnosis_code ?? ""}
-                    onChange={(event) =>
-                      setDiagnoses((current) =>
-                        current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_code: event.target.value } : item)),
-                      )
-                    }
-                  />
+              <div className="clinical-entry-stack">
+                {diagnoses.map((diagnosis, index) => (
+                  <div className="clinical-entry-card" key={`diagnosis-${index}`}>
+                    <div className="clinical-entry-card-header">
+                      <strong>Diagnóstico {index + 1}</strong>
+                      <div className="row-actions">
+                        <label className="inline-check">
+                          <input
+                            type="checkbox"
+                            checked={diagnosis.is_primary}
+                            onChange={(event) =>
+                              setDiagnoses((current) =>
+                                current.map((item, itemIndex) => ({
+                                  ...item,
+                                  is_primary: itemIndex === index ? event.target.checked : false,
+                                })),
+                              )
+                            }
+                          />
+                          <span>Principal</span>
+                        </label>
+                        {diagnoses.length > 1 ? (
+                          <button
+                            type="button"
+                            className="ghost-button danger-text-button"
+                            onClick={() =>
+                              setDiagnoses((current) => {
+                                const next = current.filter((_, itemIndex) => itemIndex !== index);
+                                if (next.length && !next.some((item) => item.is_primary)) {
+                                  next[0] = { ...next[0], is_primary: true };
+                                }
+                                return next;
+                              })
+                            }
+                          >
+                            Quitar
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="stacked-fields">
+                      <input
+                        placeholder="Diagnóstico o impresión clínica"
+                        value={diagnosis.diagnosis_text}
+                        onChange={(event) =>
+                          setDiagnoses((current) =>
+                            current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_text: event.target.value } : item)),
+                          )
+                        }
+                      />
+                      <input
+                        placeholder="Código CIE-10 opcional"
+                        value={diagnosis.diagnosis_code ?? ""}
+                        onChange={(event) =>
+                          setDiagnoses((current) =>
+                            current.map((item, itemIndex) => (itemIndex === index ? { ...item, diagnosis_code: event.target.value } : item)),
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="clinical-form-section">
+              <div className="clinical-form-section-header">
+                <div>
+                  <p className="eyebrow">Paso 3</p>
+                  <h3>Plan terapéutico</h3>
                 </div>
-              ))}
-            </div>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Receta</h3>
                 <button
                   type="button"
                   className="secondary-button"
@@ -257,67 +337,109 @@ export function EncountersSection({
                     ])
                   }
                 >
-                  Agregar
+                  Agregar medicamento
                 </button>
               </div>
-              {prescriptionItems.map((item, index) => (
-                <div className="stacked-fields" key={`medication-${index}`}>
-                  <input
-                    placeholder="Medicamento"
-                    value={item.medication_name}
-                    onChange={(event) =>
-                      setPrescriptionItems((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, medication_name: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Dosis"
-                    value={item.dosage ?? ""}
-                    onChange={(event) =>
-                      setPrescriptionItems((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, dosage: event.target.value } : entry)),
-                      )
-                    }
-                  />
+              <div className="clinical-entry-stack">
+                {prescriptionItems.map((item, index) => (
+                  <div className="clinical-entry-card" key={`medication-${index}`}>
+                    <div className="clinical-entry-card-header">
+                      <strong>Medicamento {index + 1}</strong>
+                      {prescriptionItems.length > 1 ? (
+                        <button
+                          type="button"
+                          className="ghost-button danger-text-button"
+                          onClick={() => setPrescriptionItems((current) => current.filter((_, entryIndex) => entryIndex !== index))}
+                        >
+                          Quitar
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="stacked-fields">
+                      <input
+                        placeholder="Medicamento"
+                        value={item.medication_name}
+                        onChange={(event) =>
+                          setPrescriptionItems((current) =>
+                            current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, medication_name: event.target.value } : entry)),
+                          )
+                        }
+                      />
+                      <input
+                        placeholder="Dosis"
+                        value={item.dosage ?? ""}
+                        onChange={(event) =>
+                          setPrescriptionItems((current) =>
+                            current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, dosage: event.target.value } : entry)),
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="clinical-form-section">
+              <div className="clinical-form-section-header">
+                <div>
+                  <p className="eyebrow">Paso 4</p>
+                  <h3>Estudios y órdenes</h3>
                 </div>
-              ))}
-            </div>
-            <div className="subsection">
-              <div className="subsection-header">
-                <h3>Órdenes de examen</h3>
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={() => setExamOrders((current) => [...current, { exam_name: "", exam_category: null, instructions: null }])}
                 >
-                  Agregar
+                  Agregar estudio
                 </button>
               </div>
-              {examOrders.map((item, index) => (
-                <div className="stacked-fields" key={`exam-${index}`}>
-                  <input
-                    placeholder="Examen"
-                    value={item.exam_name}
-                    onChange={(event) =>
-                      setExamOrders((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_name: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                  <input
-                    placeholder="Categoría"
-                    value={item.exam_category ?? ""}
-                    onChange={(event) =>
-                      setExamOrders((current) =>
-                        current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_category: event.target.value } : entry)),
-                      )
-                    }
-                  />
-                </div>
-              ))}
+              <div className="clinical-entry-stack">
+                {examOrders.map((item, index) => (
+                  <div className="clinical-entry-card" key={`exam-${index}`}>
+                    <div className="clinical-entry-card-header">
+                      <strong>Estudio {index + 1}</strong>
+                      {examOrders.length > 1 ? (
+                        <button
+                          type="button"
+                          className="ghost-button danger-text-button"
+                          onClick={() => setExamOrders((current) => current.filter((_, entryIndex) => entryIndex !== index))}
+                        >
+                          Quitar
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="stacked-fields">
+                      <input
+                        placeholder="Examen o estudio"
+                        value={item.exam_name}
+                        onChange={(event) =>
+                          setExamOrders((current) =>
+                            current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_name: event.target.value } : entry)),
+                          )
+                        }
+                      />
+                      <input
+                        placeholder="Categoría"
+                        value={item.exam_category ?? ""}
+                        onChange={(event) =>
+                          setExamOrders((current) =>
+                            current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, exam_category: event.target.value } : entry)),
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <div className="clinical-submit-row">
+              <div className="detail-panel compact-panel">
+                <strong>{encounterTypeLabel(encounterForm.encounter_type)}</strong>
+                <span>Paciente, fecha, diagnóstico y plan quedan en una sola nota clínica.</span>
+              </div>
+              <button type="submit">Guardar consulta</button>
             </div>
-            <button type="submit">Guardar consulta</button>
           </form>
         ) : (
           <EmptyStatePanel
@@ -327,12 +449,112 @@ export function EncountersSection({
             tone="warning"
           />
         )}
+        <form className="form-card compact-form" onSubmit={submitAttachment}>
+          <section className="clinical-form-section">
+            <div className="clinical-form-section-header">
+              <div>
+                <p className="eyebrow">Paso 5</p>
+                <h3>Documentos clínicos</h3>
+              </div>
+              <span>Carga resultados, imágenes o documentos de esta atención desde aquí.</span>
+            </div>
+            <div className="detail-panel compact-panel">
+              <strong>Adjuntar documento</strong>
+              <span>Usa el mismo paciente de la consulta. Solo elige el tipo, la consulta relacionada y el archivo.</span>
+            </div>
+            <div className="two-column-grid">
+              <label>
+                <span>Tipo</span>
+                <select value={attachmentType} onChange={(event) => setAttachmentType(event.target.value)}>
+                  <option value="lab_result">Resultado de laboratorio</option>
+                  <option value="ultrasound">Ultrasonido</option>
+                  <option value="image">Imagen</option>
+                  <option value="clinical_document">Documento clínico</option>
+                </select>
+              </label>
+              <div />
+            </div>
+            {selectedSummary ? (
+              <>
+                <div className="two-column-grid">
+                  <label>
+                    <span>Consulta</span>
+                    <SearchableSelect
+                      value={attachmentEncounterId}
+                      onChange={setAttachmentEncounterId}
+                      options={attachmentEncounterOptions}
+                      placeholder="Sin consulta"
+                      clearLabel="Sin consulta"
+                      searchPlaceholder="Buscar consulta"
+                    />
+                  </label>
+                  <label>
+                    <span>Archivo</span>
+                    <input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} required />
+                  </label>
+                </div>
+                <div className="clinical-submit-row">
+                  <div className="detail-panel compact-panel">
+                    <strong>Archivos del paciente</strong>
+                    <span>Después de subirlos puedes abrirlos o quitarlos desde esta misma sección.</span>
+                  </div>
+                  <button type="submit">Adjuntar documento</button>
+                </div>
+              </>
+            ) : (
+              <EmptyStatePanel
+                body="Selecciona un paciente en la parte superior del registro para ver sus consultas y gestionar documentos."
+                eyebrow="Adjuntos"
+                title="Primero elige el paciente para cargar o quitar archivos"
+              />
+            )}
+            {selectedSummary ? (
+              <div className="table-list">
+                {selectedSummary.attachments.length ? (
+                  selectedSummary.attachments.map((attachment) => (
+                    <div className="simple-list-item" key={`attachment-${attachment.id}`}>
+                      <strong>{attachment.file_name}</strong>
+                      <span>{attachment.file_type}</span>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => openAttachment(attachment.id)}
+                          disabled={downloadingAttachmentId === attachment.id}
+                        >
+                          {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-button"
+                          onClick={() => {
+                            if (window.confirm("Se eliminará este archivo clínico. ¿Deseas continuar?")) {
+                              deleteAttachment(attachment.id);
+                            }
+                          }}
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyStatePanel
+                    body="Este paciente aun no tiene adjuntos ligados a sus consultas. Puedes cargar resultados o documentos clinicos desde este mismo bloque."
+                    eyebrow="Adjuntos"
+                    title="Todavia no hay archivos para este paciente"
+                  />
+                )}
+              </div>
+            ) : null}
+          </section>
+        </form>
       </article>
       <article className="card section-card">
         <div className="subsection-header">
           <div>
-            <p className="eyebrow">Historial</p>
-            <h2>Consultas recientes</h2>
+            <p className="eyebrow">Historial y documentos</p>
+            <h2>Consultas recientes y adjuntos</h2>
           </div>
           {isAdmin || (isReceptionist && availableDoctors.length > 1) ? (
             <SearchableSelect
@@ -387,66 +609,6 @@ export function EncountersSection({
             />
           )}
         </div>
-        {selectedSummary ? (
-          <form className="form-card compact-form" onSubmit={submitAttachment}>
-            <h3>Adjuntar documento</h3>
-            <label>
-              <span>Tipo</span>
-              <select value={attachmentType} onChange={(event) => setAttachmentType(event.target.value)}>
-                <option value="lab_result">Resultado de laboratorio</option>
-                <option value="ultrasound">Ultrasonido</option>
-                <option value="image">Imagen</option>
-                <option value="clinical_document">Documento clínico</option>
-              </select>
-            </label>
-            <label>
-              <span>Consulta</span>
-              <SearchableSelect
-                value={attachmentEncounterId}
-                onChange={setAttachmentEncounterId}
-                options={attachmentEncounterOptions}
-                placeholder="Sin consulta"
-                clearLabel="Sin consulta"
-                searchPlaceholder="Buscar consulta"
-              />
-            </label>
-            <label>
-              <span>Archivo</span>
-              <input type="file" onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)} required />
-            </label>
-            <button type="submit">Adjuntar</button>
-            <div className="table-list">
-              {selectedSummary.attachments.length ? (
-                selectedSummary.attachments.map((attachment) => (
-                  <div className="simple-list-item" key={`attachment-${attachment.id}`}>
-                    <strong>{attachment.file_name}</strong>
-                    <span>{attachment.file_type}</span>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => openAttachment(attachment.id)}
-                      disabled={downloadingAttachmentId === attachment.id}
-                    >
-                      {downloadingAttachmentId === attachment.id ? "Preparando..." : "Abrir"}
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <EmptyStatePanel
-                  body="Este paciente aun no tiene adjuntos ligados a sus consultas. Puedes cargar resultados o documentos clinicos desde este mismo panel."
-                  eyebrow="Adjuntos"
-                  title="Todavia no hay archivos para este paciente"
-                />
-              )}
-            </div>
-          </form>
-        ) : (
-          <EmptyStatePanel
-            body="Selecciona un paciente desde la pestaña Pacientes para adjuntar archivos a una consulta existente."
-            eyebrow="Adjuntos"
-            title="Necesitas enfocar un paciente para gestionar documentos"
-          />
-        )}
       </article>
     </section>
   );

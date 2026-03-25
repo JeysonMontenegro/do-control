@@ -10,7 +10,7 @@ from app.repositories.encounter import EncounterRepository
 from app.repositories.file_attachment import FileAttachmentRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.user import UserRepository
-from app.schemas.file_attachment import FileAttachmentDownloadRead
+from app.schemas.file_attachment import FileAttachmentDeleteRead, FileAttachmentDownloadRead
 from app.services.audit import create_audit_log
 from app.services.errors import NotFoundError, ValidationError
 from app.services.service_utils import resolve_actor_user_id
@@ -165,3 +165,34 @@ class FileAttachmentService:
         )
         self.db.commit()
         return attachment, response["Body"]
+
+    def delete_attachment(
+        self,
+        attachment_id: int,
+        *,
+        deleted_by: str | None = None,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> FileAttachmentDeleteRead:
+        attachment = self.repository.get(attachment_id)
+        if attachment is None:
+            raise NotFoundError("Attachment not found.")
+        if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
+            raise NotFoundError("Attachment not found.")
+
+        self.storage.delete_object(key=attachment.storage_key)
+        self.repository.delete(attachment)
+        create_audit_log(
+            self.db,
+            action="delete",
+            entity_type="file_attachment",
+            entity_id=str(attachment_id),
+            actor_id=deleted_by,
+            before_data={
+                "patient_id": attachment.patient_id,
+                "encounter_id": attachment.encounter_id,
+                "file_name": attachment.file_name,
+                "storage_key": attachment.storage_key,
+            },
+        )
+        self.db.commit()
+        return FileAttachmentDeleteRead(attachment_id=attachment_id, status="deleted")

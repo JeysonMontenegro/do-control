@@ -2,6 +2,7 @@ export type AppointmentCard = {
   id: number;
   public_id: string;
   doctor_name: string;
+  doctor_title: string | null;
   doctor_specialty: string | null;
   scheduled_start: string;
   scheduled_end: string;

@@ -73,16 +73,67 @@ export function DateField({
   onChange: (nextValue: string) => void;
   required?: boolean;
 }) {
+  const pickerRef = useRef<HTMLInputElement | null>(null);
+
+  const normalizeDateInput = (rawValue: string) => {
+    const digits = rawValue.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) {
+      return digits;
+    }
+    if (digits.length <= 4) {
+      return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  };
+
   return (
     <label>
       {required ? <RequiredLabel>{label}</RequiredLabel> : <span>{label}</span>}
-      <input
-        type="date"
-        lang="en-GB"
-        value={parseDisplayDate(value)}
-        onChange={(event) => onChange(formatEditableDate(event.target.value))}
-        required={required}
-      />
+      <div className="date-field-shell">
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="dd/MM/yyyy"
+          value={value}
+          onChange={(event) => onChange(normalizeDateInput(event.target.value))}
+          onBlur={(event) => {
+            const normalized = event.target.value.trim();
+            const isoDate = parseDisplayDate(normalized);
+            if (isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+              onChange(formatEditableDate(isoDate));
+            }
+          }}
+          pattern="\d{2}/\d{2}/\d{4}"
+          required={required}
+        />
+        <button
+          type="button"
+          className="date-field-picker-button"
+          aria-label={`Seleccionar ${label.toLowerCase()} en calendario`}
+          onClick={() => {
+            const picker = pickerRef.current;
+            if (!picker) {
+              return;
+            }
+            if (typeof picker.showPicker === "function") {
+              picker.showPicker();
+              return;
+            }
+            picker.click();
+          }}
+        >
+          Calendario
+        </button>
+        <input
+          ref={pickerRef}
+          className="date-field-native-picker"
+          type="date"
+          tabIndex={-1}
+          aria-hidden="true"
+          value={parseDisplayDate(value)}
+          onChange={(event) => onChange(formatEditableDate(event.target.value))}
+        />
+      </div>
     </label>
   );
 }

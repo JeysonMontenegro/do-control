@@ -59,6 +59,7 @@ class AppointmentService:
 
     def _serialize_public_card(self, appointment: Appointment) -> AppointmentPublicCardRead:
         doctor_name = "Doctor asignado"
+        doctor_title = self._resolve_doctor_title(getattr(appointment, "doctor", None))
         clinic_name = None
         clinic_address = None
         clinic_phone = None
@@ -84,6 +85,7 @@ class AppointmentService:
             id=appointment.id,
             public_id=appointment.public_id,
             doctor_name=doctor_name,
+            doctor_title=doctor_title,
             doctor_specialty=appointment.doctor.specialty if appointment.doctor is not None else None,
             scheduled_start=appointment.scheduled_start,
             scheduled_end=appointment.scheduled_end,
@@ -167,6 +169,7 @@ class AppointmentService:
         if source != "appoint-me":
             patient_name = f"{patient.first_name} {patient.last_name}".strip()
             doctor_name = f"{doctor.first_name} {doctor.last_name}".strip()
+            doctor_title = self._resolve_doctor_title(doctor) or ""
             patient_phone = (patient.primary_phone or "").strip()
             AppointMeWebhookService.send_appointment_created(
                 appointment_id=created.id,
@@ -174,11 +177,28 @@ class AppointmentService:
                 patient_name=patient_name,
                 patient_phone=patient_phone,
                 doctor_name=doctor_name,
+                doctor_title=doctor_title,
                 scheduled_start=created.scheduled_start.isoformat(),
                 reason=created.reason,
                 notify_patient=bool(notify_patient and patient_phone),
             )
         return self._serialize_appointment(created)
+
+    @staticmethod
+    def _resolve_doctor_title(doctor) -> str | None:
+        if doctor is None:
+            return None
+
+        explicit_title = (doctor.doctor_title or "").strip()
+        if explicit_title:
+            return explicit_title
+
+        gender = (doctor.gender or "").strip().lower()
+        if gender == "female":
+            return "Dra."
+        if gender in {"male", "other"}:
+            return "Dr."
+        return "Dr."
 
     def list_appointments(self, *, accessible_doctor_ids: set[int] | None = None) -> list[AppointmentRead]:
         appointments = self.repository.list()

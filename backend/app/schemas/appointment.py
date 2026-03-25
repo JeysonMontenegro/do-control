@@ -71,6 +71,7 @@ class AppointmentPublicCardRead(BaseModel):
     id: int
     public_id: str
     doctor_name: str
+    doctor_title: str | None
     doctor_specialty: str | None
     scheduled_start: datetime
     scheduled_end: datetime

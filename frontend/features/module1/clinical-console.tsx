@@ -547,7 +547,7 @@ export function ClinicalConsole() {
     setSelectedSummary,
   });
 
-  const { closeEncounter, openAttachment, submitAttachment, submitEncounter } = useEncounterAttachmentAdmin({
+  const { closeEncounter, deleteAttachment, openAttachment, submitAttachment, submitEncounter } = useEncounterAttachmentAdmin({
     attachmentEncounterId,
     attachmentFile,
     attachmentType,
@@ -631,6 +631,7 @@ export function ClinicalConsole() {
       canManageEncounters,
       doctorFilter,
       closeEncounter,
+      deleteAttachment,
       diagnoses,
       downloadingAttachmentId,
       encounters: filteredEncounters,
@@ -644,6 +645,7 @@ export function ClinicalConsole() {
       openAttachment,
       patients: filteredPatients,
       prescriptionItems,
+      selectedPatientId,
       selectedDoctor,
       selectedSummary,
       setAttachmentEncounterId,
@@ -718,24 +720,21 @@ export function ClinicalConsole() {
         />
       ) : (
         <ConsoleAuthShell
-          contextBarProps={
-            activeTab === "agenda" || selectedSummary || topbarSearch.trim() || appointmentFilter !== "all"
-              ? {
-                  appointmentFilter,
-                  currentUserDisplay,
-                  globalSearch: topbarSearch,
-                  onClearAgendaFilter: () => setAppointmentFilter("all"),
-                  onClearPatientFocus: clearPatientFocus,
-                  onClearSearch: () => setTopbarSearch(""),
-                  selectedDoctor,
-                  selectedSummary,
-                }
-              : null
-          }
           loading={loading}
           mainContent={
             <ConsoleMainContent
               activeTab={activeTab}
+              overviewTabProps={{
+                activeReviewItems: appointmentReviewItems.length,
+                cancelledAppointmentsCount: filteredAppointments.filter((item) => item.status === "cancelled" || item.confirmation_status === "cancelled").length,
+                confirmedAppointmentsCount: filteredAppointments.filter((item) => item.confirmation_status === "confirmed").length,
+                encountersCount: filteredEncounters.length,
+                filteredAppointmentsCount: filteredAppointments.length,
+                filteredPatientsCount: filteredPatients.length,
+                globalSearch: topbarSearch.trim(),
+                pendingAppointmentsCount: filteredAppointments.filter((item) => item.confirmation_status === "pending").length,
+                whatsappAppointmentsCount: filteredAppointments.filter((item) => item.source === "whatsapp").length,
+              }}
               agendaTabProps={{
                 agendaDays,
                 allowMultiDoctorVisibility,
@@ -769,8 +768,11 @@ export function ClinicalConsole() {
                 onAppointmentFilterChange: setAppointmentFilter,
                 onAppointmentNotifyPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, notify_patient: value })),
                 onAppointmentPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, patient_id: value })),
-                onAppointmentStartDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value })),
+                onAppointmentReasonFieldChange: (value) => setAppointmentForm((current) => ({ ...current, reason: value })),
+                onAppointmentStartDateFieldChange: (value) =>
+                  setAppointmentForm((current) => ({ ...current, scheduled_start_date: value, scheduled_end_date: value })),
                 onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
+                onAppointmentTypeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, appointment_type: value })),
                 onCalendarViewChange: setCalendarView,
                 onCloseFocusedAppointment: () => setExpandedAppointmentId(null),
                 onDoctorFilterChange: setDoctorFilter,
@@ -958,17 +960,7 @@ export function ClinicalConsole() {
               }}
             />
           }
-          overviewStripProps={
-            activeTab === "agenda"
-              ? {
-                  activeReviewItems: appointmentReviewItems.length,
-                  encountersCount: filteredEncounters.length,
-                  filteredAppointmentsCount: filteredAppointments.length,
-                  filteredPatientsCount: filteredPatients.length,
-                  globalSearch: topbarSearch.trim(),
-                }
-              : null
-          }
+          overviewStripProps={null}
           sidebarProps={{
             activeTab,
             appointmentCount: filteredAppointments.length,

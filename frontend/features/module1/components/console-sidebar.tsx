@@ -92,6 +92,8 @@ export function ConsoleSidebar({
 
 function getTabSupportText(tab: ConsoleTab) {
   switch (tab) {
+    case "resumen":
+      return "Indicadores y lectura rapida";
     case "agenda":
       return "Calendario, estados y seguimiento";
     case "doctores":
@@ -113,6 +115,8 @@ function getTabSupportText(tab: ConsoleTab) {
 
 function getCompactTabLabel(tab: ConsoleTab) {
   switch (tab) {
+    case "resumen":
+      return "Rs";
     case "agenda":
       return "Ag";
     case "doctores":

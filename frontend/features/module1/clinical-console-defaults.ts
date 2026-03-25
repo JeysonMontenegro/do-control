@@ -18,6 +18,7 @@ export type DoctorAdminForm = {
   first_name: string;
   last_name: string;
   gender: string;
+  doctor_title: string;
   date_of_birth: string;
   specialty: string;
   license_number: string;
@@ -42,6 +43,7 @@ export function createDoctorAdminForm(): DoctorAdminForm {
     first_name: "",
     last_name: "",
     gender: "male",
+    doctor_title: "Dr.",
     date_of_birth: "",
     specialty: "",
     license_number: "",

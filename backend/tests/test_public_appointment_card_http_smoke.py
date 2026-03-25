@@ -48,6 +48,7 @@ class PublicAppointmentCardHttpSmokeTests(unittest.TestCase):
         self.assertIsInstance(body, dict)
         self.assertEqual(body["public_id"], public_id)
         self.assertIn("doctor_name", body)
+        self.assertIn("doctor_title", body)
         self.assertIn("scheduled_start", body)
         self.assertIn("appointment_type", body)
         self.assertIn("status_label", body)

@@ -1,6 +1,19 @@
 import type { Appointment, AppointmentReviewItem, CommunicationDispatch } from "@/features/module1/types";
 import type { CalendarView } from "@/features/module1/console-config";
 
+const parseDateLike = (value: string | Date) => {
+  if (value instanceof Date) {
+    return value;
+  }
+  const normalized = value.trim();
+  const dateOnlyMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  return new Date(normalized);
+};
+
 export const nowPlusMinutes = (minutes: number) => {
   const date = new Date(Date.now() + minutes * 60 * 1000);
   return date.toISOString().slice(0, 16);
@@ -35,7 +48,7 @@ export const formatDate = (value: string | Date) =>
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-  }).format(typeof value === "string" ? new Date(value) : value);
+  }).format(parseDateLike(value));
 
 export const parseDisplayDate = (value: string) => {
   const normalized = value.trim();
@@ -60,14 +73,14 @@ export const formatEditableDate = (value: string | null) => {
 export const formatWeekday = (value: string | Date) =>
   new Intl.DateTimeFormat("es-GT", {
     weekday: "long",
-  }).format(typeof value === "string" ? new Date(value) : value);
+  }).format(parseDateLike(value));
 
 export const formatTime = (value: string | Date) =>
   new Intl.DateTimeFormat("es-GT", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(typeof value === "string" ? new Date(value) : value);
+  }).format(parseDateLike(value));
 
 export const startOfDay = (date: Date) => {
   const value = new Date(date);

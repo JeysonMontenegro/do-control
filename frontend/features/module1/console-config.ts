@@ -1,7 +1,8 @@
-export type ConsoleTab = "agenda" | "doctores" | "pacientes" | "consultas" | "mensajes" | "pendientes" | "gestion";
+export type ConsoleTab = "resumen" | "agenda" | "doctores" | "pacientes" | "consultas" | "mensajes" | "pendientes" | "gestion";
 export type CalendarView = "dia" | "semana" | "mes";
 
 export const consoleTabs: Array<{ id: ConsoleTab; label: string }> = [
+  { id: "resumen", label: "Resumen general" },
   { id: "agenda", label: "Agenda" },
   { id: "doctores", label: "Doctores" },
   { id: "pacientes", label: "Pacientes" },

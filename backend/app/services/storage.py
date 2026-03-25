@@ -49,3 +49,6 @@ class StorageService:
 
     def get_object(self, *, key: str):
         return self.client.get_object(Bucket=settings.minio_bucket, Key=key)
+
+    def delete_object(self, *, key: str) -> None:
+        self.client.delete_object(Bucket=settings.minio_bucket, Key=key)

@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
-from app.schemas.file_attachment import FileAttachmentDownloadRead, FileAttachmentRead
+from app.schemas.file_attachment import FileAttachmentDeleteRead, FileAttachmentDownloadRead, FileAttachmentRead
 from app.services.doctor import DoctorService
 from app.services.errors import NotFoundError, ValidationError
 from app.services.file_attachment import FileAttachmentService
@@ -77,5 +77,23 @@ def download_attachment_content(
             "Content-Disposition": f'attachment; filename="{attachment.file_name}"',
         }
         return StreamingResponse(stream, media_type=media_type, headers=headers)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/{attachment_id}", response_model=FileAttachmentDeleteRead)
+def delete_attachment(
+    attachment_id: int,
+    deleted_by: str | None = None,
+    db: Session = Depends(get_db_session),
+    current_user=Depends(require_roles("admin", "doctor")),
+) -> FileAttachmentDeleteRead:
+    try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return FileAttachmentService(db).delete_attachment(
+            attachment_id,
+            deleted_by=deleted_by,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

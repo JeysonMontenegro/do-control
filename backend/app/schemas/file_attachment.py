@@ -24,3 +24,8 @@ class FileAttachmentDownloadRead(BaseModel):
     file_name: str
     download_url: str
     expires_in_seconds: int
+
+
+class FileAttachmentDeleteRead(BaseModel):
+    attachment_id: int
+    status: str

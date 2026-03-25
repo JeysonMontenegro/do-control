@@ -11,11 +11,13 @@ class Doctor(TimestampMixin, Base):
     __tablename__ = "doctors"
     __table_args__ = (
         CheckConstraint("license_number IS NULL OR btrim(license_number) <> ''", name="ck_doctors_license_number_not_blank"),
+        CheckConstraint("doctor_title IS NULL OR btrim(doctor_title) <> ''", name="ck_doctors_title_not_blank"),
         CheckConstraint("specialty IS NULL OR btrim(specialty) <> ''", name="ck_doctors_specialty_not_blank"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    doctor_title: Mapped[str | None] = mapped_column(String(50), nullable=True)
     license_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
     linked_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)

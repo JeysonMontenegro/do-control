@@ -3,7 +3,7 @@
 import { FormEvent, useEffect } from "react";
 
 import { combineDisplayDateTimeToIso } from "@/features/module1/console-utils";
-import { apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/api";
 import type {
   AttachmentDownload,
   Diagnosis,
@@ -71,11 +71,17 @@ export function useEncounterAttachmentAdmin({
   setSelectedPatientId,
 }: UseEncounterAttachmentAdminParams) {
   useEffect(() => {
-    if (!selectedSummary?.encounters.length || attachmentEncounterId) {
+    const encounterIds = (selectedSummary?.encounters ?? []).map((encounter) => String(encounter.id));
+    if (!encounterIds.length) {
+      if (attachmentEncounterId) {
+        setAttachmentEncounterId("");
+      }
       return;
     }
-
-    setAttachmentEncounterId(String(selectedSummary.encounters[0].id));
+    if (attachmentEncounterId && encounterIds.includes(attachmentEncounterId)) {
+      return;
+    }
+    setAttachmentEncounterId(encounterIds[0]);
   }, [attachmentEncounterId, selectedSummary, setAttachmentEncounterId]);
 
   async function submitEncounter(event: FormEvent<HTMLFormElement>) {
@@ -153,14 +159,15 @@ export function useEncounterAttachmentAdmin({
   async function submitAttachment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    if (!selectedPatientId || !attachmentFile) {
+    const targetPatientId = selectedPatientId || encounterForm.patient_id;
+    if (!targetPatientId || !attachmentFile) {
       setMessage("Selecciona un paciente y un archivo.");
       return;
     }
 
     try {
       const formData = new FormData();
-      formData.append("patient_id", selectedPatientId);
+      formData.append("patient_id", targetPatientId);
       if (attachmentEncounterId) {
         formData.append("encounter_id", attachmentEncounterId);
       }
@@ -171,7 +178,8 @@ export function useEncounterAttachmentAdmin({
       await apiPostForm("/api/attachments", formData);
 
       setAttachmentFile(null);
-      if (selectedPatientId) {
+      if (targetPatientId) {
+        setSelectedPatientId(targetPatientId);
         await refreshSelectedSummary();
       }
       setMessage("Documento adjuntado.");
@@ -195,8 +203,22 @@ export function useEncounterAttachmentAdmin({
     }
   }
 
+  async function deleteAttachment(attachmentId: number) {
+    setMessage("");
+    try {
+      await apiDelete<{ attachment_id: number; status: string }>(
+        `/api/attachments/${attachmentId}?deleted_by=frontend-demo`,
+      );
+      await refreshSelectedSummary();
+      setMessage("Documento eliminado.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo eliminar el archivo.");
+    }
+  }
+
   return {
     closeEncounter,
+    deleteAttachment,
     openAttachment,
     submitAttachment,
     submitEncounter,

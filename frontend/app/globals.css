@@ -335,6 +335,34 @@ textarea {
   color: var(--text);
 }
 
+.date-field-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.date-field-picker-button {
+  width: auto;
+  white-space: nowrap;
+  border-radius: 12px;
+  border: 1px solid #d2dfea;
+  padding: 10px 12px;
+  background: #f6faff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.date-field-native-picker {
+  position: absolute;
+  inset: auto 0 0 auto;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .form-card select,
 .toolbar-inline select,
 select.compact-input {
@@ -1734,7 +1762,105 @@ select.compact-input,
   align-items: center;
 }
 
+.clinical-form-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe6f6;
+  border-radius: 20px;
+  background: #fbfdff;
+}
+
+.clinical-form-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.clinical-form-section-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.clinical-form-section-header h3 {
+  margin: 0;
+}
+
+.clinical-form-section-header span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.clinical-entry-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.clinical-entry-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d8e3f2;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.clinical-entry-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.ghost-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  width: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.danger-text-button {
+  color: #b42318;
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.danger-text-button:hover {
+  color: #912018;
+}
+
+.form-card .ghost-button {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.form-card .danger-text-button {
+  width: auto;
+  background: transparent;
+  color: #b42318;
+}
+
+.clinical-submit-row {
+  display: grid;
+  gap: 10px;
+}
+
 .stacked-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.time-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -2291,6 +2417,11 @@ select.compact-input,
 
   .doctor-clinic-grid {
     grid-template-columns: 1fr;
+  }
+
+  .clinical-form-section-header,
+  .clinical-entry-card-header {
+    flex-direction: column;
   }
 
   .toolbar-row {

@@ -8,12 +8,14 @@ import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersTab } from "@/features/module1/components/encounters-tab";
 import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { MessagesTab } from "@/features/module1/components/messages-tab";
+import { OverviewTab } from "@/features/module1/components/overview-tab";
 import { PatientsTab } from "@/features/module1/components/patients-tab";
 import { PendingReviewTab } from "@/features/module1/components/pending-review-tab";
 import type { ConsoleTab } from "@/features/module1/console-config";
 
 type ConsoleMainContentProps = {
   activeTab: ConsoleTab;
+  overviewTabProps: ComponentProps<typeof OverviewTab>;
   agendaTabProps: ComponentProps<typeof AgendaTab>;
   canViewGestion: boolean;
   doctorsSectionProps: ComponentProps<typeof DoctorsSection>;
@@ -27,6 +29,7 @@ type ConsoleMainContentProps = {
 
 export function ConsoleMainContent({
   activeTab,
+  overviewTabProps,
   agendaTabProps,
   canViewGestion,
   doctorsSectionProps,
@@ -37,6 +40,7 @@ export function ConsoleMainContent({
   patientsTabProps,
   pendingReviewTabProps,
 }: ConsoleMainContentProps) {
+  const renderOverviewTab = () => <OverviewTab {...overviewTabProps} />;
   const renderAgendaTab = () => <AgendaTab {...agendaTabProps} />;
 
   const renderDoctoresTab = () => {
@@ -60,6 +64,7 @@ export function ConsoleMainContent({
   return (
     <ConsoleContentRouter
       activeTab={activeTab}
+      overviewContent={renderOverviewTab}
       agendaContent={renderAgendaTab}
       doctorsContent={isAdmin ? renderDoctoresTab : renderAgendaTab}
       encountersContent={renderConsultasTab}

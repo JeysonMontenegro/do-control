@@ -24,3 +24,7 @@ class FileAttachmentRepository:
                 .order_by(FileAttachment.created_at.desc()),
             )
         )
+
+    def delete(self, attachment: FileAttachment) -> None:
+        self.db.delete(attachment)
+        self.db.flush()

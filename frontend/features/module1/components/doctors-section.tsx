@@ -228,6 +228,14 @@ export function DoctorsSection({
                     <option value="other">Otro</option>
                   </select>
                 </label>
+                <label>
+                  <span>Trato profesional</span>
+                  <input
+                    value={doctorAdminForm.doctor_title}
+                    onChange={(event) => setDoctorAdminForm((current) => ({ ...current, doctor_title: event.target.value }))}
+                    placeholder="Dr."
+                  />
+                </label>
                 <DateField
                   label="Fecha de nacimiento"
                   value={doctorAdminForm.date_of_birth}

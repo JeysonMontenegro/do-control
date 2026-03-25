@@ -35,6 +35,7 @@ class AppointMeWebhookServiceTests(unittest.TestCase):
                 patient_name="Paciente Demo",
                 patient_phone="50255550000",
                 doctor_name="Doctor Demo",
+                doctor_title="Dra.",
                 scheduled_start="2026-03-25T14:00:00",
                 reason="Control",
                 notify_patient=True,
@@ -57,6 +58,7 @@ class AppointMeWebhookServiceTests(unittest.TestCase):
                 patient_name="Paciente Demo",
                 patient_phone="50255550000",
                 doctor_name="Doctor Demo",
+                doctor_title="Dr.",
                 scheduled_start="2026-03-25T14:00:00",
                 reason="Control",
                 notify_patient=False,
@@ -68,6 +70,7 @@ class AppointMeWebhookServiceTests(unittest.TestCase):
         self.assertEqual(request_obj.headers["X-integration-key"], "dev-key")
         self.assertIn(b'"appointment_public_id": "public-7"', request_obj.data)
         self.assertIn(b'"appointment_public_url": "http://localhost:13000/c/public-7"', request_obj.data)
+        self.assertIn(b'"doctor_title": "Dr."', request_obj.data)
         self.assertIn(b'"notify_patient": false', request_obj.data)
 
 

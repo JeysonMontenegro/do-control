@@ -13,6 +13,7 @@ export type Doctor = {
   first_name: string;
   last_name: string;
   gender: string | null;
+  doctor_title?: string | null;
   date_of_birth?: string | null;
   specialty: string | null;
   is_active: boolean;

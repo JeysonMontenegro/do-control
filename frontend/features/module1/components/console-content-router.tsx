@@ -4,6 +4,7 @@ import type { ConsoleTab } from "@/features/module1/console-config";
 
 type ConsoleContentRouterProps = {
   activeTab: ConsoleTab;
+  overviewContent: () => React.ReactNode;
   agendaContent: () => React.ReactNode;
   doctorsContent: () => React.ReactNode;
   encountersContent: () => React.ReactNode;
@@ -15,6 +16,7 @@ type ConsoleContentRouterProps = {
 
 export function ConsoleContentRouter({
   activeTab,
+  overviewContent,
   agendaContent,
   doctorsContent,
   encountersContent,
@@ -23,6 +25,9 @@ export function ConsoleContentRouter({
   patientsContent,
   pendingContent,
 }: ConsoleContentRouterProps) {
+  if (activeTab === "resumen") {
+    return <>{overviewContent()}</>;
+  }
   if (activeTab === "agenda") {
     return <>{agendaContent()}</>;
   }

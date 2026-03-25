@@ -57,6 +57,7 @@ class DoctorService:
             first_name=doctor.first_name,
             last_name=doctor.last_name,
             gender=doctor.gender,
+            doctor_title=doctor.doctor_title,
             date_of_birth=doctor.date_of_birth,
             license_number=doctor.license_number,
             specialty=doctor.specialty,
