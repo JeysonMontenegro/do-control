@@ -24,6 +24,7 @@ class AppointmentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    public_id: str
     patient_id: int
     doctor_id: int
     scheduled_start: datetime
@@ -44,6 +45,7 @@ class AppointmentSummaryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    public_id: str | None = None
     doctor_id: int
     scheduled_start: datetime
     scheduled_end: datetime
@@ -62,3 +64,20 @@ class AppointmentHistoryRead(BaseModel):
     change_reason: str | None
     changed_by: str | None
     created_at: datetime
+
+
+class AppointmentPublicCardRead(BaseModel):
+    id: int
+    public_id: str
+    doctor_name: str
+    doctor_specialty: str | None
+    scheduled_start: datetime
+    scheduled_end: datetime
+    appointment_type: str
+    reason: str | None
+    status: str
+    confirmation_status: str
+    status_label: str
+    clinic_name: str | None
+    clinic_address: str | None
+    clinic_phone: str | None

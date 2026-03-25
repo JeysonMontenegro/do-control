@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,6 +12,7 @@ class Appointment(TimestampMixin, Base):
     __tablename__ = "appointments"
     __table_args__ = (
         Index("ix_appointments_doctor_schedule", "doctor_id", "scheduled_start", "scheduled_end"),
+        Index("ix_appointments_public_id", "public_id", unique=True),
         CheckConstraint("scheduled_end > scheduled_start", name="ck_appointments_scheduled_range"),
         CheckConstraint("status IN ('scheduled', 'confirmed', 'cancelled')", name="ck_appointments_status"),
         CheckConstraint("confirmation_status IN ('pending', 'confirmed', 'cancelled')", name="ck_appointments_confirmation_status"),
@@ -19,6 +21,7 @@ class Appointment(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(36), default=lambda: str(uuid4()), unique=True, nullable=False)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
     owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)

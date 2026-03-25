@@ -134,6 +134,8 @@ class ProposedAppointmentResponse(BaseModel):
     status: str
     patient_id: int | None = None
     appointment_id: int | None = None
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
     doctor_id: int | None = None
     message: str
     existing_appointment_id: int | None = None
@@ -143,6 +145,8 @@ class ProposedAppointmentResponse(BaseModel):
 class AppointmentActionResponse(BaseModel):
     status: str
     appointment_id: int
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
 
 
 class AppointmentCancelRequest(BaseModel):
@@ -154,6 +158,8 @@ class AppointmentCancelRequest(BaseModel):
 class AppointmentCancelResponse(BaseModel):
     status: str
     appointment_id: int | None = None
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
     patient_name: str | None = None
     scheduled_start: datetime | None = None
 
@@ -170,6 +176,8 @@ class AppointmentRescheduleRequest(BaseModel):
 class AppointmentRescheduleResponse(BaseModel):
     status: str
     appointment_id: int | None = None
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
     review_item_id: int | None = None
     patient_name: str | None = None
     current_scheduled_start: datetime | None = None
@@ -179,6 +187,8 @@ class AppointmentRescheduleResponse(BaseModel):
 
 class DoctorScheduleAppointmentRead(BaseModel):
     appointment_id: int
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
     patient_name: str
     scheduled_start: datetime
     scheduled_end: datetime
@@ -189,6 +199,8 @@ class DoctorScheduleAppointmentRead(BaseModel):
 
 class PendingAppointmentRead(BaseModel):
     appointment_id: int
+    appointment_public_id: str | None = None
+    appointment_public_url: str | None = None
     doctor_id: int
     patient_id: int
     scheduled_start: datetime

@@ -84,6 +84,18 @@ class IntegrationService:
         self.user_repository = UserRepository(db)
 
     @staticmethod
+    def _appointment_public_fields(appointment) -> dict[str, str | None]:
+        if appointment is None or not getattr(appointment, "public_id", None):
+            return {
+                "appointment_public_id": None,
+                "appointment_public_url": None,
+            }
+        return {
+            "appointment_public_id": appointment.public_id,
+            "appointment_public_url": AppointmentService.public_url(appointment.public_id),
+        }
+
+    @staticmethod
     def _primary_role(role_names: set[str]) -> str | None:
         for role_name in ("admin", "doctor", "receptionist"):
             if role_name in role_names:
@@ -440,6 +452,7 @@ class IntegrationService:
                 patient_id=patient_id,
                 doctor_id=doctor.id,
                 existing_appointment_id=overlap.id,
+                **self._appointment_public_fields(overlap),
                 message=review_message,
             )
 
@@ -477,13 +490,18 @@ class IntegrationService:
             status="created",
             patient_id=patient_id,
             appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
             doctor_id=doctor.id,
             message="Appointment created.",
         )
 
     def confirm_appointment(self, appointment_id: int) -> AppointmentActionResponse:
         appointment = self.appointment_service.confirm_appointment(appointment_id, changed_by="appoint-me")
-        return AppointmentActionResponse(status="confirmed", appointment_id=appointment.id)
+        return AppointmentActionResponse(
+            status="confirmed",
+            appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
+        )
 
     def cancel_appointment(self, payload: AppointmentCancelRequest) -> AppointmentCancelResponse:
         try:
@@ -499,6 +517,7 @@ class IntegrationService:
         return AppointmentCancelResponse(
             status="cancelled",
             appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
             patient_name=appointment.patient_name,
             scheduled_start=appointment.scheduled_start,
         )
@@ -551,6 +570,7 @@ class IntegrationService:
         return AppointmentRescheduleResponse(
             status="pending_review",
             appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
             review_item_id=review_item.id,
             patient_name=patient_name,
             current_scheduled_start=appointment.scheduled_start,
@@ -563,6 +583,7 @@ class IntegrationService:
         return [
             DoctorScheduleAppointmentRead(
                 appointment_id=appointment.id,
+                **self._appointment_public_fields(appointment),
                 patient_name=f"{appointment.patient.first_name} {appointment.patient.last_name}".strip(),
                 scheduled_start=appointment.scheduled_start,
                 scheduled_end=appointment.scheduled_end,
@@ -580,6 +601,7 @@ class IntegrationService:
             return None
         return PendingAppointmentRead(
             appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
             doctor_id=appointment.doctor_id,
             patient_id=appointment.patient_id,
             scheduled_start=appointment.scheduled_start,

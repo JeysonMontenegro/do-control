@@ -5,6 +5,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.appointment import Appointment, AppointmentHistory
+from app.models.doctor import Doctor
 from app.models.patient import Patient
 
 
@@ -26,6 +27,17 @@ class AppointmentRepository:
                 selectinload(Appointment.history_entries),
             )
             .where(Appointment.id == appointment_id)
+        )
+        return self.db.scalar(statement)
+
+    def get_public_card(self, public_id: str) -> Appointment | None:
+        statement = (
+            select(Appointment)
+            .options(
+                selectinload(Appointment.doctor).selectinload(Doctor.linked_user),
+                selectinload(Appointment.doctor).selectinload(Doctor.clinics),
+            )
+            .where(Appointment.public_id == public_id)
         )
         return self.db.scalar(statement)
 

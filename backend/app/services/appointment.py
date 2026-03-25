@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from os import getenv
 
 from sqlalchemy.orm import Session
 
@@ -7,7 +8,13 @@ from app.repositories.appointment import AppointmentRepository
 from app.repositories.doctor import DoctorRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.user import UserRepository
-from app.schemas.appointment import AppointmentCreate, AppointmentHistoryRead, AppointmentRead, AppointmentStatusUpdate
+from app.schemas.appointment import (
+    AppointmentCreate,
+    AppointmentHistoryRead,
+    AppointmentPublicCardRead,
+    AppointmentRead,
+    AppointmentStatusUpdate,
+)
 from app.services.audit import create_audit_log
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.service_utils import resolve_actor_user_id
@@ -32,6 +39,7 @@ class AppointmentService:
 
         return AppointmentRead(
             id=appointment.id,
+            public_id=appointment.public_id,
             patient_id=appointment.patient_id,
             doctor_id=appointment.doctor_id,
             scheduled_start=appointment.scheduled_start,
@@ -46,6 +54,46 @@ class AppointmentService:
             doctor_name=doctor_name,
             created_at=appointment.created_at,
             updated_at=appointment.updated_at,
+        )
+
+    def _serialize_public_card(self, appointment: Appointment) -> AppointmentPublicCardRead:
+        doctor_name = "Doctor asignado"
+        clinic_name = None
+        clinic_address = None
+        clinic_phone = None
+
+        if getattr(appointment, "doctor", None) is not None:
+            doctor_name = f"{appointment.doctor.first_name} {appointment.doctor.last_name}".strip() or doctor_name
+            primary_clinic = next(
+                (clinic for clinic in appointment.doctor.clinics if clinic.is_primary),
+                appointment.doctor.clinics[0] if appointment.doctor.clinics else None,
+            )
+            if primary_clinic is not None:
+                clinic_name = primary_clinic.clinic_name
+                clinic_address = primary_clinic.address
+                clinic_phone = primary_clinic.phone_number
+
+        status_label = "Por confirmar"
+        if appointment.status == "cancelled" or appointment.confirmation_status == "cancelled":
+            status_label = "Cancelada"
+        elif appointment.status == "confirmed" or appointment.confirmation_status == "confirmed":
+            status_label = "Confirmada"
+
+        return AppointmentPublicCardRead(
+            id=appointment.id,
+            public_id=appointment.public_id,
+            doctor_name=doctor_name,
+            doctor_specialty=appointment.doctor.specialty if appointment.doctor is not None else None,
+            scheduled_start=appointment.scheduled_start,
+            scheduled_end=appointment.scheduled_end,
+            appointment_type=appointment.appointment_type,
+            reason=appointment.reason,
+            status=appointment.status,
+            confirmation_status=appointment.confirmation_status,
+            status_label=status_label,
+            clinic_name=clinic_name,
+            clinic_address=clinic_address,
+            clinic_phone=clinic_phone,
         )
 
     def create_appointment(self, payload: AppointmentCreate, *, accessible_doctor_ids: set[int] | None = None) -> AppointmentRead:
@@ -121,6 +169,17 @@ class AppointmentService:
         if accessible_doctor_ids is not None:
             appointments = [appointment for appointment in appointments if appointment.doctor_id in accessible_doctor_ids]
         return [self._serialize_appointment(appointment) for appointment in appointments]
+
+    def get_public_card(self, public_id: str) -> AppointmentPublicCardRead:
+        appointment = self.repository.get_public_card(public_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        return self._serialize_public_card(appointment)
+
+    @staticmethod
+    def public_url(public_id: str) -> str:
+        base_url = (getenv("NEXT_PUBLIC_APP_URL") or getenv("PUBLIC_APP_URL") or "https://docontrol.app").rstrip("/")
+        return f"{base_url}/c/{public_id}"
 
     def confirm_appointment(self, appointment_id: int, *, changed_by: str | None = None) -> AppointmentRead:
         appointment = self.repository.get(appointment_id)
