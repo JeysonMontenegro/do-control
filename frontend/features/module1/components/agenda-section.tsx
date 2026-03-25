@@ -36,6 +36,7 @@ type AgendaSectionProps = {
     scheduled_start_time: string;
     scheduled_end_date: string;
     scheduled_end_time: string;
+    notify_patient: boolean;
   };
   appointmentHistory: Record<number, AppointmentHistory[]>;
   appointmentReviewItems: AppointmentReviewItem[];
@@ -66,6 +67,7 @@ type AgendaSectionProps = {
   onAppointmentEndDateChange: (value: string) => void;
   onAppointmentEndTimeChange: (value: string) => void;
   onAppointmentFilterChange: (value: "all" | "ws" | "confirmed" | "pending_confirmation" | "needs_attention") => void;
+  onAppointmentNotifyPatientChange: (value: boolean) => void;
   onAppointmentPatientChange: (value: string) => void;
   onAppointmentStartDateChange: (value: string) => void;
   onAppointmentStartTimeChange: (value: string) => void;
@@ -116,6 +118,7 @@ export function AgendaSection({
   onAppointmentEndDateChange,
   onAppointmentEndTimeChange,
   onAppointmentFilterChange,
+  onAppointmentNotifyPatientChange,
   onAppointmentPatientChange,
   onAppointmentStartDateChange,
   onAppointmentStartTimeChange,
@@ -144,6 +147,9 @@ export function AgendaSection({
     description: patient.medical_record_number,
     keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
   }));
+  const selectedAppointmentPatient =
+    data.patients.find((patient) => String(patient.id) === appointmentForm.patient_id) ?? null;
+  const canNotifySelectedPatient = Boolean(selectedAppointmentPatient?.primary_phone?.trim());
   const activeAgendaFilters = [
     doctorFilter && selectedDoctor ? { label: "Doctor", value: `${selectedDoctor.first_name} ${selectedDoctor.last_name}` } : null,
     appointmentFilter !== "all"
@@ -499,6 +505,18 @@ export function AgendaSection({
                 <RequiredLabel>Hora fin</RequiredLabel>
                 <input type="time" value={appointmentForm.scheduled_end_time} onChange={(event) => onAppointmentEndTimeChange(event.target.value)} required />
               </label>
+              <label className="checkbox-field">
+                <span>Notificar al paciente por WhatsApp</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(appointmentForm.notify_patient && canNotifySelectedPatient)}
+                  onChange={(event) => onAppointmentNotifyPatientChange(event.target.checked)}
+                  disabled={!canNotifySelectedPatient}
+                />
+              </label>
+              {!canNotifySelectedPatient ? (
+                <p className="empty-state">Este paciente no tiene teléfono registrado. La notificación por WhatsApp queda deshabilitada.</p>
+              ) : null}
               <button type="submit">Guardar cita</button>
             </form>
           ) : (

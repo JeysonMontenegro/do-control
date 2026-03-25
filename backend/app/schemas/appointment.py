@@ -12,6 +12,7 @@ class AppointmentCreate(BaseModel):
     reason: str | None = None
     source: str = "receptionist"
     created_by: str | None = None
+    notify_patient: bool = True
 
 
 class AppointmentStatusUpdate(BaseModel):

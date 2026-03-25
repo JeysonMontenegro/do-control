@@ -15,6 +15,7 @@ from app.schemas.appointment import (
     AppointmentRead,
     AppointmentStatusUpdate,
 )
+from app.services.appointme_webhook import AppointMeWebhookService
 from app.services.audit import create_audit_log
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.service_utils import resolve_actor_user_id
@@ -107,6 +108,7 @@ class AppointmentService:
             raise ValidationError("Appointment source is required.")
         reason = payload.reason.strip() if payload.reason is not None else None
         created_by = payload.created_by.strip() if payload.created_by is not None else None
+        notify_patient = payload.notify_patient
         if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
             raise ValidationError("You cannot create appointments for that doctor.")
 
@@ -127,7 +129,7 @@ class AppointmentService:
 
         self.patient_repository.ensure_doctor_assignment(payload.patient_id, payload.doctor_id)
 
-        appointment_data = payload.model_dump()
+        appointment_data = payload.model_dump(exclude={"notify_patient"})
         appointment_data.update(
             {
                 "appointment_type": appointment_type,
@@ -162,6 +164,20 @@ class AppointmentService:
         )
         self.db.commit()
         self.db.refresh(created)
+        if source != "appoint-me":
+            patient_name = f"{patient.first_name} {patient.last_name}".strip()
+            doctor_name = f"{doctor.first_name} {doctor.last_name}".strip()
+            patient_phone = (patient.primary_phone or "").strip()
+            AppointMeWebhookService.send_appointment_created(
+                appointment_id=created.id,
+                appointment_public_id=created.public_id,
+                patient_name=patient_name,
+                patient_phone=patient_phone,
+                doctor_name=doctor_name,
+                scheduled_start=created.scheduled_start.isoformat(),
+                reason=created.reason,
+                notify_patient=bool(notify_patient and patient_phone),
+            )
         return self._serialize_appointment(created)
 
     def list_appointments(self, *, accessible_doctor_ids: set[int] | None = None) -> list[AppointmentRead]:

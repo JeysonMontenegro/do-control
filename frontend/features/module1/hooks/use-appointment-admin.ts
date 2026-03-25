@@ -5,12 +5,13 @@ import { FormEvent, useState } from "react";
 import { createAppointmentForm } from "@/features/module1/clinical-console-defaults";
 import { appointmentStatusLabel, combineDisplayDateTimeToIso } from "@/features/module1/console-utils";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import type { Appointment, AppointmentHistory, CommunicationDispatch, PatientSummary } from "@/features/module1/types";
+import type { Appointment, AppointmentHistory, CommunicationDispatch, Patient, PatientSummary } from "@/features/module1/types";
 
 type AppointmentForm = ReturnType<typeof createAppointmentForm>;
 
 type UseAppointmentAdminParams = {
   loadData: () => Promise<void>;
+  patients: Patient[];
   scopedDoctorId: number | null;
   selectedPatientId: string;
   setMessage: (message: string) => void;
@@ -20,6 +21,7 @@ type UseAppointmentAdminParams = {
 
 export function useAppointmentAdmin({
   loadData,
+  patients,
   scopedDoctorId,
   selectedPatientId,
   setMessage,
@@ -51,12 +53,14 @@ export function useAppointmentAdmin({
     event.preventDefault();
     setMessage("");
     try {
+      const selectedPatient = patients.find((patient) => String(patient.id) === appointmentForm.patient_id) ?? null;
       await apiPost<Appointment>("/api/appointments", {
         ...appointmentForm,
         patient_id: Number(appointmentForm.patient_id),
         doctor_id: Number(appointmentForm.doctor_id),
         scheduled_start: combineDisplayDateTimeToIso(appointmentForm.scheduled_start_date, appointmentForm.scheduled_start_time),
         scheduled_end: combineDisplayDateTimeToIso(appointmentForm.scheduled_end_date, appointmentForm.scheduled_end_time),
+        notify_patient: Boolean(appointmentForm.notify_patient && selectedPatient?.primary_phone?.trim()),
       });
       await loadData();
       setSelectedPatientId(appointmentForm.patient_id);

@@ -9,6 +9,7 @@ type AgendaTabProps = Omit<
   | "onAppointmentDoctorChange"
   | "onAppointmentEndDateChange"
   | "onAppointmentEndTimeChange"
+  | "onAppointmentNotifyPatientChange"
   | "onAppointmentPatientChange"
   | "onAppointmentStartDateChange"
   | "onAppointmentStartTimeChange"
@@ -16,6 +17,7 @@ type AgendaTabProps = Omit<
   onAppointmentDoctorFieldChange: (value: string) => void;
   onAppointmentEndDateFieldChange: (value: string) => void;
   onAppointmentEndTimeFieldChange: (value: string) => void;
+  onAppointmentNotifyPatientFieldChange: (value: boolean) => void;
   onAppointmentPatientFieldChange: (value: string) => void;
   onAppointmentStartDateFieldChange: (value: string) => void;
   onAppointmentStartTimeFieldChange: (value: string) => void;
@@ -25,6 +27,7 @@ export function AgendaTab({
   onAppointmentDoctorFieldChange,
   onAppointmentEndDateFieldChange,
   onAppointmentEndTimeFieldChange,
+  onAppointmentNotifyPatientFieldChange,
   onAppointmentPatientFieldChange,
   onAppointmentStartDateFieldChange,
   onAppointmentStartTimeFieldChange,
@@ -36,6 +39,7 @@ export function AgendaTab({
       onAppointmentDoctorChange={onAppointmentDoctorFieldChange}
       onAppointmentEndDateChange={onAppointmentEndDateFieldChange}
       onAppointmentEndTimeChange={onAppointmentEndTimeFieldChange}
+      onAppointmentNotifyPatientChange={onAppointmentNotifyPatientFieldChange}
       onAppointmentPatientChange={onAppointmentPatientFieldChange}
       onAppointmentStartDateChange={onAppointmentStartDateFieldChange}
       onAppointmentStartTimeChange={onAppointmentStartTimeFieldChange}

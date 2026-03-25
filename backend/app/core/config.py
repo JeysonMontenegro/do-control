@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    environment: str = "development"
     database_url: str = "postgresql+psycopg://docontrol:docontrol@postgres:5432/docontrol"
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
@@ -22,6 +23,10 @@ class Settings(BaseSettings):
     admin_invite_token_expire_minutes: int = 1440
     recaptcha_site_key: str | None = None
     recaptcha_secret_key: str | None = None
+    appointme_webhook_url: str | None = None
+    appointme_integration_key: str | None = None
+    appointme_webhook_enabled: bool = False
+    appointme_webhook_timeout_seconds: int = 5
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

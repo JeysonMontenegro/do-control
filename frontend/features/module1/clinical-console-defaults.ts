@@ -144,6 +144,7 @@ export function createAppointmentForm() {
     reason: "",
     source: "receptionist",
     created_by: "frontend-demo",
+    notify_patient: true,
   };
 }
 

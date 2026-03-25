@@ -66,6 +66,7 @@ export type Patient = {
 
 export type Appointment = {
   id: number;
+  public_id?: string;
   patient_id: number;
   doctor_id: number;
   scheduled_start: string;

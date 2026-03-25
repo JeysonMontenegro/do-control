@@ -356,6 +356,7 @@ export function ClinicalConsole() {
     updateAppointmentStatus,
   } = useAppointmentAdmin({
     loadData,
+    patients: data.patients,
     scopedDoctorId,
     selectedPatientId,
     setMessage,
@@ -741,6 +742,7 @@ export function ClinicalConsole() {
                 onAppointmentEndDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value })),
                 onAppointmentEndTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value })),
                 onAppointmentFilterChange: setAppointmentFilter,
+                onAppointmentNotifyPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, notify_patient: value })),
                 onAppointmentPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, patient_id: value })),
                 onAppointmentStartDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value })),
                 onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
