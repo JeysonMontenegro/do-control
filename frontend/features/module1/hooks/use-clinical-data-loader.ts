@@ -188,8 +188,8 @@ export function useClinicalDataLoader({
             isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
             isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
             isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
-            isAdmin ? apiGet<MessagingWhitelistState>("/api/integrations/messaging/whitelist") : Promise.resolve(null),
-            isAdmin ? apiGet<EmailWhitelistState>("/api/integrations/email/whitelist") : Promise.resolve(null),
+            isAdmin ? apiGet<MessagingWhitelistState>("/api/clinic-settings/messaging-whitelist") : Promise.resolve(null),
+            isAdmin ? apiGet<EmailWhitelistState>("/api/clinic-settings/email-whitelist") : Promise.resolve(null),
           ]);
 
           setReminderRules(loadedReminderRules);

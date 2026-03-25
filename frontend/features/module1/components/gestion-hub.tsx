@@ -8,9 +8,10 @@ import { GestionMessagesSection } from "@/features/module1/components/gestion-me
 import { GestionReceptionSection } from "@/features/module1/components/gestion-reception-section";
 import { GestionRemindersSection } from "@/features/module1/components/gestion-reminders-section";
 import { GestionSummarySection } from "@/features/module1/components/gestion-summary-section";
+import { GestionWhitelistSection } from "@/features/module1/components/gestion-whitelist-section";
 import type { Doctor } from "@/features/module1/types";
 
-type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
+type GestionSubtab = "resumen" | "perfil" | "mensajes" | "recordatorios" | "correos" | "whitelist" | "recepcion";
 
 type GestionHubProps = {
   activateDefault24HourReminder: ComponentProps<typeof GestionRemindersSection>["activateDefault24HourReminder"];
@@ -29,7 +30,7 @@ type GestionHubProps = {
   currentUserEmail: string;
   currentUserProfilePhotoUrl: string | null;
   doctorNameById: ComponentProps<typeof GestionRemindersSection>["doctorNameById"];
-  emailWhitelist: ComponentProps<typeof GestionEmailSection>["emailWhitelist"];
+  emailWhitelist: ComponentProps<typeof GestionWhitelistSection>["emailWhitelist"];
   emailDispatches: ComponentProps<typeof GestionEmailSection>["emailDispatches"];
   emailTemplateForm: ComponentProps<typeof GestionEmailSection>["emailTemplateForm"];
   emailTemplatePreview: ComponentProps<typeof GestionEmailSection>["emailTemplatePreview"];
@@ -41,14 +42,14 @@ type GestionHubProps = {
   inactiveUsersCount: number;
   isAdmin: boolean;
   onAddReceptionist: () => void;
-  onAddEmailWhitelistAddress: ComponentProps<typeof GestionEmailSection>["onAddEmailWhitelistAddress"];
-  onAddMessagingWhitelistPhone: ComponentProps<typeof GestionEmailSection>["onAddMessagingWhitelistPhone"];
+  onAddEmailWhitelistAddress: ComponentProps<typeof GestionWhitelistSection>["onAddEmailWhitelistAddress"];
+  onAddMessagingWhitelistPhone: ComponentProps<typeof GestionWhitelistSection>["onAddMessagingWhitelistPhone"];
   onEditReceptionist: ComponentProps<typeof GestionReceptionSection>["onEditReceptionist"];
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGestionSubtabChange: (tab: GestionSubtab) => void;
   onProfilePhotoChange: ComponentProps<typeof GestionSummarySection>["onProfilePhotoChange"];
-  onRemoveEmailWhitelistAddress: ComponentProps<typeof GestionEmailSection>["onRemoveEmailWhitelistAddress"];
-  onRemoveMessagingWhitelistPhone: ComponentProps<typeof GestionEmailSection>["onRemoveMessagingWhitelistPhone"];
+  onRemoveEmailWhitelistAddress: ComponentProps<typeof GestionWhitelistSection>["onRemoveEmailWhitelistAddress"];
+  onRemoveMessagingWhitelistPhone: ComponentProps<typeof GestionWhitelistSection>["onRemoveMessagingWhitelistPhone"];
   onSelectReceptionist: ComponentProps<typeof GestionReceptionSection>["onSelectReceptionist"];
   paginatedActiveReceptionists: ComponentProps<typeof GestionReceptionSection>["paginatedActiveReceptionists"];
   paginatedInactiveReceptionists: ComponentProps<typeof GestionReceptionSection>["paginatedInactiveReceptionists"];
@@ -75,9 +76,9 @@ type GestionHubProps = {
   templateForm: ComponentProps<typeof GestionMessagesSection>["templateForm"];
   testEmailRecipient: ComponentProps<typeof GestionEmailSection>["testEmailRecipient"];
   toggleEmailDelivery: ComponentProps<typeof GestionEmailSection>["toggleEmailDelivery"];
-  toggleEmailWhitelist: ComponentProps<typeof GestionEmailSection>["onToggleEmailWhitelist"];
+  toggleEmailWhitelist: ComponentProps<typeof GestionWhitelistSection>["onToggleEmailWhitelist"];
   toggleEmailProcessSetting: ComponentProps<typeof GestionEmailSection>["toggleEmailProcessSetting"];
-  toggleMessagingWhitelist: ComponentProps<typeof GestionEmailSection>["onToggleMessagingWhitelist"];
+  toggleMessagingWhitelist: ComponentProps<typeof GestionWhitelistSection>["onToggleMessagingWhitelist"];
   toggleMultiDoctorVisibility: ComponentProps<typeof GestionSummarySection>["toggleMultiDoctorVisibility"];
   toggleReceptionistActive: ComponentProps<typeof GestionReceptionSection>["toggleReceptionistActive"];
   toggleReminderRule: ComponentProps<typeof GestionRemindersSection>["toggleReminderRule"];
@@ -85,7 +86,7 @@ type GestionHubProps = {
   unconfirmedUpcomingCount: number;
   updateCurrentProfile: ComponentProps<typeof GestionSummarySection>["updateCurrentProfile"];
   uploadCurrentProfilePhoto: ComponentProps<typeof GestionSummarySection>["uploadCurrentProfilePhoto"];
-  messagingWhitelist: ComponentProps<typeof GestionEmailSection>["messagingWhitelist"];
+  messagingWhitelist: ComponentProps<typeof GestionWhitelistSection>["messagingWhitelist"];
 };
 
 export function GestionHub({
@@ -151,7 +152,9 @@ export function GestionHub({
   templateForm,
   testEmailRecipient,
   toggleEmailDelivery,
+  toggleEmailWhitelist,
   toggleEmailProcessSetting,
+  toggleMessagingWhitelist,
   toggleMultiDoctorVisibility,
   toggleReceptionistActive,
   toggleReminderRule,
@@ -163,9 +166,16 @@ export function GestionHub({
 }: GestionHubProps) {
   const gestionTabs: Array<{ id: GestionSubtab; label: string }> = [
     { id: "resumen", label: "Resumen" },
+    { id: "perfil", label: "Mi perfil" },
     { id: "mensajes", label: "Mensajes" },
     { id: "recordatorios", label: "Recordatorios" },
-    ...(isAdmin ? [{ id: "correos" as GestionSubtab, label: "Correos" }, { id: "recepcion" as GestionSubtab, label: "Recepción" }] : []),
+    ...(isAdmin
+      ? [
+          { id: "correos" as GestionSubtab, label: "Correos" },
+          { id: "whitelist" as GestionSubtab, label: "Whitelist" },
+          { id: "recepcion" as GestionSubtab, label: "Recepción" },
+        ]
+      : []),
   ];
 
   return (
@@ -214,6 +224,33 @@ export function GestionHub({
           unconfirmedUpcomingCount={unconfirmedUpcomingCount}
           updateCurrentProfile={updateCurrentProfile}
           uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
+          variant="summary"
+        />
+      ) : null}
+
+      {gestionSubtab === "perfil" ? (
+        <GestionSummarySection
+          activeDoctorsCount={activeDoctorsCount}
+          activeReceptionistsCount={activeReceptionistsCount}
+          allowMultiDoctorVisibility={allowMultiDoctorVisibility}
+          cancelledUpcomingCount={cancelledUpcomingCount}
+          confirmedUpcomingCount={confirmedUpcomingCount}
+          currentUserDisplay={currentUserDisplay}
+          currentUserEmail={currentUserEmail}
+          currentUserProfilePhotoUrl={currentUserProfilePhotoUrl}
+          inactiveUsersCount={inactiveUsersCount}
+          isAdmin={isAdmin}
+          onGoToAgendaAppointment={onGoToAgendaAppointment}
+          onProfilePhotoChange={onProfilePhotoChange}
+          profileForm={profileForm}
+          remindersScheduledCount={remindersScheduledCount}
+          scopedUpcomingAppointments={scopedUpcomingAppointments}
+          setProfileForm={setProfileForm}
+          toggleMultiDoctorVisibility={toggleMultiDoctorVisibility}
+          unconfirmedUpcomingCount={unconfirmedUpcomingCount}
+          updateCurrentProfile={updateCurrentProfile}
+          uploadCurrentProfilePhoto={uploadCurrentProfilePhoto}
+          variant="profile"
         />
       ) : null}
 
@@ -253,18 +290,10 @@ export function GestionHub({
       {gestionSubtab === "correos" && isAdmin ? (
         <GestionEmailSection
           clinicSetting={clinicSetting}
-          emailWhitelist={emailWhitelist}
           emailDispatches={emailDispatches}
           emailTemplateForm={emailTemplateForm}
           emailTemplatePreview={emailTemplatePreview}
           emailTemplates={emailTemplates}
-          messagingWhitelist={messagingWhitelist}
-          onAddEmailWhitelistAddress={onAddEmailWhitelistAddress}
-          onAddMessagingWhitelistPhone={onAddMessagingWhitelistPhone}
-          onRemoveEmailWhitelistAddress={onRemoveEmailWhitelistAddress}
-          onRemoveMessagingWhitelistPhone={onRemoveMessagingWhitelistPhone}
-          onToggleEmailWhitelist={toggleEmailWhitelist}
-          onToggleMessagingWhitelist={toggleMessagingWhitelist}
           previewEmailTemplate={previewEmailTemplate}
           resendEmailDispatch={resendEmailDispatch}
           saveEmailTemplate={saveEmailTemplate}
@@ -274,6 +303,19 @@ export function GestionHub({
           testEmailRecipient={testEmailRecipient}
           toggleEmailDelivery={toggleEmailDelivery}
           toggleEmailProcessSetting={toggleEmailProcessSetting}
+        />
+      ) : null}
+
+      {gestionSubtab === "whitelist" && isAdmin ? (
+        <GestionWhitelistSection
+          emailWhitelist={emailWhitelist}
+          messagingWhitelist={messagingWhitelist}
+          onAddEmailWhitelistAddress={onAddEmailWhitelistAddress}
+          onAddMessagingWhitelistPhone={onAddMessagingWhitelistPhone}
+          onRemoveEmailWhitelistAddress={onRemoveEmailWhitelistAddress}
+          onRemoveMessagingWhitelistPhone={onRemoveMessagingWhitelistPhone}
+          onToggleEmailWhitelist={toggleEmailWhitelist}
+          onToggleMessagingWhitelist={toggleMessagingWhitelist}
         />
       ) : null}
 

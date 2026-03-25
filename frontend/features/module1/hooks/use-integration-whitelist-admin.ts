@@ -17,8 +17,8 @@ export function useIntegrationWhitelistAdmin({
   async function refreshWhitelists() {
     try {
       const [loadedMessagingWhitelist, loadedEmailWhitelist] = await Promise.all([
-        apiGet<MessagingWhitelistState>("/api/integrations/messaging/whitelist"),
-        apiGet<EmailWhitelistState>("/api/integrations/email/whitelist"),
+        apiGet<MessagingWhitelistState>("/api/clinic-settings/messaging-whitelist"),
+        apiGet<EmailWhitelistState>("/api/clinic-settings/email-whitelist"),
       ]);
       setMessagingWhitelist(loadedMessagingWhitelist);
       setEmailWhitelist(loadedEmailWhitelist);
@@ -30,7 +30,7 @@ export function useIntegrationWhitelistAdmin({
   async function toggleMessagingWhitelist(enabled: boolean) {
     setMessage("");
     try {
-      const updated = await apiPut<MessagingWhitelistState>("/api/integrations/messaging/whitelist", { enabled });
+      const updated = await apiPut<MessagingWhitelistState>("/api/clinic-settings/messaging-whitelist", { enabled });
       setMessagingWhitelist(updated);
       setMessage(enabled ? "Whitelist de mensajería habilitada." : "Whitelist de mensajería deshabilitada.");
     } catch (error) {
@@ -41,7 +41,7 @@ export function useIntegrationWhitelistAdmin({
   async function addMessagingWhitelistPhone(phone: string) {
     setMessage("");
     try {
-      await apiPost<{ added: string }>("/api/integrations/messaging/whitelist/phones", { phone });
+      await apiPost<{ added: string }>("/api/clinic-settings/messaging-whitelist/phones", { phone });
       await refreshWhitelists();
       setMessage("Número agregado al whitelist de mensajería.");
     } catch (error) {
@@ -52,7 +52,7 @@ export function useIntegrationWhitelistAdmin({
   async function removeMessagingWhitelistPhone(phone: string) {
     setMessage("");
     try {
-      await apiDelete<{ removed: string }>(`/api/integrations/messaging/whitelist/phones/${encodeURIComponent(phone)}`);
+      await apiDelete<{ removed: string }>(`/api/clinic-settings/messaging-whitelist/phones/${encodeURIComponent(phone)}`);
       await refreshWhitelists();
       setMessage("Número removido del whitelist de mensajería.");
     } catch (error) {
@@ -63,7 +63,7 @@ export function useIntegrationWhitelistAdmin({
   async function toggleEmailWhitelist(enabled: boolean) {
     setMessage("");
     try {
-      const updated = await apiPut<EmailWhitelistState>("/api/integrations/email/whitelist", { enabled });
+      const updated = await apiPut<EmailWhitelistState>("/api/clinic-settings/email-whitelist", { enabled });
       setEmailWhitelist(updated);
       setMessage(enabled ? "Whitelist de correos habilitada." : "Whitelist de correos deshabilitada.");
     } catch (error) {
@@ -74,7 +74,7 @@ export function useIntegrationWhitelistAdmin({
   async function addEmailWhitelistAddress(email: string) {
     setMessage("");
     try {
-      await apiPost<{ added: string }>("/api/integrations/email/whitelist/addresses", { email });
+      await apiPost<{ added: string }>("/api/clinic-settings/email-whitelist/addresses", { email });
       await refreshWhitelists();
       setMessage("Correo agregado al whitelist.");
     } catch (error) {
@@ -85,7 +85,7 @@ export function useIntegrationWhitelistAdmin({
   async function removeEmailWhitelistAddress(email: string) {
     setMessage("");
     try {
-      await apiDelete<{ removed: string }>(`/api/integrations/email/whitelist/addresses/${encodeURIComponent(email)}`);
+      await apiDelete<{ removed: string }>(`/api/clinic-settings/email-whitelist/addresses/${encodeURIComponent(email)}`);
       await refreshWhitelists();
       setMessage("Correo removido del whitelist.");
     } catch (error) {

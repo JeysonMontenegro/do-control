@@ -28,6 +28,7 @@ export function useDoctorAdmin({
 }: UseDoctorAdminParams) {
   const [doctorAdminForm, setDoctorAdminForm] = useState<DoctorAdminForm>(createDoctorAdminForm);
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
+  const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [doctorRosterTab, setDoctorRosterTab] = useState<"activos" | "inactivos">("activos");
   const [doctorDirectorySearch, setDoctorDirectorySearch] = useState("");
   const [activeDoctorPage, setActiveDoctorPage] = useState(1);
@@ -90,8 +91,10 @@ export function useDoctorAdmin({
       resetDoctorAdminForm();
       await loadData();
       setMessage(editingDoctorId ? "Doctor actualizado." : "Doctor registrado.");
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo guardar el doctor.");
+      return false;
     }
   }
 
@@ -122,6 +125,7 @@ export function useDoctorAdmin({
 
   function startDoctorEdit(doctor: Doctor) {
     setEditingDoctorId(doctor.id);
+    setShowDoctorModal(true);
     setDoctorAdminForm({
       first_name: doctor.first_name,
       last_name: doctor.last_name,
@@ -145,6 +149,7 @@ export function useDoctorAdmin({
   }
 
   function resetDoctorAdminForm() {
+    setShowDoctorModal(false);
     setEditingDoctorId(null);
     setDoctorAdminForm(createDoctorAdminForm());
   }
@@ -210,7 +215,9 @@ export function useDoctorAdmin({
     setActiveDoctorPage,
     setDoctorAdminForm,
     setDoctorRosterTab,
+    setShowDoctorModal,
     setInactiveDoctorPage,
+    showDoctorModal,
     startDoctorEdit,
     submitDoctorAdmin,
     toggleDoctorActive,

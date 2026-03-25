@@ -36,6 +36,7 @@ type GestionSummarySectionProps = {
   unconfirmedUpcomingCount: number;
   updateCurrentProfile: (event: React.FormEvent<HTMLFormElement>) => void;
   uploadCurrentProfilePhoto: () => void;
+  variant?: "profile" | "summary";
 };
 
 export function GestionSummarySection({
@@ -59,104 +60,152 @@ export function GestionSummarySection({
   unconfirmedUpcomingCount,
   updateCurrentProfile,
   uploadCurrentProfilePhoto,
+  variant = "summary",
 }: GestionSummarySectionProps) {
   return (
     <>
+      {variant === "profile" ? (
+        <article className="card section-card span-three">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Perfil</p>
+              <h2>Mi perfil</h2>
+            </div>
+          </div>
+          <form className="form-card compact-form" onSubmit={updateCurrentProfile}>
+            <div className="profile-card-layout">
+              <div className="profile-photo-panel profile-photo-card">
+                <div className="profile-photo-card-copy">
+                  <p className="eyebrow">Cuenta</p>
+                  <h3>{currentUserDisplay}</h3>
+                  <span>{currentUserEmail}</span>
+                </div>
+                {currentUserProfilePhotoUrl ? (
+                  <img className="profile-photo-preview" src={currentUserProfilePhotoUrl} alt={currentUserDisplay} />
+                ) : (
+                  <div className="profile-photo-placeholder">{currentUserDisplay.slice(0, 1).toUpperCase()}</div>
+                )}
+                <label>
+                  <span>Foto de perfil</span>
+                  <input type="file" accept="image/*" onChange={(event) => onProfilePhotoChange(event.target.files?.[0] ?? null)} />
+                </label>
+                <button type="button" className="success-button" onClick={uploadCurrentProfilePhoto}>
+                  Subir foto
+                </button>
+              </div>
+              <div className="profile-settings-stack">
+                <section className="profile-section-block">
+                  <div className="profile-section-heading">
+                    <h3>Identidad</h3>
+                    <span>Cómo se muestra tu cuenta dentro del sistema.</span>
+                  </div>
+                  <div className="two-column-grid">
+                    <label>
+                      <span>Nombres</span>
+                      <input value={profileForm.first_name} onChange={(event) => setProfileForm((current) => ({ ...current, first_name: event.target.value }))} />
+                    </label>
+                    <label>
+                      <span>Apellidos</span>
+                      <input value={profileForm.last_name} onChange={(event) => setProfileForm((current) => ({ ...current, last_name: event.target.value }))} />
+                    </label>
+                    <label className="span-two">
+                      <span>Nombre visible</span>
+                      <input
+                        value={profileForm.display_name}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))}
+                        placeholder="Cómo deseas aparecer"
+                      />
+                    </label>
+                    <label>
+                      <span>Género</span>
+                      <select value={profileForm.gender} onChange={(event) => setProfileForm((current) => ({ ...current, gender: event.target.value }))}>
+                        <option value="">No especificado</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Femenino</option>
+                        <option value="other">Otro</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="profile-section-block">
+                  <div className="profile-section-heading">
+                    <h3>Contacto</h3>
+                    <span>Datos principales para avisos y acceso.</span>
+                  </div>
+                  <div className="two-column-grid">
+                    <label className="span-two">
+                      <span>Correo</span>
+                      <input value={currentUserEmail} readOnly />
+                    </label>
+                    <PhoneField
+                      label="Teléfono"
+                      value={profileForm.phone_number}
+                      onChange={(nextValue) => setProfileForm((current) => ({ ...current, phone_number: nextValue }))}
+                      placeholder="58420737"
+                    />
+                  </div>
+                </section>
+
+                <section className="profile-section-block">
+                  <div className="profile-section-heading">
+                    <h3>Seguridad</h3>
+                    <span>Solo llena estos campos si deseas cambiar tu contraseña.</span>
+                  </div>
+                  <div className="two-column-grid">
+                    <label className="span-two">
+                      <span>Contraseña actual</span>
+                      <input
+                        type="password"
+                        value={profileForm.current_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, current_password: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>Nueva contraseña</span>
+                      <input
+                        type="password"
+                        value={profileForm.new_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, new_password: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>Confirmar nueva contraseña</span>
+                      <input
+                        type="password"
+                        value={profileForm.confirm_new_password}
+                        onChange={(event) => setProfileForm((current) => ({ ...current, confirm_new_password: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                </section>
+              </div>
+            </div>
+            <p className="empty-state">
+              El teléfono debe ser único entre usuarios. Si cambias contraseña, debes indicar la actual.
+            </p>
+            <div className="row-actions">
+              <button type="submit">Guardar perfil</button>
+            </div>
+          </form>
+        </article>
+      ) : null}
+
+      {variant === "summary" ? (
       <article className={`card section-card ${isAdmin ? "" : "span-three"}`}>
         <div className="subsection-header">
           <div>
-            <p className="eyebrow">Perfil</p>
-            <h2>Mi perfil</h2>
+            <p className="eyebrow">Resumen</p>
+            <h2>Vista general</h2>
           </div>
         </div>
-        <form className="form-card compact-form" onSubmit={updateCurrentProfile}>
-          <div className="profile-card-layout">
-            <div className="profile-photo-panel">
-              {currentUserProfilePhotoUrl ? (
-                <img className="profile-photo-preview" src={currentUserProfilePhotoUrl} alt={currentUserDisplay} />
-              ) : (
-                <div className="profile-photo-placeholder">{currentUserDisplay.slice(0, 1).toUpperCase()}</div>
-              )}
-              <label>
-                <span>Foto de perfil</span>
-                <input type="file" accept="image/*" onChange={(event) => onProfilePhotoChange(event.target.files?.[0] ?? null)} />
-              </label>
-              <button type="button" className="success-button" onClick={uploadCurrentProfilePhoto}>
-                Subir foto
-              </button>
-            </div>
-            <div className="two-column-grid">
-              <label>
-                <span>Nombres</span>
-                <input value={profileForm.first_name} onChange={(event) => setProfileForm((current) => ({ ...current, first_name: event.target.value }))} />
-              </label>
-              <label>
-                <span>Apellidos</span>
-                <input value={profileForm.last_name} onChange={(event) => setProfileForm((current) => ({ ...current, last_name: event.target.value }))} />
-              </label>
-              <label>
-                <span>Nombre visible</span>
-                <input
-                  value={profileForm.display_name}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))}
-                  placeholder="Cómo deseas aparecer"
-                />
-              </label>
-              <label>
-                <span>Género</span>
-                <select value={profileForm.gender} onChange={(event) => setProfileForm((current) => ({ ...current, gender: event.target.value }))}>
-                  <option value="">No especificado</option>
-                  <option value="male">Masculino</option>
-                  <option value="female">Femenino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </label>
-              <label>
-                <span>Correo</span>
-                <input value={currentUserEmail} readOnly />
-              </label>
-              <PhoneField
-                label="Teléfono"
-                value={profileForm.phone_number}
-                onChange={(nextValue) => setProfileForm((current) => ({ ...current, phone_number: nextValue }))}
-                placeholder="58420737"
-              />
-              <label>
-                <span>Contraseña actual</span>
-                <input
-                  type="password"
-                  value={profileForm.current_password}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, current_password: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Nueva contraseña</span>
-                <input
-                  type="password"
-                  value={profileForm.new_password}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, new_password: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Confirmar nueva contraseña</span>
-                <input
-                  type="password"
-                  value={profileForm.confirm_new_password}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, confirm_new_password: event.target.value }))}
-                />
-              </label>
-            </div>
-          </div>
-          <p className="empty-state">
-            El teléfono debe ser único entre usuarios. Si cambias contraseña, debes indicar la actual.
-          </p>
-          <div className="row-actions">
-            <button type="submit">Guardar perfil</button>
-          </div>
-        </form>
+        <p className="empty-state">
+          Indicadores operativos y configuración general. Tus datos personales viven en la pestaña <strong>Mi perfil</strong>.
+        </p>
       </article>
+      ) : null}
 
-      {isAdmin ? (
+      {variant === "summary" && isAdmin ? (
         <article className="card section-card">
           <div className="subsection-header">
             <div>
@@ -181,7 +230,7 @@ export function GestionSummarySection({
         </article>
       ) : null}
 
-      {isAdmin ? (
+      {variant === "summary" && isAdmin ? (
         <article className="card section-card">
           <div className="subsection-header">
             <div>
@@ -218,6 +267,7 @@ export function GestionSummarySection({
         </article>
       ) : null}
 
+      {variant === "summary" ? (
       <article className="card section-card span-two">
         <div className="subsection-header">
           <div>
@@ -259,6 +309,7 @@ export function GestionSummarySection({
           {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este contexto.</p> : null}
         </div>
       </article>
+      ) : null}
     </>
   );
 }

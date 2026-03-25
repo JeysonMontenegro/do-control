@@ -8,7 +8,7 @@ import { ConsoleSidebar } from "@/features/module1/components/console-sidebar";
 import { ConsoleTopbar } from "@/features/module1/components/console-topbar";
 
 type ConsoleAuthShellProps = {
-  contextBarProps: ComponentProps<typeof ConsoleContextBar>;
+  contextBarProps: ComponentProps<typeof ConsoleContextBar> | null;
   loading: boolean;
   mainContent: ReactNode;
   message: string;
@@ -36,7 +36,7 @@ export function ConsoleAuthShell({
 
       <div className="app-content">
         <ConsoleTopbar {...topbarProps} />
-        <ConsoleContextBar {...contextBarProps} />
+        {contextBarProps ? <ConsoleContextBar {...contextBarProps} /> : null}
 
         {message ? <p className={`message-box message-box-${messageTone}`}>{message}</p> : null}
         {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}

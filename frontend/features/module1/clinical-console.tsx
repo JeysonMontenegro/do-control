@@ -103,7 +103,7 @@ type LoadState = {
   encounters: Encounter[];
 };
 
-type GestionSubtab = "resumen" | "mensajes" | "recordatorios" | "correos" | "recepcion";
+type GestionSubtab = "resumen" | "perfil" | "mensajes" | "recordatorios" | "correos" | "whitelist" | "recepcion";
 type MessagesSubtab = "paciente" | "citas" | "operacion";
 type ReviewResolutionAction = "reject" | "link_existing" | "create_appointment";
 
@@ -311,7 +311,9 @@ export function ClinicalConsole() {
     setActiveDoctorPage,
     setDoctorAdminForm,
     setDoctorRosterTab,
+    setShowDoctorModal,
     setInactiveDoctorPage,
+    showDoctorModal,
     startDoctorEdit,
     submitDoctorAdmin,
     toggleDoctorActive,
@@ -716,16 +718,20 @@ export function ClinicalConsole() {
         />
       ) : (
         <ConsoleAuthShell
-          contextBarProps={{
-            appointmentFilter,
-            currentUserDisplay,
-            globalSearch: topbarSearch,
-            onClearAgendaFilter: () => setAppointmentFilter("all"),
-            onClearPatientFocus: clearPatientFocus,
-            onClearSearch: () => setTopbarSearch(""),
-            selectedDoctor,
-            selectedSummary,
-          }}
+          contextBarProps={
+            activeTab === "agenda" || selectedSummary || topbarSearch.trim() || appointmentFilter !== "all"
+              ? {
+                  appointmentFilter,
+                  currentUserDisplay,
+                  globalSearch: topbarSearch,
+                  onClearAgendaFilter: () => setAppointmentFilter("all"),
+                  onClearPatientFocus: clearPatientFocus,
+                  onClearSearch: () => setTopbarSearch(""),
+                  selectedDoctor,
+                  selectedSummary,
+                }
+              : null
+          }
           loading={loading}
           mainContent={
             <ConsoleMainContent
@@ -794,6 +800,10 @@ export function ClinicalConsole() {
                 inactiveDoctors,
                 inactivePager: <PagerBar onChange={setInactiveDoctorPage} page={inactiveDoctorPage} pageSize={teamPageSize} totalItems={filteredInactiveDoctors.length} />,
                 isAdmin,
+                openDoctorModal: () => {
+                  resetDoctorAdminForm();
+                  setShowDoctorModal(true);
+                },
                 onDoctorDirectorySearchChange: updateDoctorDirectorySearch,
                 paginatedActiveDoctors,
                 paginatedInactiveDoctors,
@@ -801,6 +811,7 @@ export function ClinicalConsole() {
                 resetDoctorAdminForm,
                 setDoctorAdminForm,
                 setDoctorRosterTab,
+                showDoctorModal,
                 startDoctorEdit,
                 submitDoctorAdmin,
                 toggleDoctorActive,
@@ -947,13 +958,17 @@ export function ClinicalConsole() {
               }}
             />
           }
-          overviewStripProps={{
-            activeReviewItems: appointmentReviewItems.length,
-            encountersCount: filteredEncounters.length,
-            filteredAppointmentsCount: filteredAppointments.length,
-            filteredPatientsCount: filteredPatients.length,
-            globalSearch: topbarSearch.trim(),
-          }}
+          overviewStripProps={
+            activeTab === "agenda"
+              ? {
+                  activeReviewItems: appointmentReviewItems.length,
+                  encountersCount: filteredEncounters.length,
+                  filteredAppointmentsCount: filteredAppointments.length,
+                  filteredPatientsCount: filteredPatients.length,
+                  globalSearch: topbarSearch.trim(),
+                }
+              : null
+          }
           sidebarProps={{
             activeTab,
             appointmentCount: filteredAppointments.length,

@@ -22,13 +22,15 @@ type DoctorsSectionProps = {
   paginatedActiveDoctors: Doctor[];
   paginatedInactiveDoctors: Doctor[];
   addDoctorClinic: () => void;
+  openDoctorModal: () => void;
   onDoctorDirectorySearchChange: (value: string) => void;
   removeDoctorClinic: (index: number) => void;
   resetDoctorAdminForm: () => void;
   setDoctorAdminForm: React.Dispatch<React.SetStateAction<DoctorAdminForm>>;
   setDoctorRosterTab: React.Dispatch<React.SetStateAction<DoctorRosterTab>>;
+  showDoctorModal: boolean;
   startDoctorEdit: (doctor: Doctor) => void;
-  submitDoctorAdmin: (event: React.FormEvent<HTMLFormElement>) => void;
+  submitDoctorAdmin: (event: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
   toggleDoctorActive: (doctor: Doctor) => void;
   updateDoctorClinic: (index: number, field: keyof DoctorClinicForm, value: string | boolean) => void;
 };
@@ -48,11 +50,13 @@ export function DoctorsSection({
   paginatedActiveDoctors,
   paginatedInactiveDoctors,
   addDoctorClinic,
+  openDoctorModal,
   onDoctorDirectorySearchChange,
   removeDoctorClinic,
   resetDoctorAdminForm,
   setDoctorAdminForm,
   setDoctorRosterTab,
+  showDoctorModal,
   startDoctorEdit,
   submitDoctorAdmin,
   toggleDoctorActive,
@@ -68,112 +72,15 @@ export function DoctorsSection({
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Equipo clínico</p>
-            <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
+            <h2>Administrar doctores</h2>
           </div>
+          <button type="button" className="success-button" onClick={openDoctorModal}>
+            Agregar doctor
+          </button>
         </div>
-        <form className="form-card compact-form" onSubmit={submitDoctorAdmin}>
-          <div className="two-column-grid">
-            <label>
-              <RequiredLabel>Nombres</RequiredLabel>
-              <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
-            </label>
-            <label>
-              <RequiredLabel>Apellidos</RequiredLabel>
-              <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
-            </label>
-            <label>
-              <span>Género</span>
-              <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
-                <option value="male">Masculino</option>
-                <option value="female">Femenino</option>
-                <option value="other">Otro</option>
-              </select>
-            </label>
-            <DateField
-              label="Fecha de nacimiento"
-              value={doctorAdminForm.date_of_birth}
-              onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: nextValue }))}
-            />
-            <PhoneField
-              label="Teléfono principal"
-              value={doctorAdminForm.primary_phone}
-              onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, primary_phone: nextValue }))}
-              placeholder="58420737"
-            />
-            <label>
-              <span>Especialidad</span>
-              <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
-            </label>
-            <label>
-              <span>Colegiado</span>
-              <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
-            </label>
-            <label>
-              <span>Correo de acceso</span>
-              <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
-            </label>
-            <label>
-              <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
-              <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
-            </label>
-          </div>
-          <div className="stack-block">
-            <div className="subsection-header">
-              <div>
-                <p className="eyebrow">Sedes</p>
-                <h3>Clínicas del doctor</h3>
-              </div>
-              <button type="button" className="success-button" onClick={addDoctorClinic}>
-                Agregar clínica
-              </button>
-            </div>
-            <div className="table-list">
-              {doctorAdminForm.clinics.map((clinic, index) => (
-                <div className="simple-list-item" key={`doctor-clinic-form-${index}`}>
-                  <div className="two-column-grid">
-                    <label>
-                      <span>Nombre de clínica</span>
-                      <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
-                    </label>
-                    <label>
-                      <span>Teléfono</span>
-                      <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
-                    </label>
-                    <label>
-                      <span>Dirección</span>
-                      <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
-                    </label>
-                    <label>
-                      <span>Notas</span>
-                      <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
-                    </label>
-                  </div>
-                  <div className="row-actions">
-                    <label className="inline-check">
-                      <input
-                        type="checkbox"
-                        checked={clinic.is_primary}
-                        onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
-                      />
-                      <span>Sede principal</span>
-                    </label>
-                    <button type="button" className="danger-button" onClick={() => removeDoctorClinic(index)}>
-                      Quitar
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="row-actions">
-            {editingDoctorId ? (
-              <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
-                Cancelar edición
-              </button>
-            ) : null}
-            <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
-          </div>
-        </form>
+        <p className="empty-state doctor-admin-hint">
+          Crea y edita doctores desde un modal más cómodo, igual que el flujo de pacientes.
+        </p>
       </article>
 
       <article className="card section-card span-two">
@@ -282,6 +189,132 @@ export function DoctorsSection({
           </>
         )}
       </article>
+
+      {showDoctorModal ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card doctor-modal-card">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Equipo clínico</p>
+                <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
+              </div>
+              <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
+                Cerrar
+              </button>
+            </div>
+            <form
+              className="form-card compact-form"
+              onSubmit={async (event) => {
+                const saved = await submitDoctorAdmin(event);
+                if (saved) {
+                  resetDoctorAdminForm();
+                }
+              }}
+            >
+              <div className="three-column-grid">
+                <label>
+                  <RequiredLabel>Nombres</RequiredLabel>
+                  <input value={doctorAdminForm.first_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, first_name: event.target.value }))} required />
+                </label>
+                <label>
+                  <RequiredLabel>Apellidos</RequiredLabel>
+                  <input value={doctorAdminForm.last_name} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, last_name: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Género</span>
+                  <select value={doctorAdminForm.gender} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, gender: event.target.value }))}>
+                    <option value="male">Masculino</option>
+                    <option value="female">Femenino</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </label>
+                <DateField
+                  label="Fecha de nacimiento"
+                  value={doctorAdminForm.date_of_birth}
+                  onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, date_of_birth: nextValue }))}
+                />
+                <PhoneField
+                  label="Teléfono principal"
+                  value={doctorAdminForm.primary_phone}
+                  onChange={(nextValue) => setDoctorAdminForm((current) => ({ ...current, primary_phone: nextValue }))}
+                  placeholder="58420737"
+                />
+                <label>
+                  <span>Especialidad</span>
+                  <input value={doctorAdminForm.specialty} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, specialty: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Colegiado</span>
+                  <input value={doctorAdminForm.license_number} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, license_number: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Correo de acceso</span>
+                  <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
+                </label>
+                <label>
+                  <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
+                  <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
+                </label>
+              </div>
+              <div className="stack-block">
+                <div className="subsection-header">
+                  <div>
+                    <p className="eyebrow">Sedes</p>
+                    <h3>Clínicas del doctor</h3>
+                  </div>
+                  <button type="button" className="success-button" onClick={addDoctorClinic}>
+                    Agregar clínica
+                  </button>
+                </div>
+                <div className="doctor-clinic-grid">
+                  {doctorAdminForm.clinics.map((clinic, index) => (
+                    <div className="doctor-clinic-card" key={`doctor-clinic-form-${index}`}>
+                      <div className="doctor-clinic-card-header">
+                        <strong>Clínica {index + 1}</strong>
+                        <button type="button" className="danger-button" onClick={() => removeDoctorClinic(index)}>
+                          Quitar
+                        </button>
+                      </div>
+                      <div className="stacked-fields">
+                        <label>
+                          <span>Nombre de clínica</span>
+                          <input value={clinic.clinic_name} onChange={(event) => updateDoctorClinic(index, "clinic_name", event.target.value)} />
+                        </label>
+                        <label>
+                          <span>Teléfono</span>
+                          <input value={clinic.phone_number} onChange={(event) => updateDoctorClinic(index, "phone_number", event.target.value)} />
+                        </label>
+                        <label className="span-two">
+                          <span>Dirección</span>
+                          <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
+                        </label>
+                        <label className="span-two">
+                          <span>Notas</span>
+                          <input value={clinic.notes} onChange={(event) => updateDoctorClinic(index, "notes", event.target.value)} />
+                        </label>
+                      </div>
+                      <label className="inline-check">
+                        <input
+                          type="checkbox"
+                          checked={clinic.is_primary}
+                          onChange={(event) => updateDoctorClinic(index, "is_primary", event.target.checked)}
+                        />
+                        <span>Sede principal</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
+                  Cancelar
+                </button>
+                <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

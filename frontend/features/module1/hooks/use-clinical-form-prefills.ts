@@ -8,6 +8,7 @@ type AppointmentFormState = {
   appointment_type: string;
   created_by: string;
   doctor_id: string;
+  notify_patient: boolean;
   patient_id: string;
   reason: string;
   scheduled_end_date: string;

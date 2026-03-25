@@ -45,7 +45,7 @@ services:
       - backend
     ports:
       - "13000:3000"
-    command: sh -c "npm run build && npm run start"
+    command: sh -c "rm -rf .next && mkdir -p .next/export && npm run build && npm run start"
 
 volumes:
   postgres_data:
