@@ -29,6 +29,7 @@ import { useClinicalTabProps } from "@/features/module1/hooks/use-clinical-tab-p
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
 import { useEncounterAttachmentAdmin } from "@/features/module1/hooks/use-encounter-attachment-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
+import { useIntegrationWhitelistAdmin } from "@/features/module1/hooks/use-integration-whitelist-admin";
 import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
 import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
 import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
@@ -73,10 +74,12 @@ import type {
   ClinicSetting,
   Diagnosis,
   Doctor,
+  EmailWhitelistState,
   EmailDispatch,
   EmailTemplate,
   Encounter,
   ExamOrder,
+  MessagingWhitelistState,
   Patient,
   PatientSummary,
   PrescriptionItem,
@@ -136,6 +139,8 @@ export function ClinicalConsole() {
   const [communicationTemplates, setCommunicationTemplates] = useState<CommunicationTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [emailDispatches, setEmailDispatches] = useState<EmailDispatch[]>([]);
+  const [emailWhitelist, setEmailWhitelist] = useState<EmailWhitelistState | null>(null);
+  const [messagingWhitelist, setMessagingWhitelist] = useState<MessagingWhitelistState | null>(null);
   const [communicationDispatches, setCommunicationDispatches] = useState<CommunicationDispatch[]>([]);
   const [communicationDispatchSummary, setCommunicationDispatchSummary] = useState<CommunicationDispatchSummary | null>(null);
   const [selectedPatientDispatches, setSelectedPatientDispatches] = useState<CommunicationDispatch[]>([]);
@@ -234,10 +239,12 @@ export function ClinicalConsole() {
     setData,
     setDoctorFilter,
     setEmailDispatches,
+    setEmailWhitelist,
     setEmailTemplates,
     setEncounterDoctorId: (doctorId) => setEncounterForm((current) => ({ ...current, doctor_id: doctorId })),
     setLoading,
     setMessage,
+    setMessagingWhitelist,
     setReceptionists,
     setReminderRuleDoctorId: (doctorId) => setReminderRuleForm((current) => ({ ...current, doctor_id: doctorId })),
     setReminderRules,
@@ -268,6 +275,18 @@ export function ClinicalConsole() {
   const { toggleEmailDelivery, toggleEmailProcessSetting } = useEmailSettingsAdmin({
     setClinicSetting,
     setMessage,
+  });
+  const {
+    addEmailWhitelistAddress,
+    addMessagingWhitelistPhone,
+    removeEmailWhitelistAddress,
+    removeMessagingWhitelistPhone,
+    toggleEmailWhitelist,
+    toggleMessagingWhitelist,
+  } = useIntegrationWhitelistAdmin({
+    setEmailWhitelist,
+    setMessage,
+    setMessagingWhitelist,
   });
 
   const activeReceptionists = useMemo(() => receptionists.filter((receptionist) => receptionist.is_active), [receptionists]);
@@ -805,6 +824,7 @@ export function ClinicalConsole() {
                 currentUserEmail,
                 currentUserProfilePhotoUrl,
                 doctorNameById,
+                emailWhitelist,
                 emailDispatches,
                 emailTemplateForm,
                 emailTemplatePreview,
@@ -819,10 +839,14 @@ export function ClinicalConsole() {
                   resetReceptionistForm();
                   setShowReceptionistModal(true);
                 },
+                onAddEmailWhitelistAddress: addEmailWhitelistAddress,
+                onAddMessagingWhitelistPhone: addMessagingWhitelistPhone,
                 onEditReceptionist: startReceptionistEdit,
                 onGoToAgendaAppointment: goToAgendaAppointment,
                 onGestionSubtabChange: setGestionSubtab,
                 onProfilePhotoChange: setProfilePhotoFile,
+                onRemoveEmailWhitelistAddress: removeEmailWhitelistAddress,
+                onRemoveMessagingWhitelistPhone: removeMessagingWhitelistPhone,
                 onSelectReceptionist: setSelectedReceptionistId,
                 paginatedActiveReceptionists,
                 paginatedInactiveReceptionists,
@@ -849,7 +873,9 @@ export function ClinicalConsole() {
                 templateForm,
                 testEmailRecipient,
                 toggleEmailDelivery,
+                toggleEmailWhitelist,
                 toggleEmailProcessSetting,
+                toggleMessagingWhitelist,
                 toggleMultiDoctorVisibility,
                 toggleReceptionistActive,
                 toggleReminderRule,
@@ -857,6 +883,7 @@ export function ClinicalConsole() {
                 unconfirmedUpcomingCount,
                 updateCurrentProfile,
                 uploadCurrentProfilePhoto,
+                messagingWhitelist,
               }}
               isAdmin={isAdmin}
               messagesTabProps={messagesTabProps}

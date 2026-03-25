@@ -223,6 +223,16 @@ export type ClinicSetting = {
   updated_at: string;
 };
 
+export type MessagingWhitelistState = {
+  enabled: boolean;
+  phones: string[];
+};
+
+export type EmailWhitelistState = {
+  enabled: boolean;
+  addresses: string[];
+};
+
 export type ReminderRule = {
   id: number;
   doctor_id: number | null;

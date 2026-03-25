@@ -11,9 +11,11 @@ import type {
   CommunicationDispatchSummary,
   CommunicationTemplate,
   Doctor,
+  EmailWhitelistState,
   EmailDispatch,
   EmailTemplate,
   Encounter,
+  MessagingWhitelistState,
   Patient,
   Receptionist,
   ReminderRule,
@@ -53,10 +55,12 @@ type UseClinicalDataLoaderParams = {
   setData: React.Dispatch<React.SetStateAction<LoadState>>;
   setDoctorFilter: React.Dispatch<React.SetStateAction<string>>;
   setEmailDispatches: React.Dispatch<React.SetStateAction<EmailDispatch[]>>;
+  setEmailWhitelist: React.Dispatch<React.SetStateAction<EmailWhitelistState | null>>;
   setEmailTemplates: React.Dispatch<React.SetStateAction<EmailTemplate[]>>;
   setEncounterDoctorId: (doctorId: string) => void;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setMessage: (message: string) => void;
+  setMessagingWhitelist: React.Dispatch<React.SetStateAction<MessagingWhitelistState | null>>;
   setReceptionists: React.Dispatch<React.SetStateAction<Receptionist[]>>;
   setReminderRuleDoctorId: (doctorId: string) => void;
   setReminderRules: React.Dispatch<React.SetStateAction<ReminderRule[]>>;
@@ -86,10 +90,12 @@ export function useClinicalDataLoader({
   setData,
   setDoctorFilter,
   setEmailDispatches,
+  setEmailWhitelist,
   setEmailTemplates,
   setEncounterDoctorId,
   setLoading,
   setMessage,
+  setMessagingWhitelist,
   setReceptionists,
   setReminderRuleDoctorId,
   setReminderRules,
@@ -165,6 +171,8 @@ export function useClinicalDataLoader({
             loadedReceptionists,
             loadedEmailTemplates,
             loadedEmailDispatches,
+            loadedMessagingWhitelist,
+            loadedEmailWhitelist,
           ] = await Promise.all([
             canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
             canViewGestion ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
@@ -180,6 +188,8 @@ export function useClinicalDataLoader({
             isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
             isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
             isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
+            isAdmin ? apiGet<MessagingWhitelistState>("/api/integrations/messaging/whitelist") : Promise.resolve(null),
+            isAdmin ? apiGet<EmailWhitelistState>("/api/integrations/email/whitelist") : Promise.resolve(null),
           ]);
 
           setReminderRules(loadedReminderRules);
@@ -190,6 +200,8 @@ export function useClinicalDataLoader({
           setReceptionists(loadedReceptionists);
           setEmailTemplates(loadedEmailTemplates);
           setEmailDispatches(loadedEmailDispatches);
+          setMessagingWhitelist(loadedMessagingWhitelist);
+          setEmailWhitelist(loadedEmailWhitelist);
         } catch (backgroundError) {
           setMessage(
             backgroundError instanceof Error
@@ -223,10 +235,12 @@ export function useClinicalDataLoader({
     setData,
     setDoctorFilter,
     setEmailDispatches,
+    setEmailWhitelist,
     setEmailTemplates,
     setEncounterDoctorId,
     setLoading,
     setMessage,
+    setMessagingWhitelist,
     setReceptionists,
     setReminderRuleDoctorId,
     setReminderRules,

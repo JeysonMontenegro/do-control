@@ -1560,6 +1560,17 @@ select.compact-input:hover {
   padding-top: 2px;
 }
 
+.whitelist-maintenance-card {
+  margin-top: 0.85rem;
+}
+
+.whitelist-list-item {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
 .stacked-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
