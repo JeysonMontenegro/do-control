@@ -1,6 +1,14 @@
+"use client";
+
+import { useMemo, type CSSProperties } from "react";
+
 import type { Appointment } from "@/features/module1/types";
 import type { CalendarView } from "@/features/module1/console-config";
 import { appointmentStatusLabel, appointmentTypeLabel, formatDate, formatTime, formatWeekday, getAppointmentEventClassName, isSameDay, startOfDay } from "@/features/module1/console-utils";
+
+const AGENDA_SLOT_HEIGHT = 26;
+const AGENDA_EVENT_GAP = 4;
+const AGENDA_STACK_OFFSET = 18;
 
 type AgendaCalendarProps = {
   calendarView: CalendarView;
@@ -23,6 +31,80 @@ export function AgendaCalendar({
   onSelectAppointment,
   calendarMetrics,
 }: AgendaCalendarProps) {
+  const overlapLayouts = useMemo(() => {
+    const layouts = new Map<number, { columnIndex: number; columnCount: number }>();
+
+    agendaDays.forEach((day) => {
+      const appointments = appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? [];
+      buildAppointmentLayouts(appointments).forEach((layout, appointmentId) => layouts.set(appointmentId, layout));
+    });
+
+    return layouts;
+  }, [agendaDays, appointmentsByDayKey]);
+
+  const stackedLayouts = useMemo(() => {
+    const layouts = new Map<number, { stackIndex: number; stackSize: number }>();
+
+    agendaDays.forEach((day) => {
+      const appointments = appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? [];
+      const clusters = buildAppointmentClusters(appointments);
+
+      clusters.forEach((cluster) => {
+        cluster.forEach((appointment, index) => {
+          layouts.set(appointment.id, {
+            stackIndex: index,
+            stackSize: cluster.length,
+          });
+        });
+      });
+    });
+
+    return layouts;
+  }, [agendaDays, appointmentsByDayKey]);
+
+  const weekRowMetrics = useMemo(() => {
+    const metricsByDay = new Map<string, { rowHeights: number[]; rowOffsets: number[] }>();
+
+    agendaDays.forEach((day) => {
+      const dayKey = startOfDay(day).toISOString();
+      const appointments = appointmentsByDayKey.get(dayKey) ?? [];
+      const rowHeights = Array.from({ length: slotLabels.length - 1 }, () => AGENDA_SLOT_HEIGHT);
+      const clusters = buildAppointmentClusters(appointments);
+
+      clusters.forEach((cluster) => {
+        if (cluster.length <= 1) {
+          return;
+        }
+
+        const clusterRows = cluster.map((appointment) => calendarMetrics(appointment));
+        const clusterStart = Math.min(...clusterRows.map((item) => item.rowStart));
+        const clusterEnd = Math.max(...clusterRows.map((item) => item.rowEnd));
+        const coveredRows = Math.max(1, clusterEnd - clusterStart);
+        const extraHeight = (cluster.length - 1) * AGENDA_STACK_OFFSET;
+        const extraPerRow = Math.floor(extraHeight / coveredRows);
+        let remainder = extraHeight % coveredRows;
+
+        for (let rowIndex = clusterStart - 2; rowIndex < clusterEnd - 2; rowIndex += 1) {
+          rowHeights[rowIndex] += extraPerRow + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) {
+            remainder -= 1;
+          }
+        }
+      });
+
+      const rowOffsets: number[] = [];
+      let offset = 0;
+      rowHeights.forEach((height, index) => {
+        rowOffsets[index] = offset;
+        offset += height;
+      });
+
+      metricsByDay.set(dayKey, { rowHeights, rowOffsets });
+    });
+
+    return metricsByDay;
+  }, [agendaDays, appointmentsByDayKey, calendarMetrics, slotLabels.length]);
+
   const renderAppointmentButton = (appointment: Appointment, className: string) => (
     <button
       type="button"
@@ -132,30 +214,65 @@ export function AgendaCalendar({
             ))}
           </div>
 
-          {agendaDays.map((day) => (
-            <div key={`column-${day.toISOString()}`} className="agenda-day-column">
-              {slotLabels.slice(0, -1).map((slotLabel) => (
-                <div key={`slot-${day.toISOString()}-${slotLabel}`} className="agenda-slot" />
-              ))}
-              {(appointmentsByDayKey.get(startOfDay(day).toISOString()) ?? []).map((appointment) => {
-                const metrics = calendarMetrics(appointment);
-                return (
-                  <button
-                    type="button"
-                    key={`grid-appointment-${appointment.id}`}
-                    className={`agenda-event agenda-event-${getAppointmentEventClassName(appointment)}`}
-                    style={{ gridRow: `${metrics.rowStart} / ${metrics.rowEnd}` }}
-                    onClick={() => onSelectAppointment(appointment.id)}
-                    title={`${appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · ${appointmentTypeLabel(appointment.appointment_type)} · ${appointmentStatusLabel(appointment.status)}`}
-                  >
-                    <span>{formatTime(appointment.scheduled_start)}</span>
-                    <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                    <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {agendaDays.map((day) => {
+            const dayKey = startOfDay(day).toISOString();
+            const appointments = appointmentsByDayKey.get(dayKey) ?? [];
+            const isDayView = calendarView === "dia";
+            const rowMetrics = weekRowMetrics.get(dayKey) ?? {
+              rowHeights: Array.from({ length: slotLabels.length - 1 }, () => AGENDA_SLOT_HEIGHT),
+              rowOffsets: Array.from({ length: slotLabels.length - 1 }, (_, index) => index * AGENDA_SLOT_HEIGHT),
+            };
+
+            return (
+              <div
+                key={`column-${day.toISOString()}`}
+                className="agenda-day-column"
+                style={isDayView ? undefined : { gridTemplateRows: rowMetrics.rowHeights.map((height) => `${height}px`).join(" ") }}
+              >
+                {slotLabels.slice(0, -1).map((slotLabel) => (
+                  <div key={`slot-${day.toISOString()}-${slotLabel}`} className="agenda-slot" />
+                ))}
+                {appointments.map((appointment) => {
+                  const metrics = calendarMetrics(appointment);
+                  const overlapLayout = overlapLayouts.get(appointment.id) ?? { columnIndex: 0, columnCount: 1 };
+                  const stackedLayout = stackedLayouts.get(appointment.id) ?? { stackIndex: 0, stackSize: 1 };
+                  const startIndex = Math.max(0, metrics.rowStart - 2);
+                  const endIndex = Math.max(startIndex + 1, metrics.rowEnd - 2);
+                  const topOffset = isDayView
+                    ? (metrics.rowStart - 2) * AGENDA_SLOT_HEIGHT + 3
+                    : rowMetrics.rowOffsets[startIndex] + stackedLayout.stackIndex * AGENDA_STACK_OFFSET + 3;
+                  const baseHeight = isDayView
+                    ? Math.max(AGENDA_SLOT_HEIGHT, (metrics.rowEnd - metrics.rowStart) * AGENDA_SLOT_HEIGHT - 6)
+                    : Math.max(
+                        AGENDA_SLOT_HEIGHT,
+                        rowMetrics.rowHeights.slice(startIndex, endIndex).reduce((sum, height) => sum + height, 0) - 6,
+                      );
+                  return (
+                    <button
+                      type="button"
+                      key={`grid-appointment-${appointment.id}`}
+                      className={`agenda-event agenda-event-${getAppointmentEventClassName(appointment)}${isDayView && overlapLayout.columnCount > 1 ? " agenda-event-compact" : ""}`}
+                      style={
+                        {
+                          top: `${topOffset}px`,
+                          height: `${baseHeight}px`,
+                          "--agenda-column-index": isDayView ? overlapLayout.columnIndex : 0,
+                          "--agenda-column-count": isDayView ? overlapLayout.columnCount : 1,
+                          "--agenda-column-gap": `${AGENDA_EVENT_GAP}px`,
+                        } as CSSProperties
+                      }
+                      onClick={() => onSelectAppointment(appointment.id)}
+                      title={`${appointment.patient_name ?? `Paciente ${appointment.patient_id}`} · ${appointmentTypeLabel(appointment.appointment_type)} · ${appointmentStatusLabel(appointment.status)}`}
+                    >
+                      <span>{formatTime(appointment.scheduled_start)}</span>
+                      <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
+                      <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -187,4 +304,74 @@ export function AgendaCalendar({
       </div>
     </>
   );
+}
+
+function buildAppointmentClusters(appointments: Appointment[]) {
+  const sortedAppointments = [...appointments].sort(
+    (left, right) => new Date(left.scheduled_start).getTime() - new Date(right.scheduled_start).getTime(),
+  );
+  const clusters: Appointment[][] = [];
+  let clusterAppointments: Appointment[] = [];
+  let clusterEnd = 0;
+
+  sortedAppointments.forEach((appointment) => {
+    const start = new Date(appointment.scheduled_start).getTime();
+    const end = new Date(appointment.scheduled_end).getTime();
+
+    if (!clusterAppointments.length || start < clusterEnd) {
+      clusterAppointments.push(appointment);
+      clusterEnd = Math.max(clusterEnd, end);
+      return;
+    }
+
+    clusters.push([...clusterAppointments]);
+    clusterAppointments = [appointment];
+    clusterEnd = end;
+  });
+
+  if (clusterAppointments.length) {
+    clusters.push([...clusterAppointments]);
+  }
+
+  return clusters;
+}
+
+function buildAppointmentLayouts(appointments: Appointment[]) {
+  const layouts = new Map<number, { columnIndex: number; columnCount: number }>();
+
+  buildAppointmentClusters(appointments).forEach((cluster) => {
+    const clusterWithTimes = cluster.map((appointment) => ({
+      appointment,
+      start: new Date(appointment.scheduled_start).getTime(),
+      end: new Date(appointment.scheduled_end).getTime(),
+    }));
+    const activeColumns: Array<{ end: number; columnIndex: number }> = [];
+    let maxColumns = 0;
+
+    clusterWithTimes.forEach((entry) => {
+      for (let index = activeColumns.length - 1; index >= 0; index -= 1) {
+        if (activeColumns[index].end <= entry.start) {
+          activeColumns.splice(index, 1);
+        }
+      }
+
+      let columnIndex = 0;
+      while (activeColumns.some((column) => column.columnIndex === columnIndex)) {
+        columnIndex += 1;
+      }
+
+      activeColumns.push({ end: entry.end, columnIndex });
+      maxColumns = Math.max(maxColumns, columnIndex + 1);
+      layouts.set(entry.appointment.id, { columnIndex, columnCount: 1 });
+    });
+
+    cluster.forEach((appointment) => {
+      const current = layouts.get(appointment.id);
+      if (current) {
+        layouts.set(appointment.id, { ...current, columnCount: maxColumns });
+      }
+    });
+  });
+
+  return layouts;
 }

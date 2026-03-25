@@ -88,6 +88,7 @@ export function useAppointmentAdmin({
       return;
     }
 
+    setExpandedAppointmentId(appointmentId);
     setMessage("");
     try {
       const [history, dispatches] = await Promise.all([
@@ -104,7 +105,6 @@ export function useAppointmentAdmin({
       if (!appointmentDispatches[appointmentId]) {
         setAppointmentDispatches((current) => ({ ...current, [appointmentId]: dispatches }));
       }
-      setExpandedAppointmentId(appointmentId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar el detalle de la cita.");
     }

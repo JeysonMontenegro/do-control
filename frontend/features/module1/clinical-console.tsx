@@ -745,6 +745,7 @@ export function ClinicalConsole() {
                 onAppointmentStartDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_date: value })),
                 onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
                 onCalendarViewChange: setCalendarView,
+                onCloseFocusedAppointment: () => setExpandedAppointmentId(null),
                 onDoctorFilterChange: setDoctorFilter,
                 onGoToMessagesForAppointment: goToMessagesForAppointment,
                 onGoToPatient: goToPatient,

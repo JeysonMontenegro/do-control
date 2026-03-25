@@ -70,6 +70,7 @@ type AgendaSectionProps = {
   onAppointmentStartDateChange: (value: string) => void;
   onAppointmentStartTimeChange: (value: string) => void;
   onCalendarViewChange: (value: CalendarView) => void;
+  onCloseFocusedAppointment: () => void;
   onDoctorFilterChange: (value: string) => void;
   onGoToMessagesForAppointment: (appointmentId: number, patientId: number) => void;
   onGoToPatient: (patientId: number) => void;
@@ -119,6 +120,7 @@ export function AgendaSection({
   onAppointmentStartDateChange,
   onAppointmentStartTimeChange,
   onCalendarViewChange,
+  onCloseFocusedAppointment,
   onDoctorFilterChange,
   onGoToMessagesForAppointment,
   onGoToPatient,
@@ -184,115 +186,134 @@ export function AgendaSection({
     const reviewItem = reviewQueueByAppointmentId.get(focusedAppointment.id);
 
     return (
-      <article className="card section-card">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Detalle de cita</p>
-            <h2>{focusedAppointment.patient_name ?? `Paciente ${focusedAppointment.patient_id}`}</h2>
+      <>
+        <article className="card section-card">
+          <div className="subsection-header">
+            <div>
+              <p className="eyebrow">Detalle</p>
+              <h2>Cita abierta en modal</h2>
+            </div>
+            <button type="button" className="secondary-button" onClick={onCloseFocusedAppointment}>
+              Cerrar
+            </button>
           </div>
-          <span>{formatDateTime(focusedAppointment.scheduled_start)}</span>
-        </div>
-        <div className="detail-stack">
-          <div className="detail-panel">
-            <strong>{focusedAppointment.doctor_name ?? `Doctor ${focusedAppointment.doctor_id}`}</strong>
-            <span>{appointmentTypeLabel(focusedAppointment.appointment_type)}</span>
-            <span>{appointmentStatusLabel(focusedAppointment.status)}</span>
-            {renderAppointmentBadges(focusedAppointment)}
-            {reviewItem ? (
-              <div className="timeline-item">
-                <strong>{reviewReasonLabel(reviewItem.review_reason)}</strong>
-                <span>{reviewItem.review_message}</span>
-                <span>Horario solicitado: {formatDateTime(reviewItem.scheduled_start)}</span>
+          <p className="empty-state">El detalle completo de la cita está abierto como modal para que no tengas que volver al panel lateral.</p>
+        </article>
+        <div className="modal-overlay agenda-detail-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card agenda-detail-modal">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Detalle de cita</p>
+                <h2>{focusedAppointment.patient_name ?? `Paciente ${focusedAppointment.patient_id}`}</h2>
               </div>
-            ) : null}
-            {canManageAppointments ? (
-              <div className="row-actions">
-                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
-                  Confirmar
-                </button>
-                <button
-                  type="button"
-                  className="success-button"
-                  onClick={() => reminderNow(focusedAppointment.id)}
-                  disabled={focusedAppointment.status === "cancelled" || focusedAppointment.confirmation_status === "cancelled"}
-                >
-                  Enviar recordatorio ahora
-                </button>
-                <button type="button" className="danger-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
-                  Cancelar
-                </button>
-                <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
-                  Completar
-                </button>
-              </div>
-            ) : null}
-            <div className="row-actions">
-              <button type="button" className="secondary-button" onClick={() => onGoToPatient(focusedAppointment.patient_id)}>
-                Ver paciente
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => onGoToMessagesForAppointment(focusedAppointment.id, focusedAppointment.patient_id)}
-              >
-                Ver mensajes
+              <button type="button" className="secondary-button" onClick={onCloseFocusedAppointment}>
+                Cerrar
               </button>
             </div>
-          </div>
-          <div className="detail-panel">
-            <strong>Historial</strong>
-            {appointmentHistory[focusedAppointment.id]?.length ? (
-              appointmentHistory[focusedAppointment.id].map((entry) => (
-                <div className="timeline-item" key={`history-${entry.id}`}>
-                  <strong>
-                    {appointmentStatusLabel(entry.old_status ?? "scheduled")} → {appointmentStatusLabel(entry.new_status)}
-                  </strong>
-                  <span>{formatDateTime(entry.created_at)}</span>
-                  <span>{entry.change_reason ?? "Sin observación"}</span>
+            <div className="detail-stack">
+              <div className="detail-panel">
+                <strong>{focusedAppointment.doctor_name ?? `Doctor ${focusedAppointment.doctor_id}`}</strong>
+                <span>{formatDateTime(focusedAppointment.scheduled_start)}</span>
+                <span>{appointmentTypeLabel(focusedAppointment.appointment_type)}</span>
+                <span>{appointmentStatusLabel(focusedAppointment.status)}</span>
+                {renderAppointmentBadges(focusedAppointment)}
+                {reviewItem ? (
+                  <div className="timeline-item">
+                    <strong>{reviewReasonLabel(reviewItem.review_reason)}</strong>
+                    <span>{reviewItem.review_message}</span>
+                    <span>Horario solicitado: {formatDateTime(reviewItem.scheduled_start)}</span>
+                  </div>
+                ) : null}
+                {canManageAppointments ? (
+                  <div className="row-actions">
+                    <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "confirmed")}>
+                      Confirmar
+                    </button>
+                    <button
+                      type="button"
+                      className="success-button"
+                      onClick={() => reminderNow(focusedAppointment.id)}
+                      disabled={focusedAppointment.status === "cancelled" || focusedAppointment.confirmation_status === "cancelled"}
+                    >
+                      Enviar recordatorio ahora
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "cancelled")}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="success-button" onClick={() => updateAppointmentStatus(focusedAppointment.id, "completed")}>
+                      Completar
+                    </button>
+                  </div>
+                ) : null}
+                <div className="row-actions">
+                  <button type="button" className="secondary-button" onClick={() => onGoToPatient(focusedAppointment.patient_id)}>
+                    Ver paciente
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => onGoToMessagesForAppointment(focusedAppointment.id, focusedAppointment.patient_id)}
+                  >
+                    Ver mensajes
+                  </button>
                 </div>
-              ))
-            ) : (
-              <p className="empty-state">Sin movimientos registrados.</p>
-            )}
-          </div>
-          <div className="detail-panel">
-            <strong>Mensajes relacionados</strong>
-            {relatedDispatches.length ? (
-              relatedDispatches.map((dispatch) => (
-                <div className="timeline-item" key={`dispatch-${dispatch.id}`}>
-                  <strong>{dispatch.template_title ?? "Mensaje"}</strong>
-                  <span>{dispatchStatusLabel(dispatch.status)} · {formatDateTime(dispatch.created_at)}</span>
-                  <span>{dispatch.rendered_message ?? "Sin contenido generado."}</span>
-                  {canViewGlobalCommunications ? (
-                    <div className="row-actions">
-                      <button type="button" className="secondary-button" onClick={() => openDispatchAttempts(dispatch.id)}>
-                        {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
-                      </button>
+              </div>
+              <div className="detail-panel">
+                <strong>Historial</strong>
+                {appointmentHistory[focusedAppointment.id]?.length ? (
+                  appointmentHistory[focusedAppointment.id].map((entry) => (
+                    <div className="timeline-item" key={`history-${entry.id}`}>
+                      <strong>
+                        {appointmentStatusLabel(entry.old_status ?? "scheduled")} → {appointmentStatusLabel(entry.new_status)}
+                      </strong>
+                      <span>{formatDateTime(entry.created_at)}</span>
+                      <span>{entry.change_reason ?? "Sin observación"}</span>
                     </div>
-                  ) : null}
-                  {expandedDispatchId === dispatch.id ? (
-                    <div className="attempt-list">
-                      {dispatchAttempts[dispatch.id]?.length ? (
-                        dispatchAttempts[dispatch.id].map((attempt) => (
-                          <div className="timeline-item" key={`attempt-${attempt.id}`}>
-                            <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
-                            <span>{formatDateTime(attempt.attempted_at)}</span>
-                            <span>{attempt.error_message ?? "Sin error"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="empty-state">Sin intentos registrados.</p>
-                      )}
+                  ))
+                ) : (
+                  <p className="empty-state">Sin movimientos registrados.</p>
+                )}
+              </div>
+              <div className="detail-panel">
+                <strong>Mensajes relacionados</strong>
+                {relatedDispatches.length ? (
+                  relatedDispatches.map((dispatch) => (
+                    <div className="timeline-item" key={`dispatch-${dispatch.id}`}>
+                      <strong>{dispatch.template_title ?? "Mensaje"}</strong>
+                      <span>{dispatchStatusLabel(dispatch.status)} · {formatDateTime(dispatch.created_at)}</span>
+                      <span>{dispatch.rendered_message ?? "Sin contenido generado."}</span>
+                      {canViewGlobalCommunications ? (
+                        <div className="row-actions">
+                          <button type="button" className="secondary-button" onClick={() => openDispatchAttempts(dispatch.id)}>
+                            {expandedDispatchId === dispatch.id ? "Ocultar intentos" : "Ver intentos"}
+                          </button>
+                        </div>
+                      ) : null}
+                      {expandedDispatchId === dispatch.id ? (
+                        <div className="attempt-list">
+                          {dispatchAttempts[dispatch.id]?.length ? (
+                            dispatchAttempts[dispatch.id].map((attempt) => (
+                              <div className="timeline-item" key={`attempt-${attempt.id}`}>
+                                <strong>{dispatchStatusLabel(attempt.result_status)}</strong>
+                                <span>{formatDateTime(attempt.attempted_at)}</span>
+                                <span>{attempt.error_message ?? "Sin error"}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="empty-state">Sin intentos registrados.</p>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <p className="empty-state">Esta cita todavía no tiene mensajes ligados.</p>
-            )}
+                  ))
+                ) : (
+                  <p className="empty-state">Esta cita todavía no tiene mensajes ligados.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </article>
+      </>
     );
   };
 

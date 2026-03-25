@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { apiGet } from "@/lib/api";
 import type {
@@ -97,6 +97,7 @@ export function useClinicalDataLoader({
   setTemplateDoctorId,
   templateFormDoctorId,
 }: UseClinicalDataLoaderParams) {
+  const rolesKey = currentRoles.join("|");
   const scopedDoctorIdForLoad = useMemo(() => {
     const activeDoctors = data.doctors.filter((doctor) => doctor.is_active);
     if (currentRoles.includes("doctor")) {
@@ -126,52 +127,16 @@ export function useClinicalDataLoader({
         dispatchParams.set("query", dispatchFilters.query.trim());
       }
 
-      const [
-        doctors,
-        patients,
-        appointments,
-        encounters,
-        loadedReminderRules,
-        loadedTemplates,
-        loadedDispatches,
-        loadedDispatchSummary,
-        loadedReviewItems,
-        loadedReceptionists,
-        loadedClinicSetting,
-        loadedEmailTemplates,
-        loadedEmailDispatches,
-      ] = await Promise.all([
+      const [doctors, patients, appointments, encounters, loadedClinicSetting] = await Promise.all([
         apiGet<Doctor[]>("/api/doctors"),
         apiGet<Patient[]>(patientPathWithScope),
         apiGet<Appointment[]>("/api/appointments"),
         apiGet<Encounter[]>("/api/encounters"),
-        canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
-        canViewGestion ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
-        canViewGlobalCommunications
-          ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
-          : Promise.resolve([]),
-        canViewGlobalCommunications
-          ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary")
-          : Promise.resolve(null),
-        canViewReviewQueue
-          ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20")
-          : Promise.resolve([]),
-        isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
         apiGet<ClinicSetting>("/api/clinic-settings"),
-        isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
-        isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
       ]);
 
       setData({ doctors, patients, appointments, encounters });
-      setReminderRules(loadedReminderRules);
-      setCommunicationTemplates(loadedTemplates);
-      setCommunicationDispatches(loadedDispatches);
-      setCommunicationDispatchSummary(loadedDispatchSummary);
-      setAppointmentReviewItems(loadedReviewItems);
-      setReceptionists(loadedReceptionists);
       setClinicSetting(loadedClinicSetting);
-      setEmailTemplates(loadedEmailTemplates);
-      setEmailDispatches(loadedEmailDispatches);
 
       if (!encounterFormDoctorId && doctors[0]) {
         setEncounterDoctorId(String(doctors[0].id));
@@ -188,6 +153,51 @@ export function useClinicalDataLoader({
       if (!templateFormDoctorId && doctors[0] && currentRoles.includes("doctor")) {
         setTemplateDoctorId(String(doctors[0].id));
       }
+
+      void (async () => {
+        try {
+          const [
+            loadedReminderRules,
+            loadedTemplates,
+            loadedDispatches,
+            loadedDispatchSummary,
+            loadedReviewItems,
+            loadedReceptionists,
+            loadedEmailTemplates,
+            loadedEmailDispatches,
+          ] = await Promise.all([
+            canViewGestion ? apiGet<ReminderRule[]>("/api/reminder-rules") : Promise.resolve([]),
+            canViewGestion ? apiGet<CommunicationTemplate[]>("/api/communication-templates") : Promise.resolve([]),
+            canViewGlobalCommunications
+              ? apiGet<CommunicationDispatch[]>(`/api/communication-dispatches?${dispatchParams.toString()}`)
+              : Promise.resolve([]),
+            canViewGlobalCommunications
+              ? apiGet<CommunicationDispatchSummary>("/api/communication-dispatches/summary")
+              : Promise.resolve(null),
+            canViewReviewQueue
+              ? apiGet<AppointmentReviewItem[]>("/api/appointment-review-items?review_status=pending_review&limit=20")
+              : Promise.resolve([]),
+            isAdmin ? apiGet<Receptionist[]>("/api/receptionists") : Promise.resolve([]),
+            isAdmin ? apiGet<EmailTemplate[]>("/api/email-templates") : Promise.resolve([]),
+            isAdmin ? apiGet<EmailDispatch[]>("/api/email-dispatches") : Promise.resolve([]),
+          ]);
+
+          setReminderRules(loadedReminderRules);
+          setCommunicationTemplates(loadedTemplates);
+          setCommunicationDispatches(loadedDispatches);
+          setCommunicationDispatchSummary(loadedDispatchSummary);
+          setAppointmentReviewItems(loadedReviewItems);
+          setReceptionists(loadedReceptionists);
+          setEmailTemplates(loadedEmailTemplates);
+          setEmailDispatches(loadedEmailDispatches);
+        } catch (backgroundError) {
+          setMessage(
+            backgroundError instanceof Error
+              ? backgroundError.message
+              : "No se pudo cargar parte de la información complementaria.",
+          );
+        }
+      })();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo cargar la información clínica.");
     } finally {
@@ -225,11 +235,25 @@ export function useClinicalDataLoader({
     templateFormDoctorId,
   ]);
 
+  const loadDataRef = useRef(loadData);
+
+  useEffect(() => {
+    loadDataRef.current = loadData;
+  }, [loadData]);
+
   useEffect(() => {
     if (isAuthenticated) {
-      loadData();
+      void loadDataRef.current();
     }
-  }, [isAuthenticated, loadData]);
+  }, [
+    dispatchFilters.channel,
+    dispatchFilters.query,
+    dispatchFilters.status_filter,
+    isAuthenticated,
+    patientSearch,
+    rolesKey,
+    scopedDoctorIdForLoad,
+  ]);
 
   return {
     loadData,
