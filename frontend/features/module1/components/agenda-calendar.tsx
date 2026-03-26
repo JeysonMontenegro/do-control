@@ -6,7 +6,7 @@ import type { Appointment } from "@/features/module1/types";
 import type { CalendarView } from "@/features/module1/console-config";
 import { appointmentStatusLabel, appointmentTypeLabel, formatDate, formatTime, formatWeekday, getAppointmentEventClassName, isSameDay, startOfDay } from "@/features/module1/console-utils";
 
-const AGENDA_SLOT_HEIGHT = 26;
+const AGENDA_SLOT_HEIGHT = 36;
 const AGENDA_EVENT_GAP = 4;
 const AGENDA_STACK_OFFSET = 18;
 
@@ -18,8 +18,25 @@ type AgendaCalendarProps = {
   slotLabels: string[];
   appointmentsByDayKey: Map<string, Appointment[]>;
   onSelectAppointment: (appointmentId: number) => void;
-  calendarMetrics: (appointment: Appointment) => { rowStart: number; rowEnd: number };
+  calendarMetrics: (appointment: Appointment) => {
+    rowStart: number;
+    rowEnd: number;
+    clampedStart: number;
+    clampedEnd: number;
+    dayStart: number;
+  };
 };
+
+function pixelOffsetForMinutes(
+  minuteOffset: number,
+  rowHeights: number[],
+  rowOffsets: number[],
+) {
+  const normalizedOffset = Math.max(0, minuteOffset);
+  const rowIndex = Math.min(rowHeights.length - 1, Math.floor(normalizedOffset / 30));
+  const minuteRemainder = normalizedOffset % 30;
+  return rowOffsets[rowIndex] + rowHeights[rowIndex] * (minuteRemainder / 30);
+}
 
 export function AgendaCalendar({
   calendarView,
@@ -115,7 +132,6 @@ export function AgendaCalendar({
     >
       <span>{formatTime(appointment.scheduled_start)}</span>
       <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-      <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
     </button>
   );
 
@@ -238,20 +254,29 @@ export function AgendaCalendar({
                   const stackedLayout = stackedLayouts.get(appointment.id) ?? { stackIndex: 0, stackSize: 1 };
                   const startIndex = Math.max(0, metrics.rowStart - 2);
                   const endIndex = Math.max(startIndex + 1, metrics.rowEnd - 2);
+                  const visibleEndMinutes = Math.max(metrics.clampedEnd, metrics.clampedStart + 30);
+                  const startMinuteOffset = metrics.clampedStart - metrics.dayStart;
+                  const endMinuteOffset = visibleEndMinutes - metrics.dayStart;
                   const topOffset = isDayView
-                    ? (metrics.rowStart - 2) * AGENDA_SLOT_HEIGHT + 3
-                    : rowMetrics.rowOffsets[startIndex] + stackedLayout.stackIndex * AGENDA_STACK_OFFSET + 3;
+                    ? (startMinuteOffset / 30) * AGENDA_SLOT_HEIGHT + 3
+                    : pixelOffsetForMinutes(startMinuteOffset, rowMetrics.rowHeights, rowMetrics.rowOffsets) +
+                      stackedLayout.stackIndex * AGENDA_STACK_OFFSET +
+                      3;
                   const baseHeight = isDayView
-                    ? Math.max(AGENDA_SLOT_HEIGHT, (metrics.rowEnd - metrics.rowStart) * AGENDA_SLOT_HEIGHT - 6)
+                    ? Math.max(AGENDA_SLOT_HEIGHT, ((visibleEndMinutes - metrics.clampedStart) / 30) * AGENDA_SLOT_HEIGHT - 6)
                     : Math.max(
                         AGENDA_SLOT_HEIGHT,
-                        rowMetrics.rowHeights.slice(startIndex, endIndex).reduce((sum, height) => sum + height, 0) - 6,
+                        pixelOffsetForMinutes(endMinuteOffset, rowMetrics.rowHeights, rowMetrics.rowOffsets) -
+                          pixelOffsetForMinutes(startMinuteOffset, rowMetrics.rowHeights, rowMetrics.rowOffsets) -
+                          6,
                       );
                   return (
                     <button
                       type="button"
                       key={`grid-appointment-${appointment.id}`}
-                      className={`agenda-event agenda-event-${getAppointmentEventClassName(appointment)}${isDayView && overlapLayout.columnCount > 1 ? " agenda-event-compact" : ""}`}
+                      className={`agenda-event agenda-event-${getAppointmentEventClassName(appointment)}${
+                        isDayView && overlapLayout.columnCount > 1 ? " agenda-event-compact" : ""
+                      }${baseHeight <= AGENDA_SLOT_HEIGHT + 6 ? " agenda-event-tight" : ""}`}
                       style={
                         {
                           top: `${topOffset}px`,
@@ -266,7 +291,6 @@ export function AgendaCalendar({
                     >
                       <span>{formatTime(appointment.scheduled_start)}</span>
                       <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                      <small>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</small>
                     </button>
                   );
                 })}

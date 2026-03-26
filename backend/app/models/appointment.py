@@ -29,6 +29,7 @@ class Appointment(TimestampMixin, Base):
     scheduled_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     appointment_type: Mapped[str] = mapped_column(String(100))
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="scheduled", server_default="scheduled")
     confirmation_status: Mapped[str] = mapped_column(
         String(30),

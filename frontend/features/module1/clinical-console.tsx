@@ -45,6 +45,7 @@ import {
   slotLabels,
 } from "@/features/module1/console-config";
 import {
+  addMinutesToDisplayDateTime,
   appointmentTypeLabel,
   calendarRangeLabel,
   communicationKindLabel,
@@ -207,6 +208,14 @@ export function ClinicalConsole() {
     },
   });
 
+  useEffect(() => {
+    if (!isAuthenticated || !message || loading) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setMessage(""), 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [isAuthenticated, loading, message]);
+
   const canManagePatients = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canManageAppointments = hasAnyRole(currentRoles, ["admin", "doctor", "receptionist"]);
   const canManageEncounters = hasAnyRole(currentRoles, ["admin", "doctor"]);
@@ -368,12 +377,15 @@ export function ClinicalConsole() {
     appointmentForm,
     appointmentHistory,
     expandedAppointmentId,
+    isSubmittingAppointment,
+    isSavingAppointmentNotes,
     setAppointmentDispatches,
     setAppointmentFilter,
     setAppointmentForm,
     setExpandedAppointmentId,
     submitAppointment,
     toggleAppointmentHistory,
+    updateAppointmentNotes,
     updateAppointmentStatus,
   } = useAppointmentAdmin({
     loadData,
@@ -384,6 +396,26 @@ export function ClinicalConsole() {
     setSelectedPatientId,
     setSelectedSummary,
   });
+
+  const syncAppointmentEndFields = (
+    current: typeof appointmentForm,
+    overrides: Partial<typeof appointmentForm>,
+  ) => {
+    const next = { ...current, ...overrides };
+    if (next.use_manual_end_time) {
+      return next;
+    }
+    const derived = addMinutesToDisplayDateTime(
+      next.scheduled_start_date,
+      next.scheduled_start_time,
+      Number(next.duration_minutes || "30"),
+    );
+    return {
+      ...next,
+      scheduled_end_date: derived.date,
+      scheduled_end_time: derived.time,
+    };
+  };
   const {
     agendaDays,
     appointmentsByDayKey,
@@ -447,6 +479,7 @@ export function ClinicalConsole() {
     setPatientForm,
     submitPatient,
     submitPatientUpdate,
+    togglePatientActive,
   } = usePatientAdmin({
     availableDoctors,
     hasSingleDoctorContext,
@@ -570,7 +603,8 @@ export function ClinicalConsole() {
     setSelectedPatientId,
   });
 
-  const { activateDefault24HourReminder, submitReminderRule, toggleReminderRule } = useReminderAdmin({
+  const { activateDefault24HourReminder, setDoctorReminderRuleActive, submitReminderRule, toggleReminderRule } = useReminderAdmin({
+    availableDoctorIds: availableDoctors.map((doctor) => doctor.id),
     communicationTemplates,
     loadData,
     reminderRuleForm,
@@ -699,6 +733,7 @@ export function ClinicalConsole() {
       onPatientSearchChange: setPatientSearch,
       onSelectPatient: setSelectedPatientId,
       onShowCreatePatientModal: () => setActiveSectionAction("patient_create"),
+      onToggleSelectedPatientActive: () => selectedSummary && togglePatientActive(selectedSummary.patient),
       patientSearch,
       patients: filteredPatients,
       selectedPatientId,
@@ -751,6 +786,8 @@ export function ClinicalConsole() {
                 canChooseAmongMultipleDoctors,
                 canManageAppointments,
                 canViewGlobalCommunications,
+                isSubmittingAppointment,
+                isSavingAppointmentNotes,
                 data: { appointments: filteredAppointments, encounters: filteredEncounters, patients: filteredPatients },
                 dispatchAttempts,
                 doctorFilter,
@@ -763,21 +800,28 @@ export function ClinicalConsole() {
                 isAdmin,
                 monthDays,
                 onAppointmentDoctorFieldChange: (value) => setAppointmentForm((current) => ({ ...current, doctor_id: value })),
+                onAppointmentDurationFieldChange: (value) =>
+                  setAppointmentForm((current) => syncAppointmentEndFields(current, { duration_minutes: value })),
                 onAppointmentEndDateFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_date: value })),
                 onAppointmentEndTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_end_time: value })),
+                onAppointmentManualEndFieldToggle: (value) =>
+                  setAppointmentForm((current) => syncAppointmentEndFields(current, { use_manual_end_time: value })),
                 onAppointmentFilterChange: setAppointmentFilter,
                 onAppointmentNotifyPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, notify_patient: value })),
+                onAppointmentNotesFieldChange: (value) => setAppointmentForm((current) => ({ ...current, internal_notes: value })),
                 onAppointmentPatientFieldChange: (value) => setAppointmentForm((current) => ({ ...current, patient_id: value })),
                 onAppointmentReasonFieldChange: (value) => setAppointmentForm((current) => ({ ...current, reason: value })),
                 onAppointmentStartDateFieldChange: (value) =>
-                  setAppointmentForm((current) => ({ ...current, scheduled_start_date: value, scheduled_end_date: value })),
-                onAppointmentStartTimeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, scheduled_start_time: value })),
+                  setAppointmentForm((current) => syncAppointmentEndFields(current, { scheduled_start_date: value, scheduled_end_date: value })),
+                onAppointmentStartTimeFieldChange: (value) =>
+                  setAppointmentForm((current) => syncAppointmentEndFields(current, { scheduled_start_time: value })),
                 onAppointmentTypeFieldChange: (value) => setAppointmentForm((current) => ({ ...current, appointment_type: value })),
                 onCalendarViewChange: setCalendarView,
                 onCloseFocusedAppointment: () => setExpandedAppointmentId(null),
                 onDoctorFilterChange: setDoctorFilter,
                 onGoToMessagesForAppointment: goToMessagesForAppointment,
                 onGoToPatient: goToPatient,
+                onSaveAppointmentNotes: updateAppointmentNotes,
                 onSelectAppointment: toggleAppointmentHistory,
                 openDispatchAttempts: toggleDispatchAttempts,
                 reminderNow: sendAppointmentReminderNow,
@@ -870,20 +914,18 @@ export function ClinicalConsole() {
                 reminderRules,
                 remindersScheduledCount,
                 resendEmailDispatch,
-                saveConfirmationTemplate,
                 saveEmailTemplate,
                 scopedDoctorId,
                 scopedUpcomingAppointments,
                 selectedDoctor,
                 selectedReceptionist,
                 sendTestEmail,
+                setDoctorReminderRuleActive,
                 setEmailTemplateForm,
                 setProfileForm,
                 setReminderRuleForm,
-                setTemplateForm,
                 setTestEmailRecipient,
                 submitReminderRule,
-                templateForm,
                 testEmailRecipient,
                 toggleEmailDelivery,
                 toggleEmailWhitelist,
@@ -892,7 +934,6 @@ export function ClinicalConsole() {
                 toggleMultiDoctorVisibility,
                 toggleReceptionistActive,
                 toggleReminderRule,
-                toggleTemplate,
                 unconfirmedUpcomingCount,
                 updateCurrentProfile,
                 uploadCurrentProfilePhoto,
@@ -928,6 +969,7 @@ export function ClinicalConsole() {
                 availableDoctors,
                 patientEditForm,
                 patientForm,
+                onTogglePatientActive: () => selectedSummary && togglePatientActive(selectedSummary.patient),
                 setActiveSectionAction,
                 setPatientEditForm,
                 setPatientForm,

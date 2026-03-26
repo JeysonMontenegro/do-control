@@ -1,5 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { PhoneField } from "@/features/module1/components/form-fields";
 import { formatDateTime } from "@/features/module1/console-utils";
 import type { Appointment } from "@/features/module1/types";
@@ -62,6 +65,49 @@ export function GestionSummarySection({
   uploadCurrentProfilePhoto,
   variant = "summary",
 }: GestionSummarySectionProps) {
+  const reminderColumns = useMemo<ClinicalGridColumn<Appointment>[]>(
+    () => [
+      {
+        headerName: "Paciente",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.patient_name ?? (data ? `Paciente ${data.patient_id}` : ""),
+        exportValue: (row) => row.patient_name ?? `Paciente ${row.patient_id}`,
+      },
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.doctor_name ?? (data ? `Doctor ${data.doctor_id}` : ""),
+        exportValue: (row) => row.doctor_name ?? `Doctor ${row.doctor_id}`,
+      },
+      {
+        headerName: "Fecha y hora",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data ? formatDateTime(data.scheduled_start) : ""),
+        exportValue: (row) => formatDateTime(row.scheduled_start),
+      },
+      {
+        headerName: "Estado",
+        minWidth: 140,
+        valueGetter: ({ data }) => data?.status ?? "",
+        exportValue: (row) => row.status,
+      },
+      {
+        headerName: "Abrir",
+        minWidth: 140,
+        excludeFromExport: true,
+        cellRenderer: (params: { data?: Appointment }) =>
+          params.data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="secondary-button" onClick={() => onGoToAgendaAppointment(params.data!.id)}>
+                Ver cita
+              </button>
+            </div>
+          ) : null,
+      },
+    ],
+    [onGoToAgendaAppointment],
+  );
+
   return (
     <>
       {variant === "profile" ? (
@@ -293,21 +339,13 @@ export function GestionSummarySection({
             <span>Canceladas</span>
           </div>
         </div>
-        <div className="table-list">
-          {scopedUpcomingAppointments.slice(0, 6).map((appointment) => (
-            <button
-              type="button"
-              className="simple-list-item"
-              key={`gestion-upcoming-${appointment.id}`}
-              onClick={() => onGoToAgendaAppointment(appointment.id)}
-            >
-              <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-              <span>{formatDateTime(appointment.scheduled_start)}</span>
-              <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
-            </button>
-          ))}
-          {!scopedUpcomingAppointments.length ? <p className="empty-state">No hay citas futuras para este contexto.</p> : null}
-        </div>
+        <ClinicalDataGrid<Appointment>
+          columns={reminderColumns}
+          emptyMessage="No hay citas futuras para este contexto."
+          exportFileName="seguimiento-de-recordatorios"
+          quickFilter=""
+          rowData={scopedUpcomingAppointments}
+        />
       </article>
       ) : null}
     </>

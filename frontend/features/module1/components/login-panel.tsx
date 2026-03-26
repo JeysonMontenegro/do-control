@@ -28,17 +28,23 @@ export function LoginPanel({ loginForm, message, onSubmit, setLoginForm, tone }:
       </div>
       <form className="login-form" onSubmit={onSubmit}>
         <input
+          id="login-email"
+          name="email"
           type="email"
           value={loginForm.email}
           onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
           placeholder="Correo"
+          autoComplete="username"
           required
         />
         <input
+          id="login-password"
+          name="password"
           type="password"
           value={loginForm.password}
           onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
           placeholder="Contraseña"
+          autoComplete="current-password"
           required
         />
         <button type="submit">Entrar</button>

@@ -13,6 +13,7 @@ from app.schemas.appointment import (
     AppointmentHistoryRead,
     AppointmentPublicCardRead,
     AppointmentRead,
+    AppointmentUpdate,
     AppointmentStatusUpdate,
 )
 from app.services.appointme_webhook import AppointMeWebhookService
@@ -47,6 +48,7 @@ class AppointmentService:
             scheduled_end=appointment.scheduled_end,
             appointment_type=appointment.appointment_type,
             reason=appointment.reason,
+            internal_notes=appointment.internal_notes,
             status=appointment.status,
             confirmation_status=appointment.confirmation_status,
             source=appointment.source,
@@ -109,6 +111,7 @@ class AppointmentService:
         if not source:
             raise ValidationError("Appointment source is required.")
         reason = payload.reason.strip() if payload.reason is not None else None
+        internal_notes = payload.internal_notes.strip() if payload.internal_notes is not None else None
         created_by = payload.created_by.strip() if payload.created_by is not None else None
         notify_patient = payload.notify_patient
         if accessible_doctor_ids is not None and payload.doctor_id not in accessible_doctor_ids:
@@ -136,6 +139,7 @@ class AppointmentService:
             {
                 "appointment_type": appointment_type,
                 "reason": reason,
+                "internal_notes": internal_notes,
                 "source": source,
                 "created_by": created_by,
             }
@@ -232,6 +236,37 @@ class AppointmentService:
             actor_id=changed_by,
             before_data={"confirmation_status": previous_confirmation},
             after_data={"confirmation_status": appointment.confirmation_status},
+        )
+        self.db.commit()
+        self.db.refresh(appointment)
+        return self._serialize_appointment(appointment)
+
+    def update_appointment(
+        self,
+        appointment_id: int,
+        payload: AppointmentUpdate,
+        *,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> AppointmentRead:
+        appointment = self.repository.get(appointment_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        if accessible_doctor_ids is not None and appointment.doctor_id not in accessible_doctor_ids:
+            raise ValidationError("You cannot update appointments for that doctor.")
+
+        changed_by = payload.changed_by.strip() if payload.changed_by is not None else None
+        normalized_notes = payload.internal_notes.strip() if payload.internal_notes is not None else None
+        old_notes = appointment.internal_notes
+        appointment.internal_notes = normalized_notes or None
+
+        create_audit_log(
+            self.db,
+            action="update_notes",
+            entity_type="appointment",
+            entity_id=str(appointment.id),
+            actor_id=changed_by,
+            before_data={"internal_notes": old_notes},
+            after_data={"internal_notes": appointment.internal_notes},
         )
         self.db.commit()
         self.db.refresh(appointment)

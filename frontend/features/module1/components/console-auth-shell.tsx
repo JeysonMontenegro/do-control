@@ -34,7 +34,7 @@ export function ConsoleAuthShell({
       <div className="app-content">
         <ConsoleTopbar {...topbarProps} />
 
-        {message ? <p className={`message-box message-box-${messageTone}`}>{message}</p> : null}
+        {message ? <div className={`app-toast app-toast-${messageTone}`}>{message}</div> : null}
         {loading ? <p className="message-box message-box-info">Cargando información clínica...</p> : null}
         {!loading && overviewStripProps ? <ConsoleOverviewStrip {...overviewStripProps} /> : null}
 

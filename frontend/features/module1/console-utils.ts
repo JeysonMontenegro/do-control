@@ -36,6 +36,16 @@ export const combineDisplayDateTimeToIso = (dateValue: string, timeValue: string
   return new Date(`${normalizedDate}T${timeValue}`).toISOString();
 };
 
+export const addMinutesToDisplayDateTime = (dateValue: string, timeValue: string, minutes: number) => {
+  const normalizedDate = parseDisplayDate(dateValue);
+  if (!normalizedDate || !timeValue || Number.isNaN(minutes)) {
+    return { date: dateValue, time: timeValue };
+  }
+  const nextValue = new Date(`${normalizedDate}T${timeValue}`);
+  nextValue.setMinutes(nextValue.getMinutes() + minutes);
+  return splitDateTimeLocal(nextValue.toISOString().slice(0, 16));
+};
+
 export const formatDateTime = (value: string | null) => {
   if (!value) {
     return "Sin fecha";

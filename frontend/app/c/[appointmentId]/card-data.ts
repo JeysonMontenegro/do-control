@@ -35,19 +35,24 @@ export async function fetchAppointmentCard(appointmentId: string): Promise<Appoi
 }
 
 export function formatAppointmentKind(value: string) {
+  const normalizedValue = value.trim().toLowerCase();
   const directMap: Record<string, string> = {
     follow_up: "Seguimiento",
     first_visit: "Primera consulta",
+    first_consultation: "Primera consulta",
     control: "Control",
     exam_review: "Revisión de exámenes",
     emergency: "Urgencia",
+    procedure: "Procedimiento",
+    checkup: "Chequeo",
+    virtual_consultation: "Consulta virtual",
   };
 
-  if (directMap[value]) {
-    return directMap[value];
+  if (directMap[normalizedValue]) {
+    return directMap[normalizedValue];
   }
 
-  return value
+  return normalizedValue
     .replace(/[_-]+/g, " ")
     .trim()
     .replace(/\s+/g, " ")

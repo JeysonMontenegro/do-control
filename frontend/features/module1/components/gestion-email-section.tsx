@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+
+import { EmailDispatchesGrid } from "@/features/module1/components/email-dispatches-grid";
 import { formatDateTime } from "@/features/module1/console-utils";
 import type {
   ClinicSetting,
@@ -95,6 +98,10 @@ export function GestionEmailSection({
   toggleEmailDelivery,
   toggleEmailProcessSetting,
 }: GestionEmailSectionProps) {
+  const [dispatchSearch, setDispatchSearch] = useState("");
+  const [dispatchStatusFilter, setDispatchStatusFilter] = useState("all");
+  const [activeDispatch, setActiveDispatch] = useState<EmailDispatch | null>(null);
+
   return (
     <>
       <article className="card section-card span-three">
@@ -273,26 +280,79 @@ export function GestionEmailSection({
             <p className="eyebrow">Correos</p>
             <h2>Envios recientes</h2>
           </div>
+          <div className="section-tools-panel email-dispatch-toolbar">
+            <select
+              value={dispatchStatusFilter}
+              onChange={(event) => {
+                setDispatchStatusFilter(event.target.value);
+              }}
+            >
+              <option value="all">Todos los estados</option>
+              <option value="pending">Pendientes</option>
+              <option value="sent">Enviados</option>
+              <option value="delivered">Entregados</option>
+              <option value="failed">Fallidos</option>
+              <option value="skipped">Omitidos</option>
+            </select>
+            <input
+              className="search-input"
+              placeholder="Buscar destinatario, asunto, template o error"
+              value={dispatchSearch}
+              onChange={(event) => setDispatchSearch(event.target.value)}
+            />
+          </div>
         </div>
-        <div className="table-list">
-          {emailDispatches.map((dispatch) => (
-            <div className="simple-list-item" key={`email-dispatch-${dispatch.id}`}>
-              <strong>{dispatch.subject}</strong>
-              <span>{dispatch.recipient_email}</span>
-              <span>{dispatch.template_key ?? "Correo libre"}</span>
-              <span>{dispatch.status}</span>
-              <span>{formatDateTime(dispatch.created_at)}</span>
-              {dispatch.error_message ? <span>{dispatch.error_message}</span> : null}
+        <EmailDispatchesGrid
+          dispatches={emailDispatches}
+          quickFilter={dispatchSearch}
+          statusFilter={dispatchStatusFilter}
+          onOpenDispatch={setActiveDispatch}
+          onResendDispatch={resendEmailDispatch}
+        />
+      </article>
+      {activeDispatch ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card email-dispatch-modal">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Correo</p>
+                <h2>{activeDispatch.subject}</h2>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setActiveDispatch(null)}>
+                Cerrar
+              </button>
+            </div>
+            <div className="detail-stack">
+              <div className="detail-panel">
+                <strong>{activeDispatch.recipient_email}</strong>
+                <span>Estado: {activeDispatch.status}</span>
+                <span>Template: {activeDispatch.template_key ?? "Correo libre"}</span>
+                <span>Proveedor: {activeDispatch.provider || "Sin proveedor"}</span>
+                <span>Creado: {formatDateTime(activeDispatch.created_at)}</span>
+                {activeDispatch.provider_message_id ? <span>Id proveedor: {activeDispatch.provider_message_id}</span> : null}
+                {activeDispatch.error_message ? <span>Error: {activeDispatch.error_message}</span> : null}
+              </div>
+              <div className="detail-panel">
+                <strong>Asunto</strong>
+                <div className="message-preview">{activeDispatch.subject}</div>
+              </div>
+              <div className="detail-panel">
+                <strong>Texto plano</strong>
+                <div className="message-preview">{activeDispatch.text_body ?? "Sin versión en texto plano."}</div>
+              </div>
+              <div className="detail-panel">
+                <strong>HTML renderizado</strong>
+                <div className="message-preview">{activeDispatch.html_body}</div>
+              </div>
               <div className="row-actions">
-                <button type="button" className="success-button" onClick={() => resendEmailDispatch(dispatch.id)}>
+                <button type="button" className="success-button" onClick={() => resendEmailDispatch(activeDispatch.id)}>
                   Reenviar correo
                 </button>
               </div>
             </div>
-          ))}
-          {!emailDispatches.length ? <p className="empty-state">Todavia no hay correos enviados.</p> : null}
+          </div>
         </div>
-      </article>
+      ) : null}
     </>
   );
 }

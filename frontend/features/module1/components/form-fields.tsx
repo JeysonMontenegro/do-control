@@ -6,45 +6,65 @@ import { formatEditableDate, parseDisplayDate } from "@/features/module1/console
 import {
   buildPhoneNumber,
   COUNTRY_PHONE_OPTIONS,
+  formatPhoneLocalInput,
   getPhoneCountryCode,
   getPhoneLocalNumber,
 } from "@/features/module1/phone-utils";
 
 export function PhoneField({
+  id,
   label,
+  name,
   value,
   onChange,
   required = false,
   placeholder = "Número",
 }: {
+  id?: string;
   label: string;
+  name?: string;
   value: string;
   onChange: (nextValue: string) => void;
   required?: boolean;
   placeholder?: string;
 }) {
+  const generatedId = useId();
+  const fieldId = id ?? generatedId;
+  const selectId = `${fieldId}-country`;
+  const inputId = `${fieldId}-local`;
+  const baseName = name ?? fieldId;
   const countryCode = getPhoneCountryCode(value);
   const localNumber = getPhoneLocalNumber(value);
+  const localPlaceholder = countryCode === "+502" ? "XXXX XXXX" : placeholder;
 
   return (
     <label>
-      <span>
+      <span id={`${fieldId}-label`}>
         {label}
         {required ? <strong className="required-mark">*</strong> : null}
       </span>
       <div className="phone-field-stack">
-        <select value={countryCode} onChange={(event) => onChange(buildPhoneNumber(event.target.value, localNumber))}>
+        <select
+          id={selectId}
+          name={`${baseName}_country`}
+          aria-labelledby={`${fieldId}-label`}
+          value={countryCode}
+          onChange={(event) => onChange(buildPhoneNumber(event.target.value, localNumber))}
+        >
           {COUNTRY_PHONE_OPTIONS.map((option) => (
             <option key={option.code} value={option.code}>
-              {option.label} {option.code}
+              {option.label} {option.code.slice(1)}
             </option>
           ))}
         </select>
         <input
+          id={inputId}
+          name={baseName}
           className="phone-local-input"
-          value={localNumber}
+          aria-labelledby={`${fieldId}-label`}
+          value={formatPhoneLocalInput(countryCode, localNumber)}
           onChange={(event) => onChange(buildPhoneNumber(countryCode, event.target.value))}
-          placeholder={placeholder}
+          placeholder={localPlaceholder}
           inputMode="numeric"
           required={required}
         />
@@ -63,16 +83,22 @@ export function RequiredLabel({ children }: { children: string }) {
 }
 
 export function DateField({
+  id,
   label,
+  name,
   value,
   onChange,
   required = false,
 }: {
+  id?: string;
   label: string;
+  name?: string;
   value: string;
   onChange: (nextValue: string) => void;
   required?: boolean;
 }) {
+  const generatedId = useId();
+  const fieldId = id ?? generatedId;
   const pickerRef = useRef<HTMLInputElement | null>(null);
 
   const normalizeDateInput = (rawValue: string) => {
@@ -88,10 +114,13 @@ export function DateField({
 
   return (
     <label>
-      {required ? <RequiredLabel>{label}</RequiredLabel> : <span>{label}</span>}
+      <span id={`${fieldId}-label`}>{required ? <RequiredLabel>{label}</RequiredLabel> : label}</span>
       <div className="date-field-shell">
         <input
+          id={fieldId}
+          name={name ?? fieldId}
           type="text"
+          aria-labelledby={`${fieldId}-label`}
           inputMode="numeric"
           placeholder="dd/MM/yyyy"
           value={value}
@@ -126,6 +155,8 @@ export function DateField({
         </button>
         <input
           ref={pickerRef}
+          id={`${fieldId}-native`}
+          name={`${name ?? fieldId}_native`}
           className="date-field-native-picker"
           type="date"
           tabIndex={-1}
@@ -149,6 +180,8 @@ export function SearchableSelect({
   clearLabel,
   disabled = false,
   emptyMessage = "No hay resultados para esa busqueda.",
+  id,
+  name,
   options,
   placeholder,
   required = false,
@@ -159,6 +192,8 @@ export function SearchableSelect({
   clearLabel?: string;
   disabled?: boolean;
   emptyMessage?: string;
+  id?: string;
+  name?: string;
   options: SearchableSelectOption[];
   placeholder: string;
   required?: boolean;
@@ -170,7 +205,8 @@ export function SearchableSelect({
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const inputId = useId();
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   const listboxId = `${inputId}-listbox`;
   const selectedOption = options.find((option) => option.value === value) ?? null;
 
@@ -216,6 +252,8 @@ export function SearchableSelect({
   return (
     <div ref={containerRef} className={`searchable-select${isOpen ? " is-open" : ""}${disabled ? " is-disabled" : ""}`}>
       <input
+        id={inputId}
+        name={name ?? inputId}
         className="searchable-select-native-value"
         tabIndex={-1}
         aria-hidden="true"
@@ -244,6 +282,8 @@ export function SearchableSelect({
         <div className="searchable-select-panel">
           <input
             ref={searchInputRef}
+            id={`${inputId}-search`}
+            name={`${name ?? inputId}_search`}
             className="searchable-select-search"
             placeholder={searchPlaceholder}
             value={query}

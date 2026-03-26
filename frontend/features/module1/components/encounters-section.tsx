@@ -1,6 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
+
+import type { ICellRendererParams } from "ag-grid-community";
+
 import { ActiveFiltersBar } from "@/features/module1/components/active-filters-bar";
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel";
 import { DateField, RequiredLabel, SearchableSelect } from "@/features/module1/components/form-fields";
 import { encounterTypeLabel, formatDateTime } from "@/features/module1/console-utils";
@@ -136,6 +141,61 @@ export function EncountersSection({
     description: formatDateTime(encounter.encounter_date),
   }));
   const attachmentPatientId = selectedPatientId || encounterForm.patient_id;
+  const encounterHistoryColumns = useMemo<ClinicalGridColumn<Encounter>[]>(
+    () => [
+      {
+        headerName: "Tipo",
+        minWidth: 160,
+        valueGetter: ({ data }) => (data ? encounterTypeLabel(data.encounter_type) : ""),
+        exportValue: (row) => encounterTypeLabel(row.encounter_type),
+      },
+      {
+        headerName: "Fecha",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data ? formatDateTime(data.encounter_date) : ""),
+        exportValue: (row) => formatDateTime(row.encounter_date),
+      },
+      {
+        headerName: "Motivo",
+        field: "chief_complaint",
+        minWidth: 320,
+        flex: 1.4,
+        exportValue: (row) => row.chief_complaint,
+      },
+      {
+        headerName: "Estado",
+        field: "status",
+        minWidth: 120,
+        exportValue: (row) => row.status,
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 240,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<Encounter>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="secondary-button" onClick={() => onGoToPatient(data.patient_id)}>
+                Ver paciente
+              </button>
+              {data.appointment_id ? (
+                <button type="button" className="secondary-button" onClick={() => onGoToAgendaAppointment(data.appointment_id as number)}>
+                  Ver cita
+                </button>
+              ) : null}
+              {data.status !== "closed" && canManageEncounters ? (
+                <button type="button" className="danger-button" onClick={() => closeEncounter(data.id)}>
+                  Cerrar
+                </button>
+              ) : null}
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [canManageEncounters, closeEncounter, onGoToAgendaAppointment, onGoToPatient],
+  );
 
   return (
     <section className="tab-layout">
@@ -573,42 +633,21 @@ export function EncountersSection({
           resultsLabel="consultas visibles"
           resultsValue={encounters.length}
         />
-        <div className="table-list">
-          {encounters.length ? (
-            encounters.map((encounter) => (
-              <div className="simple-list-item" key={`encounter-${encounter.id}`}>
-                <strong>{encounterTypeLabel(encounter.encounter_type)}</strong>
-                <span>{formatDateTime(encounter.encounter_date)}</span>
-                <span>{encounter.chief_complaint}</span>
-                <div className="row-actions">
-                  <button type="button" className="secondary-button" onClick={() => onGoToPatient(encounter.patient_id)}>
-                    Ver paciente
-                  </button>
-                  {encounter.appointment_id ? (
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => onGoToAgendaAppointment(encounter.appointment_id as number)}
-                    >
-                      Ver cita
-                    </button>
-                  ) : null}
-                  {encounter.status !== "closed" && canManageEncounters ? (
-                    <button type="button" className="danger-button" onClick={() => closeEncounter(encounter.id)}>
-                      Cerrar
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          ) : (
-            <EmptyStatePanel
-              body="Cuando registres o recibas consultas dentro del contexto actual, apareceran aqui junto con sus adjuntos."
-              eyebrow="Historial"
-              title="Todavia no hay consultas visibles"
-            />
-          )}
-        </div>
+        {encounters.length ? (
+          <ClinicalDataGrid<Encounter>
+            columns={encounterHistoryColumns}
+            emptyMessage="Todavía no hay consultas visibles."
+            exportFileName="consultas-visibles"
+            quickFilter=""
+            rowData={encounters}
+          />
+        ) : (
+          <EmptyStatePanel
+            body="Cuando registres o recibas consultas dentro del contexto actual, apareceran aqui junto con sus adjuntos."
+            eyebrow="Historial"
+            title="Todavia no hay consultas visibles"
+          />
+        )}
       </article>
     </section>
   );

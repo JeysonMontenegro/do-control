@@ -74,6 +74,7 @@ export type Appointment = {
   scheduled_end: string;
   appointment_type: string;
   reason: string | null;
+  internal_notes: string | null;
   status: string;
   confirmation_status: string;
   source: string;

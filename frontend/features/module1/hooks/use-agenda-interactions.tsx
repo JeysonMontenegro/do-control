@@ -35,7 +35,13 @@ export function useAgendaInteractions({
     const clampedEnd = Math.min(endMinutes, dayEnd);
     const rowStart = Math.max(2, Math.floor((clampedStart - dayStart) / 30) + 2);
     const rowEnd = Math.max(rowStart + 1, Math.ceil((clampedEnd - dayStart) / 30) + 2);
-    return { rowStart, rowEnd };
+    return {
+      rowStart,
+      rowEnd,
+      clampedStart,
+      clampedEnd,
+      dayStart,
+    };
   };
 
   const goToPreviousRange = () => {

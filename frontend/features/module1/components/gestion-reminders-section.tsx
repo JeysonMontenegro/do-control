@@ -1,9 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
+import type { ICellRendererParams } from "ag-grid-community";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { CONFIRMATION_TEMPLATE_KEY } from "@/features/module1/console-config";
-import { SearchableSelect } from "@/features/module1/components/form-fields";
 import { reminderLeadTimeLabel } from "@/features/module1/console-utils";
-import type { Doctor, ReminderRule } from "@/features/module1/types";
+import type { Appointment, Doctor, ReminderRule } from "@/features/module1/types";
 
 type ReminderRuleFormState = {
   doctor_id: string;
@@ -23,8 +27,9 @@ type GestionRemindersSectionProps = {
   reminderRuleForm: ReminderRuleFormState;
   reminderRules: ReminderRule[];
   scopedDoctorId: number | null;
-  scopedUpcomingAppointmentsCount: number;
+  scopedUpcomingAppointments: Appointment[];
   selectedDoctor: Doctor | null;
+  setDoctorReminderRuleActive: (doctorId: number, isActive: boolean) => void;
   setReminderRuleForm: React.Dispatch<React.SetStateAction<ReminderRuleFormState>>;
   submitReminderRule: (event: React.FormEvent<HTMLFormElement>) => void;
   toggleReminderRule: (rule: ReminderRule) => void;
@@ -32,25 +37,174 @@ type GestionRemindersSectionProps = {
 
 export function GestionRemindersSection({
   activateDefault24HourReminder,
-  availableDoctors,
   doctorNameById,
   generalReminderRule,
   isAdmin,
-  reminderRuleForm,
   reminderRules,
   scopedDoctorId,
-  scopedUpcomingAppointmentsCount,
-  selectedDoctor,
-  setReminderRuleForm,
-  submitReminderRule,
+  scopedUpcomingAppointments,
   toggleReminderRule,
+  setDoctorReminderRuleActive,
+  availableDoctors,
+  selectedDoctor,
 }: GestionRemindersSectionProps) {
-  const doctorOptions = availableDoctors.map((doctor) => ({
-    value: String(doctor.id),
-    label: `Solo Dr. ${doctor.first_name} ${doctor.last_name}`,
-  }));
   const scopedReminderRules = reminderRules.filter(
     (rule) => scopedDoctorId === null || rule.doctor_id === null || rule.doctor_id === scopedDoctorId,
+  );
+  const scopedDoctorRules = scopedReminderRules.filter((rule) => rule.doctor_id !== null);
+  const generalRuleActive = Boolean(generalReminderRule?.is_active);
+  const [doctorCoverageSearch, setDoctorCoverageSearch] = useState("");
+  const [doctorRuleSearch, setDoctorRuleSearch] = useState("");
+  const doctorCards = (isAdmin ? availableDoctors : selectedDoctor ? [selectedDoctor] : []).map((doctor) => {
+    const doctorRule =
+      scopedDoctorRules.find((rule) => rule.doctor_id === doctor.id && rule.trigger_type === "before_appointment") ?? null;
+    const effectiveActive = doctorRule ? doctorRule.is_active : generalRuleActive;
+    const effectiveMinutes = doctorRule?.minutes_before ?? generalReminderRule?.minutes_before ?? 1440;
+    const effectiveTemplateKey = doctorRule?.template_key ?? generalReminderRule?.template_key ?? CONFIRMATION_TEMPLATE_KEY;
+    const coveredAppointments = scopedUpcomingAppointments.filter((appointment) => appointment.doctor_id === doctor.id).length;
+    const hasOwnRule = Boolean(doctorRule);
+    return {
+      doctor,
+      coveredAppointments,
+      effectiveActive,
+      effectiveMinutes,
+      effectiveTemplateKey,
+      hasOwnRule,
+      doctorRule,
+    };
+  });
+  const filteredDoctorCards = useMemo(() => {
+    const query = doctorCoverageSearch.trim().toLowerCase();
+    if (!query) {
+      return doctorCards;
+    }
+    return doctorCards.filter(({ doctor, effectiveTemplateKey }) =>
+      `${doctor.first_name} ${doctor.last_name} ${effectiveTemplateKey}`.toLowerCase().includes(query),
+    );
+  }, [doctorCards, doctorCoverageSearch]);
+  const filteredDoctorRules = useMemo(() => {
+    const query = doctorRuleSearch.trim().toLowerCase();
+    if (!query) {
+      return scopedDoctorRules;
+    }
+    return scopedDoctorRules.filter((rule) =>
+      `${doctorNameById.get(rule.doctor_id ?? -1) ?? ""} ${rule.template_key} ${rule.minutes_before}`.toLowerCase().includes(query),
+    );
+  }, [doctorNameById, doctorRuleSearch, scopedDoctorRules]);
+  const doctorCoverageColumns = useMemo<ClinicalGridColumn<(typeof doctorCards)[number]>[]>(
+    () => [
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        valueGetter: ({ data }) => (data ? `${data.doctor.first_name} ${data.doctor.last_name}` : ""),
+        exportValue: (row) => `${row.doctor.first_name} ${row.doctor.last_name}`,
+      },
+      {
+        headerName: "Estado",
+        minWidth: 150,
+        valueGetter: ({ data }) => (data?.effectiveActive ? "Recordatorios activos" : "Recordatorios inactivos"),
+        exportValue: (row) => (row.effectiveActive ? "Recordatorios activos" : "Recordatorios inactivos"),
+      },
+      {
+        headerName: "Citas próximas",
+        minWidth: 140,
+        valueGetter: ({ data }) => data?.coveredAppointments ?? 0,
+        exportValue: (row) => row.coveredAppointments,
+      },
+      {
+        headerName: "Anticipación",
+        minWidth: 150,
+        valueGetter: ({ data }) => (data ? reminderLeadTimeLabel(data.effectiveMinutes) : ""),
+        exportValue: (row) => reminderLeadTimeLabel(row.effectiveMinutes),
+      },
+      {
+        headerName: "Template",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data?.effectiveTemplateKey === CONFIRMATION_TEMPLATE_KEY ? "Template de confirmación" : `Template ${data?.effectiveTemplateKey}`),
+        exportValue: (row) => (row.effectiveTemplateKey === CONFIRMATION_TEMPLATE_KEY ? "Template de confirmación" : `Template ${row.effectiveTemplateKey}`),
+      },
+      {
+        headerName: "Cobertura",
+        minWidth: 170,
+        valueGetter: ({ data }) => (data?.hasOwnRule ? "Tiene excepción propia" : "Hereda la regla global"),
+        exportValue: (row) => (row.hasOwnRule ? "Tiene excepción propia" : "Hereda la regla global"),
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 220,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<(typeof doctorCards)[number]>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button
+                type="button"
+                className={data.effectiveActive ? "danger-button" : "success-button"}
+                onClick={() => setDoctorReminderRuleActive(data.doctor.id, !data.effectiveActive)}
+              >
+                {data.effectiveActive ? "Desactivar" : "Activar"}
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [setDoctorReminderRuleActive],
+  );
+  const doctorRuleColumns = useMemo<ClinicalGridColumn<ReminderRule>[]>(
+    () => [
+      {
+        headerName: "Regla",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data?.doctor_id ? "Regla por doctor" : "Regla general"),
+        exportValue: (row) => (row.doctor_id ? "Regla por doctor" : "Regla general"),
+      },
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        valueGetter: ({ data }) =>
+          data?.doctor_id ? doctorNameById.get(data.doctor_id) ?? `Doctor ${data.doctor_id}` : "General para toda la clínica",
+        exportValue: (row) => (row.doctor_id ? doctorNameById.get(row.doctor_id) ?? `Doctor ${row.doctor_id}` : "General para toda la clínica"),
+      },
+      {
+        headerName: "Anticipación",
+        minWidth: 150,
+        valueGetter: ({ data }) => (data ? reminderLeadTimeLabel(data.minutes_before) : ""),
+        exportValue: (row) => reminderLeadTimeLabel(row.minutes_before),
+      },
+      {
+        headerName: "Template",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data?.template_key === CONFIRMATION_TEMPLATE_KEY ? "Template de confirmación" : `Template ${data?.template_key}`),
+        exportValue: (row) => (row.template_key === CONFIRMATION_TEMPLATE_KEY ? "Template de confirmación" : `Template ${row.template_key}`),
+      },
+      {
+        headerName: "Estado",
+        minWidth: 120,
+        valueGetter: ({ data }) => (data?.is_active ? "Activa" : "Inactiva"),
+        exportValue: (row) => (row.is_active ? "Activa" : "Inactiva"),
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 180,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<ReminderRule>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button
+                type="button"
+                className={data.is_active ? "danger-button" : "success-button"}
+                onClick={() => toggleReminderRule(data)}
+              >
+                {data.is_active ? "Desactivar" : "Activar"}
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [doctorNameById, toggleReminderRule],
   );
 
   return (
@@ -59,126 +213,96 @@ export function GestionRemindersSection({
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Recordatorios</p>
-            <h2>Regla base de la clinica</h2>
+            <h2>Control global de recordatorios</h2>
           </div>
-          {isAdmin ? (
-            <button type="button" className="success-button" onClick={activateDefault24HourReminder}>
-              Activar regla general 24 horas
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={generalRuleActive ? "danger-button" : "success-button"}
+            onClick={() => {
+              if (generalReminderRule) {
+                toggleReminderRule(generalReminderRule);
+                return;
+              }
+              activateDefault24HourReminder();
+            }}
+          >
+            {generalRuleActive ? "Desactivar recordatorios" : "Activar recordatorios"}
+          </button>
         </div>
         <div className="summary-grid">
           <div className="metric-card">
-            <small>Regla general</small>
-            <strong>{generalReminderRule?.is_active ? "Activa" : "Pendiente"}</strong>
-            <span>{generalReminderRule ? reminderLeadTimeLabel(generalReminderRule.minutes_before) : "Recomendada: 24 horas antes"}</span>
+            <small>Estado global</small>
+            <strong>{generalRuleActive ? "Activo" : "Inactivo"}</strong>
+            <span>{generalReminderRule ? reminderLeadTimeLabel(generalReminderRule.minutes_before) : "Recomendado: 24 horas antes"}</span>
           </div>
           <div className="metric-card">
             <small>Citas cubiertas</small>
-            <strong>{generalReminderRule?.is_active ? scopedUpcomingAppointmentsCount : 0}</strong>
-            <span>Proximas citas que tomaran la regla base</span>
+            <strong>{generalRuleActive ? scopedUpcomingAppointments.length : 0}</strong>
+            <span>Próximas citas bajo el recordatorio general</span>
           </div>
           <div className="metric-card">
-            <small>Plantilla usada</small>
-            <strong>{generalReminderRule?.template_key === CONFIRMATION_TEMPLATE_KEY ? "Confirmacion" : generalReminderRule?.template_key ?? "Pendiente"}</strong>
-            <span>Mensaje enviado 24 horas antes</span>
+            <small>Template referenciado</small>
+            <strong>{generalReminderRule?.template_key === CONFIRMATION_TEMPLATE_KEY ? "Confirmación" : generalReminderRule?.template_key ?? "Pendiente"}</strong>
+            <span>La aprobación y edición final vive en appoint-me</span>
           </div>
         </div>
         <p className="empty-state">
-          La configuracion recomendada es una sola regla general de WhatsApp, 24 horas antes de la cita. Solo crea reglas por doctor si realmente necesitas una excepcion.
+          Aquí solo debes decidir si los recordatorios globales están encendidos o apagados. El contenido del template de WhatsApp se administra fuera de do-control.
         </p>
-        <form className="form-card compact-form" onSubmit={submitReminderRule}>
-          {isAdmin ? (
-            <label>
-              <span>Alcance</span>
-              <SearchableSelect
-                value={reminderRuleForm.doctor_id}
-                onChange={(value) => setReminderRuleForm((current) => ({ ...current, doctor_id: value }))}
-                options={doctorOptions}
-                placeholder="General para toda la clinica"
-                clearLabel="General para toda la clinica"
-                searchPlaceholder="Buscar doctor"
-              />
-            </label>
-          ) : selectedDoctor ? (
-            <label>
-              <span>Doctor</span>
-              <input value={`${selectedDoctor.first_name} ${selectedDoctor.last_name}`} readOnly />
-            </label>
-          ) : null}
-          <label>
-            <span>Momento del recordatorio</span>
-            <select
-              value={reminderRuleForm.minutes_before}
-              onChange={(event) => setReminderRuleForm((current) => ({ ...current, minutes_before: event.target.value }))}
-            >
-              <option value="1440">24 horas antes</option>
-              <option value="720">12 horas antes</option>
-              <option value="120">2 horas antes</option>
-              <option value="60">1 hora antes</option>
-              <option value="30">30 minutos antes</option>
-            </select>
-          </label>
-          <div className="row-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setReminderRuleForm((current) => ({ ...current, minutes_before: "1440", doctor_id: "" }))}
-            >
-              Usar 24 horas
-            </button>
-            <button type="submit">Guardar regla</button>
+        {!generalReminderRule ? (
+          <div className="detail-panel">
+            <strong>No hay regla general creada</strong>
+            <span>Si activas recordatorios, se configurará la base recomendada de 24 horas antes.</span>
           </div>
-        </form>
+        ) : null}
       </article>
 
       <article className="card section-card span-two">
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Recordatorios</p>
-            <h2>Reglas configuradas</h2>
+            <h2>Cobertura por doctor</h2>
           </div>
         </div>
-        <div className="table-list">
-          {scopedReminderRules.map((rule) => (
-            <div className="simple-list-item" key={`reminder-${rule.id}`}>
-              <strong>{rule.doctor_id ? "Regla por doctor" : "Regla general"}</strong>
-              <span>{reminderLeadTimeLabel(rule.minutes_before)}</span>
-              <span>
-                {rule.doctor_id
-                  ? `Asignada a ${doctorNameById.get(rule.doctor_id) ?? `Doctor ${rule.doctor_id}`}`
-                  : "General para toda la clinica"}
-              </span>
-              <span>{rule.template_key === CONFIRMATION_TEMPLATE_KEY ? "Usa mensaje de confirmacion" : `Plantilla ${rule.template_key}`}</span>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="success-button"
-                  onClick={() =>
-                    setReminderRuleForm({
-                      doctor_id: rule.doctor_id ? String(rule.doctor_id) : "",
-                      channel: rule.channel,
-                      trigger_type: rule.trigger_type,
-                      minutes_before: String(rule.minutes_before),
-                      template_key: rule.template_key,
-                      is_active: rule.is_active,
-                    })
-                  }
-                >
-                  Usar como base
-                </button>
-                <button
-                  type="button"
-                  className={rule.is_active ? "danger-button" : "success-button"}
-                  onClick={() => toggleReminderRule(rule)}
-                >
-                  {rule.is_active ? "Desactivar" : "Activar"}
-                </button>
-              </div>
-            </div>
-          ))}
-          {!reminderRules.length ? <p className="empty-state">Todavia no hay reglas de recordatorio configuradas.</p> : null}
+        <ClinicalDataGrid<(typeof doctorCards)[number]>
+          columns={doctorCoverageColumns}
+          emptyMessage="No hay doctores visibles en este contexto para gestionar recordatorios."
+          exportFileName="recordatorios-por-doctor"
+          quickFilter={doctorCoverageSearch}
+          rowData={filteredDoctorCards}
+          extraToolbar={
+            <input
+              className="search-input"
+              placeholder="Buscar doctor o template"
+              value={doctorCoverageSearch}
+              onChange={(event) => setDoctorCoverageSearch(event.target.value)}
+            />
+          }
+        />
+      </article>
+
+      <article className="card section-card span-two">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Recordatorios</p>
+            <h2>Excepciones visibles</h2>
+          </div>
         </div>
+        <ClinicalDataGrid<ReminderRule>
+          columns={doctorRuleColumns}
+          emptyMessage="No hay excepciones por doctor visibles. El control principal es el global."
+          exportFileName="excepciones-recordatorios"
+          quickFilter={doctorRuleSearch}
+          rowData={filteredDoctorRules}
+          extraToolbar={
+            <input
+              className="search-input"
+              placeholder="Buscar doctor o template"
+              value={doctorRuleSearch}
+              onChange={(event) => setDoctorRuleSearch(event.target.value)}
+            />
+          }
+        />
       </article>
     </>
   );

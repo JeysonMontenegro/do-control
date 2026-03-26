@@ -9,12 +9,14 @@ import {
   encounterTypeLabel,
   formatDateTime,
 } from "@/features/module1/console-utils";
+import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Encounter, PatientSummary } from "@/features/module1/types";
 
 type PatientSummarySectionProps = {
   canManagePatients: boolean;
   expandedEncounterId: number | null;
   onEditPatient: () => void;
+  onTogglePatientActive: () => void;
   onGoToAgenda: () => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGoToEncounters: () => void;
@@ -29,6 +31,7 @@ export function PatientSummarySection({
   canManagePatients,
   expandedEncounterId,
   onEditPatient,
+  onTogglePatientActive,
   onGoToAgenda,
   onGoToAgendaAppointment,
   onGoToEncounters,
@@ -49,6 +52,15 @@ export function PatientSummarySection({
         </div>
         {canManagePatients ? (
           <div className="section-action-panel">
+            {selectedSummary ? (
+              <button
+                type="button"
+                className={selectedSummary.patient.is_active ? "danger-button" : "success-button"}
+                onClick={onTogglePatientActive}
+              >
+                {selectedSummary.patient.is_active ? "Desactivar paciente" : "Activar paciente"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="secondary-button"
@@ -90,7 +102,7 @@ export function PatientSummarySection({
             <strong>Datos principales</strong>
             <div className="two-column-grid">
               <span>Nombre: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
-              <span>Teléfono: {selectedSummary.patient.primary_phone}</span>
+              <span>Teléfono: {formatPhoneForDisplay(selectedSummary.patient.primary_phone)}</span>
               <span>
                 Doctor(es):{" "}
                 {selectedSummary.patient.assigned_doctors?.length

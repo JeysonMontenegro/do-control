@@ -33,6 +33,7 @@ type PatientActionModalProps = {
   availableDoctors: Doctor[];
   patientEditForm: PatientEditForm;
   patientForm: PatientForm;
+  onTogglePatientActive: () => void;
   setActiveSectionAction: React.Dispatch<React.SetStateAction<PatientAction>>;
   setPatientEditForm: React.Dispatch<React.SetStateAction<PatientEditForm>>;
   setPatientForm: React.Dispatch<React.SetStateAction<PatientForm>>;
@@ -43,6 +44,7 @@ type PatientActionModalProps = {
 export function PatientActionModal({
   activeSectionAction,
   availableDoctors,
+  onTogglePatientActive,
   patientEditForm,
   patientForm,
   setActiveSectionAction,
@@ -237,6 +239,13 @@ export function PatientActionModal({
             </label>
           </div>
           <div className="row-actions">
+            <button
+              type="button"
+              className={patientEditForm.is_active ? "danger-button" : "success-button"}
+              onClick={onTogglePatientActive}
+            >
+              {patientEditForm.is_active ? "Desactivar paciente" : "Activar paciente"}
+            </button>
             <button type="button" className="secondary-button" onClick={() => setActiveSectionAction(null)}>
               Cancelar
             </button>

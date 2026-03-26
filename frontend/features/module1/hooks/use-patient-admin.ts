@@ -88,6 +88,31 @@ export function usePatientAdmin({
     }
   }
 
+  async function togglePatientActive(patient: Patient) {
+    setMessage("");
+    try {
+      const updatePath =
+        scopedDoctorId !== null ? `/api/patients/${patient.id}?doctor_id=${scopedDoctorId}` : `/api/patients/${patient.id}`;
+      await apiPatch<Patient>(updatePath, {
+        is_active: !patient.is_active,
+      });
+      await loadData();
+      if (selectedPatientId && String(patient.id) === selectedPatientId) {
+        setSelectedSummary(
+          await apiGet<PatientSummary>(
+            scopedDoctorId !== null
+              ? `/api/patients/${selectedPatientId}/summary?doctor_id=${scopedDoctorId}`
+              : `/api/patients/${selectedPatientId}/summary`,
+          ),
+        );
+      }
+      setPatientEditForm((current) => ({ ...current, is_active: !patient.is_active }));
+      setMessage(`Paciente ${patient.is_active ? "desactivado" : "activado"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo cambiar el estado del paciente.");
+    }
+  }
+
   return {
     activeSectionAction,
     patientEditForm,
@@ -97,5 +122,6 @@ export function usePatientAdmin({
     setPatientForm,
     submitPatient,
     submitPatientUpdate,
+    togglePatientActive,
   };
 }

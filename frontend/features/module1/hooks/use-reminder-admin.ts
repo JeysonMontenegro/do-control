@@ -23,6 +23,7 @@ type TemplateFormState = {
 
 type UseReminderAdminParams = {
   communicationTemplates: CommunicationTemplate[];
+  availableDoctorIds?: number[];
   loadData: () => Promise<void>;
   reminderRuleForm: ReminderRuleFormState;
   reminderRules: ReminderRule[];
@@ -33,6 +34,7 @@ type UseReminderAdminParams = {
 
 export function useReminderAdmin({
   communicationTemplates,
+  availableDoctorIds,
   loadData,
   reminderRuleForm,
   reminderRules,
@@ -125,8 +127,44 @@ export function useReminderAdmin({
     }
   }
 
+  async function setDoctorReminderRuleActive(doctorId: number, isActive: boolean) {
+    setMessage("");
+    try {
+      const existingRule = reminderRules.find(
+        (rule) => rule.doctor_id === doctorId && rule.trigger_type === "before_appointment",
+      );
+      const generalRule = reminderRules.find((rule) => rule.doctor_id === null && rule.trigger_type === "before_appointment");
+      const baseMinutesBefore = existingRule?.minutes_before ?? generalRule?.minutes_before ?? 1440;
+      const baseTemplateKey = existingRule?.template_key ?? generalRule?.template_key ?? CONFIRMATION_TEMPLATE_KEY;
+
+      if (existingRule) {
+        await apiPatch<ReminderRule>(`/api/reminder-rules/${existingRule.id}`, {
+          is_active: isActive,
+        });
+      } else {
+        if (availableDoctorIds && !availableDoctorIds.includes(doctorId)) {
+          throw new Error("No puedes gestionar recordatorios para ese doctor.");
+        }
+        await apiPost<ReminderRule>("/api/reminder-rules", {
+          doctor_id: doctorId,
+          channel: "whatsapp",
+          trigger_type: "before_appointment",
+          minutes_before: baseMinutesBefore,
+          template_key: baseTemplateKey,
+          is_active: isActive,
+        });
+      }
+
+      await loadData();
+      setMessage(`Recordatorios ${isActive ? "activados" : "desactivados"} para el doctor seleccionado.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el recordatorio por doctor.");
+    }
+  }
+
   return {
     activateDefault24HourReminder,
+    setDoctorReminderRuleActive,
     submitReminderRule,
     toggleReminderRule,
   };

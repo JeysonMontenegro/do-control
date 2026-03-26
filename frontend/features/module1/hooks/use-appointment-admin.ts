@@ -35,6 +35,8 @@ export function useAppointmentAdmin({
   const [appointmentForm, setAppointmentForm] = useState<AppointmentForm>(createAppointmentForm);
   const [appointmentHistory, setAppointmentHistory] = useState<Record<number, AppointmentHistory[]>>({});
   const [expandedAppointmentId, setExpandedAppointmentId] = useState<number | null>(null);
+  const [isSubmittingAppointment, setIsSubmittingAppointment] = useState(false);
+  const [isSavingAppointmentNotes, setIsSavingAppointmentNotes] = useState(false);
 
   async function refreshSelectedSummary() {
     if (!selectedPatientId) {
@@ -52,6 +54,7 @@ export function useAppointmentAdmin({
   async function submitAppointment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setIsSubmittingAppointment(true);
     try {
       const selectedPatient = patients.find((patient) => String(patient.id) === appointmentForm.patient_id) ?? null;
       await apiPost<Appointment>("/api/appointments", {
@@ -60,13 +63,43 @@ export function useAppointmentAdmin({
         doctor_id: Number(appointmentForm.doctor_id),
         scheduled_start: combineDisplayDateTimeToIso(appointmentForm.scheduled_start_date, appointmentForm.scheduled_start_time),
         scheduled_end: combineDisplayDateTimeToIso(appointmentForm.scheduled_end_date, appointmentForm.scheduled_end_time),
+        internal_notes: appointmentForm.internal_notes.trim() || null,
         notify_patient: Boolean(appointmentForm.notify_patient && selectedPatient?.primary_phone?.trim()),
       });
       await loadData();
-      setSelectedPatientId(appointmentForm.patient_id);
-      setMessage("Cita creada.");
+      setSelectedPatientId("");
+      setSelectedSummary(null);
+      setAppointmentForm({
+        ...createAppointmentForm(),
+        doctor_id: scopedDoctorId !== null ? String(scopedDoctorId) : "",
+      });
+      setMessage("Cita creada y guardada correctamente.");
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo crear la cita.");
+      return false;
+    } finally {
+      setIsSubmittingAppointment(false);
+    }
+  }
+
+  async function updateAppointmentNotes(appointmentId: number, internalNotes: string) {
+    setMessage("");
+    setIsSavingAppointmentNotes(true);
+    try {
+      await apiPatch<Appointment>(`/api/appointments/${appointmentId}`, {
+        internal_notes: internalNotes.trim() || null,
+        changed_by: "frontend-demo",
+      });
+      await loadData();
+      await refreshSelectedSummary();
+      setMessage("Notas de la cita guardadas.");
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudieron guardar las notas de la cita.");
+      return false;
+    } finally {
+      setIsSavingAppointmentNotes(false);
     }
   }
 
@@ -124,8 +157,11 @@ export function useAppointmentAdmin({
     setAppointmentFilter,
     setAppointmentForm,
     setExpandedAppointmentId,
+    isSubmittingAppointment,
+    isSavingAppointmentNotes,
     submitAppointment,
     toggleAppointmentHistory,
+    updateAppointmentNotes,
     updateAppointmentStatus,
   };
 }

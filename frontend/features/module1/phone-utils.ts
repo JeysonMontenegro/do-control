@@ -60,3 +60,44 @@ export const buildPhoneNumber = (countryCode: string, localNumber: string) => {
 
 export const normalizePhoneWithDefaultCountry = (value: string) =>
   buildPhoneNumber(getPhoneCountryCode(value), getPhoneLocalNumber(value));
+
+const groupLocalDigits = (digits: string) => {
+  if (!digits) {
+    return "";
+  }
+  if (digits.length <= 4) {
+    return digits;
+  }
+  if (digits.length === 7) {
+    return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+  }
+  if (digits.length === 8) {
+    return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+  }
+  if (digits.length === 9) {
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return digits.replace(/(\d{3,4})(?=\d)/g, "$1 ").trim();
+};
+
+export const formatPhoneLocalInput = (countryCode: string, value: string) => {
+  const localDigits = getPhoneLocalNumber(buildPhoneNumber(countryCode, value));
+  return groupLocalDigits(localDigits);
+};
+
+export const formatPhoneForDisplay = (value: string | null | undefined, emptyLabel = "Sin teléfono") => {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) {
+    return emptyLabel;
+  }
+
+  const countryCode = getPhoneCountryCode(normalized);
+  const countryDigits = countryCode.replace("+", "");
+  const localDigits = getPhoneLocalNumber(normalized).replace(/[^\d]/g, "");
+  const groupedLocal = groupLocalDigits(localDigits);
+
+  return groupedLocal ? `${countryDigits} ${groupedLocal}` : countryDigits;
+};

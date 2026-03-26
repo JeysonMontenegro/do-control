@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import type { ICellRendererParams } from "ag-grid-community";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import type { EmailWhitelistState, MessagingWhitelistState } from "@/features/module1/types";
 
 type GestionWhitelistSectionProps = {
@@ -27,6 +30,74 @@ export function GestionWhitelistSection({
 }: GestionWhitelistSectionProps) {
   const [newWhitelistPhone, setNewWhitelistPhone] = useState("");
   const [newWhitelistEmail, setNewWhitelistEmail] = useState("");
+  const [phoneSearch, setPhoneSearch] = useState("");
+  const [emailSearch, setEmailSearch] = useState("");
+  const filteredPhones = useMemo(() => {
+    const query = phoneSearch.trim().toLowerCase();
+    const items = messagingWhitelist?.phones ?? [];
+    return query ? items.filter((phone) => phone.toLowerCase().includes(query)) : items;
+  }, [messagingWhitelist?.phones, phoneSearch]);
+  const filteredEmails = useMemo(() => {
+    const query = emailSearch.trim().toLowerCase();
+    const items = emailWhitelist?.addresses ?? [];
+    return query ? items.filter((email) => email.toLowerCase().includes(query)) : items;
+  }, [emailWhitelist?.addresses, emailSearch]);
+  const phoneRows = useMemo(() => filteredPhones.map((phone) => ({ phone })), [filteredPhones]);
+  const emailRows = useMemo(() => filteredEmails.map((email) => ({ email })), [filteredEmails]);
+  const phoneColumns = useMemo<ClinicalGridColumn<{ phone: string }>[]>(
+    () => [
+      {
+        headerName: "Número autorizado",
+        field: "phone",
+        minWidth: 260,
+        flex: 1,
+        exportValue: (row) => row.phone,
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 150,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<{ phone: string }>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="danger-button" onClick={() => onRemoveMessagingWhitelistPhone(data.phone)}>
+                Quitar
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [onRemoveMessagingWhitelistPhone],
+  );
+  const emailColumns = useMemo<ClinicalGridColumn<{ email: string }>[]>(
+    () => [
+      {
+        headerName: "Correo autorizado",
+        field: "email",
+        minWidth: 320,
+        flex: 1,
+        exportValue: (row) => row.email,
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 150,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<{ email: string }>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="danger-button" onClick={() => onRemoveEmailWhitelistAddress(data.email)}>
+                Quitar
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [onRemoveEmailWhitelistAddress],
+  );
 
   return (
     <article className="card section-card span-three">
@@ -74,8 +145,8 @@ export function GestionWhitelistSection({
               <span className="switch-label">{messagingWhitelist?.enabled ? "Encendido" : "Apagado"}</span>
             </button>
           </div>
-          <div className="form-card compact-form whitelist-maintenance-card">
-            <div className="whitelist-entry-row">
+            <div className="form-card compact-form whitelist-maintenance-card">
+              <div className="whitelist-entry-row">
               <label>
                 <span>Agregar número</span>
                 <input
@@ -95,21 +166,20 @@ export function GestionWhitelistSection({
               >
                 Agregar número
               </button>
-            </div>
-            <div className="table-list whitelist-list">
-              {messagingWhitelist?.phones.length ? (
-                messagingWhitelist.phones.map((phone) => (
-                  <div className="simple-list-item whitelist-list-item" key={`messaging-whitelist-${phone}`}>
-                    <strong>{phone}</strong>
-                    <button type="button" className="secondary-button compact-action-button" onClick={() => onRemoveMessagingWhitelistPhone(phone)}>
-                      Quitar
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="empty-state">Todavía no hay números autorizados.</p>
-              )}
-            </div>
+              </div>
+              <input
+                className="search-input"
+                placeholder="Buscar número autorizado"
+                value={phoneSearch}
+                onChange={(event) => setPhoneSearch(event.target.value)}
+              />
+              <ClinicalDataGrid<{ phone: string }>
+                columns={phoneColumns}
+                emptyMessage="Todavía no hay números autorizados."
+                exportFileName="whitelist-whatsapp"
+                quickFilter={phoneSearch}
+                rowData={phoneRows}
+              />
           </div>
         </div>
 
@@ -132,8 +202,8 @@ export function GestionWhitelistSection({
               <span className="switch-label">{emailWhitelist?.enabled ? "Encendido" : "Apagado"}</span>
             </button>
           </div>
-          <div className="form-card compact-form whitelist-maintenance-card">
-            <div className="whitelist-entry-row">
+            <div className="form-card compact-form whitelist-maintenance-card">
+              <div className="whitelist-entry-row">
               <label>
                 <span>Agregar correo</span>
                 <input
@@ -154,21 +224,20 @@ export function GestionWhitelistSection({
               >
                 Agregar correo
               </button>
-            </div>
-            <div className="table-list whitelist-list">
-              {emailWhitelist?.addresses.length ? (
-                emailWhitelist.addresses.map((email) => (
-                  <div className="simple-list-item whitelist-list-item" key={`email-whitelist-${email}`}>
-                    <strong>{email}</strong>
-                    <button type="button" className="secondary-button compact-action-button" onClick={() => onRemoveEmailWhitelistAddress(email)}>
-                      Quitar
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="empty-state">Todavía no hay correos autorizados.</p>
-              )}
-            </div>
+              </div>
+              <input
+                className="search-input"
+                placeholder="Buscar correo autorizado"
+                value={emailSearch}
+                onChange={(event) => setEmailSearch(event.target.value)}
+              />
+              <ClinicalDataGrid<{ email: string }>
+                columns={emailColumns}
+                emptyMessage="Todavía no hay correos autorizados."
+                exportFileName="whitelist-correos"
+                quickFilter={emailSearch}
+                rowData={emailRows}
+              />
           </div>
         </div>
       </div>

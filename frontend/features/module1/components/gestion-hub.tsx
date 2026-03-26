@@ -2,7 +2,6 @@
 
 import type { ComponentProps } from "react";
 
-import { DEFAULT_CONFIRMATION_BODY, DEFAULT_CONFIRMATION_TITLE } from "@/features/module1/console-config";
 import { GestionEmailSection } from "@/features/module1/components/gestion-email-section";
 import { GestionMessagesSection } from "@/features/module1/components/gestion-messages-section";
 import { GestionReceptionSection } from "@/features/module1/components/gestion-reception-section";
@@ -60,20 +59,18 @@ type GestionHubProps = {
   reminderRules: ComponentProps<typeof GestionRemindersSection>["reminderRules"];
   remindersScheduledCount: number;
   resendEmailDispatch: ComponentProps<typeof GestionEmailSection>["resendEmailDispatch"];
-  saveConfirmationTemplate: ComponentProps<typeof GestionMessagesSection>["saveConfirmationTemplate"];
   saveEmailTemplate: ComponentProps<typeof GestionEmailSection>["saveEmailTemplate"];
   scopedDoctorId: number | null;
-  scopedUpcomingAppointments: ComponentProps<typeof GestionSummarySection>["scopedUpcomingAppointments"];
+  scopedUpcomingAppointments: ComponentProps<typeof GestionRemindersSection>["scopedUpcomingAppointments"];
   selectedDoctor: Doctor | null;
   selectedReceptionist: ComponentProps<typeof GestionReceptionSection>["selectedReceptionist"];
   sendTestEmail: ComponentProps<typeof GestionEmailSection>["sendTestEmail"];
+  setDoctorReminderRuleActive: ComponentProps<typeof GestionRemindersSection>["setDoctorReminderRuleActive"];
   setEmailTemplateForm: ComponentProps<typeof GestionEmailSection>["setEmailTemplateForm"];
   setReminderRuleForm: ComponentProps<typeof GestionRemindersSection>["setReminderRuleForm"];
-  setTemplateForm: ComponentProps<typeof GestionMessagesSection>["setTemplateForm"];
   setTestEmailRecipient: ComponentProps<typeof GestionEmailSection>["setTestEmailRecipient"];
   setProfileForm: ComponentProps<typeof GestionSummarySection>["setProfileForm"];
   submitReminderRule: ComponentProps<typeof GestionRemindersSection>["submitReminderRule"];
-  templateForm: ComponentProps<typeof GestionMessagesSection>["templateForm"];
   testEmailRecipient: ComponentProps<typeof GestionEmailSection>["testEmailRecipient"];
   toggleEmailDelivery: ComponentProps<typeof GestionEmailSection>["toggleEmailDelivery"];
   toggleEmailWhitelist: ComponentProps<typeof GestionWhitelistSection>["onToggleEmailWhitelist"];
@@ -82,7 +79,6 @@ type GestionHubProps = {
   toggleMultiDoctorVisibility: ComponentProps<typeof GestionSummarySection>["toggleMultiDoctorVisibility"];
   toggleReceptionistActive: ComponentProps<typeof GestionReceptionSection>["toggleReceptionistActive"];
   toggleReminderRule: ComponentProps<typeof GestionRemindersSection>["toggleReminderRule"];
-  toggleTemplate: ComponentProps<typeof GestionMessagesSection>["toggleTemplate"];
   unconfirmedUpcomingCount: number;
   updateCurrentProfile: ComponentProps<typeof GestionSummarySection>["updateCurrentProfile"];
   uploadCurrentProfilePhoto: ComponentProps<typeof GestionSummarySection>["uploadCurrentProfilePhoto"];
@@ -136,20 +132,18 @@ export function GestionHub({
   reminderRules,
   remindersScheduledCount,
   resendEmailDispatch,
-  saveConfirmationTemplate,
   saveEmailTemplate,
   scopedDoctorId,
   scopedUpcomingAppointments,
   selectedDoctor,
   selectedReceptionist,
   sendTestEmail,
+  setDoctorReminderRuleActive,
   setEmailTemplateForm,
   setProfileForm,
   setReminderRuleForm,
-  setTemplateForm,
   setTestEmailRecipient,
   submitReminderRule,
-  templateForm,
   testEmailRecipient,
   toggleEmailDelivery,
   toggleEmailWhitelist,
@@ -158,7 +152,6 @@ export function GestionHub({
   toggleMultiDoctorVisibility,
   toggleReceptionistActive,
   toggleReminderRule,
-  toggleTemplate,
   unconfirmedUpcomingCount,
   updateCurrentProfile,
   uploadCurrentProfilePhoto,
@@ -257,15 +250,9 @@ export function GestionHub({
       {gestionSubtab === "mensajes" ? (
         <GestionMessagesSection
           communicationTemplates={communicationTemplates}
-          confirmationBodyPlaceholder={DEFAULT_CONFIRMATION_BODY}
-          confirmationTitlePlaceholder={DEFAULT_CONFIRMATION_TITLE}
           previewConfirmationTemplate={previewConfirmationTemplate}
-          saveConfirmationTemplate={saveConfirmationTemplate}
           scopedDoctorId={scopedDoctorId}
-          setTemplateForm={setTemplateForm}
-          templateForm={templateForm}
           templatePreview={confirmationTemplatePreview}
-          toggleTemplate={toggleTemplate}
         />
       ) : null}
 
@@ -279,8 +266,9 @@ export function GestionHub({
           reminderRuleForm={reminderRuleForm}
           reminderRules={reminderRules}
           scopedDoctorId={scopedDoctorId}
-          scopedUpcomingAppointmentsCount={scopedUpcomingAppointments.length}
+          scopedUpcomingAppointments={scopedUpcomingAppointments}
           selectedDoctor={selectedDoctor}
+          setDoctorReminderRuleActive={setDoctorReminderRuleActive}
           setReminderRuleForm={setReminderRuleForm}
           submitReminderRule={submitReminderRule}
           toggleReminderRule={toggleReminderRule}

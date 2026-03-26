@@ -10,9 +10,15 @@ class AppointmentCreate(BaseModel):
     scheduled_end: datetime
     appointment_type: str
     reason: str | None = None
+    internal_notes: str | None = None
     source: str = "receptionist"
     created_by: str | None = None
     notify_patient: bool = True
+
+
+class AppointmentUpdate(BaseModel):
+    internal_notes: str | None = None
+    changed_by: str | None = None
 
 
 class AppointmentStatusUpdate(BaseModel):
@@ -32,6 +38,7 @@ class AppointmentRead(BaseModel):
     scheduled_end: datetime
     appointment_type: str
     reason: str | None
+    internal_notes: str | None
     status: str
     confirmation_status: str
     source: str

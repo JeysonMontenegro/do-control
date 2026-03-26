@@ -1,5 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
+
+import type { ICellRendererParams } from "ag-grid-community";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
+import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Receptionist } from "@/features/module1/types";
 
 type GestionReceptionSectionProps = {
@@ -29,6 +35,67 @@ export function GestionReceptionSection({
   selectedReceptionist,
   toggleReceptionistActive,
 }: GestionReceptionSectionProps) {
+  const receptionistColumns = useMemo<ClinicalGridColumn<Receptionist>[]>(
+    () => [
+      {
+        headerName: "Recepcionista",
+        minWidth: 220,
+        valueGetter: ({ data }) => (data ? `${data.first_name} ${data.last_name}` : ""),
+        exportValue: (row) => `${row.first_name} ${row.last_name}`,
+      },
+      {
+        headerName: "Teléfono",
+        minWidth: 170,
+        valueGetter: ({ data }) => formatPhoneForDisplay(data?.phone_number),
+        exportValue: (row) => formatPhoneForDisplay(row.phone_number),
+      },
+      {
+        headerName: "Correo",
+        field: "email",
+        minWidth: 240,
+        exportValue: (row) => row.email,
+      },
+      {
+        headerName: "Doctores asignados",
+        minWidth: 170,
+        valueGetter: ({ data }) => data?.assigned_doctors.length ?? 0,
+        exportValue: (row) => row.assigned_doctors.length,
+      },
+      {
+        headerName: "Estado",
+        minWidth: 120,
+        valueGetter: ({ data }) => (data?.is_active ? "Activa" : "Inactiva"),
+        exportValue: (row) => (row.is_active ? "Activa" : "Inactiva"),
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 220,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<Receptionist>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="secondary-button" onClick={() => onSelectReceptionist(data.id)}>
+                Ver detalle
+              </button>
+              <button type="button" className="secondary-button" onClick={() => onEditReceptionist(data)}>
+                Editar
+              </button>
+              <button
+                type="button"
+                className={data.is_active ? "danger-button" : "success-button"}
+                onClick={() => toggleReceptionistActive(data)}
+              >
+                {data.is_active ? "Desactivar" : "Activar"}
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [onEditReceptionist, onSelectReceptionist, toggleReceptionistActive],
+  );
+
   return (
     <>
       <article className="card section-card span-three">
@@ -53,50 +120,28 @@ export function GestionReceptionSection({
             <h2>Recepcionistas</h2>
           </div>
         </div>
-        <div className="table-list">
-          {paginatedActiveReceptionists.map((receptionist) => (
-            <button
-              type="button"
-              className={`simple-list-item ${selectedReceptionist?.id === receptionist.id ? "table-row-active" : ""}`}
-              key={`receptionist-team-${receptionist.id}`}
-              onClick={() => onSelectReceptionist(receptionist.id)}
-            >
-              <strong>Recepción: {receptionist.first_name} {receptionist.last_name}</strong>
-              <span>{receptionist.phone_number ?? "Sin teléfono"}</span>
-              <span>{receptionist.email}</span>
-              <span>{receptionist.assigned_doctors.length} doctor(es) asignado(s)</span>
-              <div className="row-actions">
-                <button type="button" className="secondary-button" onClick={() => onEditReceptionist(receptionist)}>
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  className={receptionist.is_active ? "danger-button" : "success-button"}
-                  onClick={() => toggleReceptionistActive(receptionist)}
-                >
-                  {receptionist.is_active ? "Desactivar" : "Activar"}
-                </button>
-              </div>
-            </button>
-          ))}
-          {!activeReceptionists.length ? <p className="empty-state">No hay recepcionistas activas registradas.</p> : null}
-        </div>
-        {activeReceptionistsPager}
+        <ClinicalDataGrid<Receptionist>
+          columns={receptionistColumns}
+          emptyMessage="No hay recepcionistas activas registradas."
+          exportFileName="recepcionistas-activas"
+          quickFilter=""
+          rowData={paginatedActiveReceptionists}
+        />
       </article>
 
+      {selectedReceptionist ? (
       <article className="card section-card span-two">
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Detalle</p>
-            <h2>{selectedReceptionist ? `Recepción ${selectedReceptionist.first_name} ${selectedReceptionist.last_name}` : "Selecciona una recepcionista"}</h2>
+            <h2>{`Recepción ${selectedReceptionist.first_name} ${selectedReceptionist.last_name}`}</h2>
           </div>
         </div>
-        {selectedReceptionist ? (
           <div className="detail-stack">
             <div className="detail-panel compact-panel">
               <strong>Datos principales</strong>
               <span>Correo: {selectedReceptionist.email}</span>
-              <span>Teléfono: {selectedReceptionist.phone_number ?? "Sin teléfono"}</span>
+              <span>Teléfono: {formatPhoneForDisplay(selectedReceptionist.phone_number)}</span>
               <span>Estado: {selectedReceptionist.is_active ? "Activa" : "Inactiva"}</span>
             </div>
             <div className="detail-panel compact-panel">
@@ -125,9 +170,6 @@ export function GestionReceptionSection({
               </button>
             </div>
           </div>
-        ) : (
-          <p className="empty-state">Selecciona una recepcionista del listado para ver sus doctores asignados.</p>
-        )}
         {inactiveReceptionists.length ? (
           <>
             <div className="subsection-header">
@@ -154,6 +196,7 @@ export function GestionReceptionSection({
           </>
         ) : null}
       </article>
+      ) : null}
     </>
   );
 }

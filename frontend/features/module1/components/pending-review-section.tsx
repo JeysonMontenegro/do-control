@@ -1,6 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
+
+import type { ICellRendererParams } from "ag-grid-community";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { confirmationLabel, formatDateTime, reviewReasonLabel } from "@/features/module1/console-utils";
+import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Appointment, AppointmentReviewItem } from "@/features/module1/types";
 
 type PendingReviewSectionProps = {
@@ -21,10 +27,141 @@ export function PendingReviewSection({
   appointmentReviewItems,
   attentionAppointments,
   onGoToAgendaAppointment,
-  renderAppointmentBadges,
   resolveReviewItem,
   reviewGroups,
 }: PendingReviewSectionProps) {
+  const reviewRows = useMemo(
+    () =>
+      reviewGroups.flatMap((group) =>
+        group.items.map((item) => ({
+          ...item,
+          review_group_title: group.title,
+        })),
+      ),
+    [reviewGroups],
+  );
+
+  const reviewColumns = useMemo<ClinicalGridColumn<(typeof reviewRows)[number]>[]>(
+    () => [
+      {
+        headerName: "Paciente",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.patient_name ?? "",
+        exportValue: (row) => row.patient_name,
+      },
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.doctor_name ?? data?.doctor_phone_number ?? "Doctor pendiente",
+        exportValue: (row) => row.doctor_name ?? row.doctor_phone_number ?? "Doctor pendiente",
+      },
+      {
+        headerName: "Grupo",
+        minWidth: 190,
+        valueGetter: ({ data }) => data?.review_group_title ?? "",
+        exportValue: (row) => row.review_group_title,
+      },
+      {
+        headerName: "Motivo",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data ? reviewReasonLabel(data.review_reason) : ""),
+        exportValue: (row) => reviewReasonLabel(row.review_reason),
+      },
+      {
+        headerName: "Fecha solicitada",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data ? formatDateTime(data.scheduled_start) : ""),
+        exportValue: (row) => formatDateTime(row.scheduled_start),
+      },
+      {
+        headerName: "Contacto",
+        minWidth: 160,
+        valueGetter: ({ data }) => formatPhoneForDisplay(data?.phone_number),
+        exportValue: (row) => formatPhoneForDisplay(row.phone_number),
+      },
+      {
+        headerName: "Mensaje",
+        minWidth: 320,
+        flex: 1.5,
+        valueGetter: ({ data }) => data?.review_message ?? "",
+        exportValue: (row) => row.review_message,
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 280,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<(typeof reviewRows)[number]>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="success-button" onClick={() => resolveReviewItem(data.id, "create_appointment")}>
+                Crear cita
+              </button>
+              <button type="button" className="secondary-button" onClick={() => resolveReviewItem(data.id, "link_existing")}>
+                Vincular
+              </button>
+              <button type="button" className="danger-button" onClick={() => resolveReviewItem(data.id, "reject")}>
+                Rechazar
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [resolveReviewItem, reviewRows],
+  );
+
+  const attentionColumns = useMemo<ClinicalGridColumn<Appointment>[]>(
+    () => [
+      {
+        headerName: "Paciente",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.patient_name ?? (data ? `Paciente ${data.patient_id}` : ""),
+        exportValue: (row) => row.patient_name ?? `Paciente ${row.patient_id}`,
+      },
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        valueGetter: ({ data }) => data?.doctor_name ?? (data ? `Doctor ${data.doctor_id}` : ""),
+        exportValue: (row) => row.doctor_name ?? `Doctor ${row.doctor_id}`,
+      },
+      {
+        headerName: "Fecha y hora",
+        minWidth: 180,
+        valueGetter: ({ data }) => (data ? formatDateTime(data.scheduled_start) : ""),
+        exportValue: (row) => formatDateTime(row.scheduled_start),
+      },
+      {
+        headerName: "Confirmación",
+        minWidth: 150,
+        valueGetter: ({ data }) => (data ? confirmationLabel(data.confirmation_status) : ""),
+        exportValue: (row) => confirmationLabel(row.confirmation_status),
+      },
+      {
+        headerName: "Estado",
+        minWidth: 120,
+        valueGetter: ({ data }) => data?.status ?? "",
+        exportValue: (row) => row.status,
+      },
+      {
+        headerName: "Acción",
+        minWidth: 160,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<Appointment>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="secondary-button" onClick={() => onGoToAgendaAppointment(data.id)}>
+                Ver cita
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [onGoToAgendaAppointment],
+  );
+
   return (
     <section className="tab-layout">
       <article className="card section-card span-three">
@@ -64,55 +201,13 @@ export function PendingReviewSection({
             <h2>Casos que requieren decisión</h2>
           </div>
         </div>
-        <div className="stack-block">
-          {reviewGroups.length ? (
-            reviewGroups.map((group) => (
-              <section className="review-queue-group" key={group.key}>
-                <div className="review-queue-group-header">
-                  <div>
-                    <strong>{group.title}</strong>
-                    <span>{group.description}</span>
-                  </div>
-                  <span className="context-pill">{group.items.length} caso{group.items.length === 1 ? "" : "s"}</span>
-                </div>
-                <div className="table-list">
-                  {group.items.map((item) => (
-                    <div className="review-queue-item" key={`review-item-${item.id}`}>
-                      <div className="review-queue-head">
-                        <div>
-                          <strong>{item.patient_name}</strong>
-                          <span>{item.doctor_name ?? item.doctor_phone_number ?? "Doctor pendiente"}</span>
-                        </div>
-                        <div className="inline-badges">
-                          <span className="badge badge-neutral">{reviewReasonLabel(item.review_reason)}</span>
-                          <span className="badge badge-neutral">{item.source === "appoint-me" ? "WhatsApp" : item.source}</span>
-                        </div>
-                      </div>
-                      <div className="review-meta-grid">
-                        <span><strong>Fecha solicitada:</strong> {formatDateTime(item.scheduled_start)}</span>
-                        <span><strong>Contacto:</strong> {item.phone_number || "Sin teléfono"}</span>
-                      </div>
-                      <p className="review-message">{item.review_message}</p>
-                      <div className="row-actions">
-                        <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "create_appointment")}>
-                          Crear cita
-                        </button>
-                        <button type="button" className="success-button" onClick={() => resolveReviewItem(item.id, "link_existing")}>
-                          Vincular cita
-                        </button>
-                        <button type="button" className="danger-button" onClick={() => resolveReviewItem(item.id, "reject")}>
-                          Rechazar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))
-          ) : (
-            <p className="empty-state">No hay solicitudes pendientes de revisión manual.</p>
-          )}
-        </div>
+        <ClinicalDataGrid<(typeof reviewRows)[number]>
+          columns={reviewColumns}
+          emptyMessage="No hay solicitudes pendientes de revisión manual."
+          exportFileName="casos-que-requieren-decision"
+          quickFilter=""
+          rowData={reviewRows}
+        />
       </article>
       <article className="card section-card">
         <div className="subsection-header">
@@ -125,26 +220,13 @@ export function PendingReviewSection({
           <strong>Qué revisar primero</strong>
           <span>Empieza por citas sin confirmar, mensajes fallidos y citas que ya tienen una solicitud de revisión ligada.</span>
         </div>
-        <div className="table-list">
-          {attentionAppointments.length ? (
-            attentionAppointments.map((appointment) => (
-              <button
-                type="button"
-                className="simple-list-item review-followup-item"
-                key={`attention-appointment-${appointment.id}`}
-                onClick={() => onGoToAgendaAppointment(appointment.id)}
-              >
-                <strong>{appointment.patient_name ?? `Paciente ${appointment.patient_id}`}</strong>
-                <span>{appointment.doctor_name ?? `Doctor ${appointment.doctor_id}`}</span>
-                <span>{formatDateTime(appointment.scheduled_start)}</span>
-                <span>{confirmationLabel(appointment.confirmation_status)}</span>
-                {renderAppointmentBadges(appointment)}
-              </button>
-            ))
-          ) : (
-            <p className="empty-state">No hay citas marcadas con seguimiento especial.</p>
-          )}
-        </div>
+        <ClinicalDataGrid<Appointment>
+          columns={attentionColumns}
+          emptyMessage="No hay citas marcadas con seguimiento especial."
+          exportFileName="citas-que-necesitan-seguimiento"
+          quickFilter=""
+          rowData={attentionAppointments}
+        />
       </article>
     </section>
   );

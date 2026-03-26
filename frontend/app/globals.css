@@ -712,6 +712,43 @@ select.compact-input,
   color: #295293;
 }
 
+.app-toast {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 80;
+  max-width: min(26rem, calc(100vw - 2rem));
+  padding: 0.95rem 1rem;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.app-toast-success {
+  background: rgba(236, 253, 245, 0.97);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #065f46;
+}
+
+.app-toast-error {
+  background: rgba(254, 242, 242, 0.98);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #991b1b;
+}
+
+.app-toast-warning {
+  background: rgba(255, 251, 235, 0.98);
+  border-color: rgba(245, 158, 11, 0.24);
+  color: #92400e;
+}
+
+.app-toast-info {
+  background: rgba(239, 246, 255, 0.98);
+  border-color: rgba(59, 130, 246, 0.22);
+  color: #1d4ed8;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1333,20 +1370,20 @@ select.compact-input,
 .agenda-time {
   padding: 6px 8px;
   border-right: 1px solid #dbe6f6;
-  min-height: 26px;
-  font-size: 0.8rem;
+  min-height: 36px;
+  font-size: 0.76rem;
 }
 
 .agenda-time-column {
   display: grid;
-  grid-template-rows: repeat(28, 26px);
+  grid-template-rows: repeat(28, 36px);
   border-right: 1px solid #dbe6f6;
 }
 
 .agenda-day-column {
   position: relative;
   display: grid;
-  grid-template-rows: repeat(28, 26px);
+  grid-template-rows: repeat(28, 36px);
   border-right: 1px solid #dbe6f6;
   align-self: start;
   overflow: visible;
@@ -1376,11 +1413,14 @@ select.compact-input,
   border: 1px solid rgba(43, 110, 243, 0.22);
   border-radius: 14px;
   background: #ebf2ff;
-  padding: 8px;
+  padding: 7px 8px;
   text-align: left;
   display: grid;
-  gap: 2px;
+  gap: 1px;
   cursor: pointer;
+  overflow: hidden;
+  align-content: start;
+  font-size: 0.76rem;
 }
 
 .agenda-event:hover,
@@ -1388,23 +1428,46 @@ select.compact-input,
   transform: none;
 }
 
+.agenda-event span,
+.agenda-event strong,
 .agenda-event small {
-  color: #58708d;
-}
-
-.agenda-shell-day .agenda-event strong,
-.agenda-shell-day .agenda-event small {
-  white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.agenda-event small {
+  color: #58708d;
+  font-size: 0.68rem;
+}
+
+.agenda-event strong,
+.agenda-event small {
+  white-space: nowrap;
+}
+
+.agenda-event span {
+  white-space: nowrap;
+  font-size: 0.68rem;
+}
+
+.agenda-event-tight {
+  padding: 4px 6px;
+  gap: 1px;
+}
+
+.agenda-event-tight span,
+.agenda-event-tight strong,
+.agenda-event-tight small {
+  font-size: 0.66rem;
+}
+
 .agenda-event-compact {
-  padding: 6px;
+  padding: 5px 6px;
   border-radius: 12px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   z-index: calc(var(--agenda-event-stack-index, 0) + 2);
-  min-height: 42px;
+  min-height: 48px;
   overflow: hidden;
   box-shadow: 0 10px 20px rgba(15, 30, 48, 0.14);
 }
@@ -1669,6 +1732,173 @@ select.compact-input,
   padding: 10px 12px;
 }
 
+.email-dispatch-toolbar {
+  width: min(460px, 100%);
+  justify-items: stretch;
+}
+
+.email-dispatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.email-grid-shell {
+  min-height: 560px;
+}
+
+.data-grid-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.data-grid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.data-grid-toolbar-main {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.data-grid-toolbar-main .search-input {
+  width: min(420px, 100%);
+}
+
+.data-grid-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ag-actions-cell {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  height: 100%;
+}
+
+.ag-actions-cell .secondary-button,
+.ag-actions-cell .success-button,
+.ag-actions-cell .danger-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.email-grid-shell .status-badge {
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.email-dispatch-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dbe6f6;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.email-dispatch-card h3,
+.email-dispatch-card p {
+  margin: 0;
+}
+
+.email-dispatch-card h3 {
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.email-dispatch-card p {
+  color: var(--muted);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.email-dispatch-card-head,
+.email-dispatch-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.email-dispatch-card-head > div,
+.email-dispatch-meta {
+  min-width: 0;
+}
+
+.email-dispatch-card-head strong,
+.email-dispatch-card-head span,
+.email-dispatch-meta span {
+  display: block;
+}
+
+.email-dispatch-card-head span,
+.email-dispatch-meta span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.email-dispatch-meta {
+  flex-wrap: wrap;
+}
+
+.email-dispatch-error {
+  color: #b44a37;
+  font-size: 0.83rem;
+}
+
+.email-dispatch-modal {
+  width: min(860px, calc(100vw - 28px));
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border: 1px solid #dbe6f6;
+  background: #f6faff;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.status-badge-pending,
+.status-badge-sent {
+  background: #fff3e3;
+  border-color: rgba(240, 164, 58, 0.28);
+}
+
+.status-badge-delivered {
+  background: #e8f5f1;
+  border-color: rgba(31, 122, 100, 0.26);
+}
+
+.status-badge-failed,
+.status-badge-skipped {
+  background: #fff0ec;
+  border-color: rgba(207, 94, 78, 0.24);
+}
+
 .simple-list-item {
   width: 100%;
   text-align: left;
@@ -1864,6 +2094,29 @@ select.compact-input,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.appointment-duration-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: var(--surface-subtle);
+}
+
+.appointment-duration-preview span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.appointment-duration-preview strong {
+  color: var(--text-strong);
+}
+
+.confirmation-modal-card {
+  max-width: 38rem;
 }
 
 .subsection {
@@ -2529,6 +2782,17 @@ select.compact-input,
   .agenda-event {
     padding: 7px;
     font-size: 0.84rem;
+  }
+
+  .email-dispatch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-toast {
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    max-width: none;
   }
 
   .modal-overlay {

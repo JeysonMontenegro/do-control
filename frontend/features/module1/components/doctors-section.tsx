@@ -1,8 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
+
+import type { ICellRendererParams } from "ag-grid-community";
+
+import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import type { DoctorAdminForm, DoctorClinicForm } from "@/features/module1/clinical-console-defaults";
 import { formatDate } from "@/features/module1/console-utils";
+import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Doctor } from "@/features/module1/types";
 
 type DoctorRosterTab = "activos" | "inactivos";
@@ -66,29 +72,101 @@ export function DoctorsSection({
     return null;
   }
 
+  const normalizedSearch = doctorDirectorySearch.trim().toLowerCase();
+  const filteredActiveDoctors = useMemo(() => {
+    if (!normalizedSearch) {
+      return activeDoctors;
+    }
+    return activeDoctors.filter((doctor) =>
+      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  }, [activeDoctors, normalizedSearch]);
+  const filteredInactiveDoctors = useMemo(() => {
+    if (!normalizedSearch) {
+      return inactiveDoctors;
+    }
+    return inactiveDoctors.filter((doctor) =>
+      `${doctor.first_name} ${doctor.last_name} ${doctor.specialty ?? ""} ${doctor.linked_user_email ?? ""}`
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  }, [inactiveDoctors, normalizedSearch]);
+  const doctorColumns = useMemo<ClinicalGridColumn<Doctor>[]>(
+    () => [
+      {
+        headerName: "Doctor",
+        minWidth: 220,
+        flex: 1.2,
+        valueGetter: ({ data }) => (data ? `${data.first_name} ${data.last_name}` : ""),
+        exportValue: (row) => `${row.first_name} ${row.last_name}`,
+      },
+      {
+        headerName: "Especialidad",
+        field: "specialty",
+        minWidth: 180,
+        exportValue: (row) => row.specialty ?? "Sin especialidad",
+      },
+      {
+        headerName: "Nacimiento",
+        minWidth: 150,
+        valueGetter: ({ data }) => (data?.date_of_birth ? formatDate(data.date_of_birth) : "No registrado"),
+        exportValue: (row) => (row.date_of_birth ? formatDate(row.date_of_birth) : "No registrado"),
+      },
+      {
+        headerName: "Teléfono",
+        minWidth: 160,
+        valueGetter: ({ data }) => formatPhoneForDisplay(data?.phone_numbers?.find((phone) => phone.is_primary)?.phone_number),
+        exportValue: (row) => formatPhoneForDisplay(row.phone_numbers?.find((phone) => phone.is_primary)?.phone_number),
+      },
+      {
+        headerName: "Correo",
+        field: "linked_user_email",
+        minWidth: 220,
+        exportValue: (row) => row.linked_user_email ?? "Sin usuario de acceso",
+      },
+      {
+        headerName: "Clínicas",
+        minWidth: 260,
+        flex: 1.4,
+        valueGetter: ({ data }) =>
+          data?.clinics?.length ? data.clinics.map((clinic) => clinic.clinic_name).join(" · ") : "Sin clínicas registradas",
+        exportValue: (row) => (row.clinics?.length ? row.clinics.map((clinic) => clinic.clinic_name).join(" · ") : "Sin clínicas registradas"),
+      },
+      {
+        headerName: "Acciones",
+        minWidth: 200,
+        excludeFromExport: true,
+        cellRenderer: (params: ICellRendererParams<Doctor>) => {
+          const data = params.data;
+          return data ? (
+            <div className="ag-actions-cell">
+              <button type="button" className="secondary-button" onClick={() => startDoctorEdit(data)}>
+                Editar
+              </button>
+              <button type="button" className={data.is_active ? "danger-button" : "success-button"} onClick={() => toggleDoctorActive(data)}>
+                {data.is_active ? "Desactivar" : "Activar"}
+              </button>
+            </div>
+          ) : null;
+        },
+      },
+    ],
+    [startDoctorEdit, toggleDoctorActive],
+  );
+
   return (
     <section className="tab-layout">
-      <article className="card section-card">
+      <article className="card section-card span-three">
         <div className="subsection-header">
           <div>
             <p className="eyebrow">Equipo clínico</p>
-            <h2>Administrar doctores</h2>
+            <h2>Doctores</h2>
           </div>
           <button type="button" className="success-button" onClick={openDoctorModal}>
             Agregar doctor
           </button>
-        </div>
-        <p className="empty-state doctor-admin-hint">
-          Crea y edita doctores desde un modal más cómodo, igual que el flujo de pacientes.
-        </p>
-      </article>
-
-      <article className="card section-card span-two">
-        <div className="subsection-header">
-          <div>
-            <p className="eyebrow">Equipo clínico</p>
-            <h2>Listado de doctores</h2>
-          </div>
         </div>
         <div className="chip-row">
           <button
@@ -116,76 +194,23 @@ export function DoctorsSection({
         </label>
         {doctorRosterTab === "activos" ? (
           <>
-            <div className="table-list">
-              {paginatedActiveDoctors.map((doctor) => (
-                <div className="simple-list-item" key={`doctor-team-${doctor.id}`}>
-                  <strong>{doctor.first_name} {doctor.last_name}</strong>
-                  <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                  <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
-                  <span>{doctor.phone_numbers?.find((phone) => phone.is_primary)?.phone_number ?? "Sin teléfono"}</span>
-                  <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                  <span>
-                    {doctor.clinics?.length
-                      ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                      : "Sin clínicas registradas"}
-                  </span>
-                  {doctor.clinics?.length ? (
-                    <div className="detail-stack">
-                      {doctor.clinics.map((clinic) => (
-                        <span key={`doctor-clinic-${doctor.id}-${clinic.id}`}>
-                          {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                          {clinic.address ? ` · ${clinic.address}` : ""}
-                          {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                    <button type="button" className="danger-button" onClick={() => toggleDoctorActive(doctor)}>
-                      Desactivar
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {!filteredActiveDoctorsCount ? <p className="empty-state">No hay doctores activos para ese filtro.</p> : null}
-            </div>
-            {activePager}
+            <ClinicalDataGrid<Doctor>
+              columns={doctorColumns}
+              emptyMessage="No hay doctores activos para ese filtro."
+              exportFileName="doctores-activos"
+              quickFilter={doctorDirectorySearch}
+              rowData={filteredActiveDoctors}
+            />
           </>
         ) : (
           <>
-            <div className="table-list">
-              {paginatedInactiveDoctors.map((doctor) => (
-                <div className="simple-list-item" key={`doctor-team-inactive-${doctor.id}`}>
-                  <strong>{doctor.first_name} {doctor.last_name}</strong>
-                  <span>{doctor.specialty ?? "Sin especialidad"}</span>
-                  <span>{doctor.date_of_birth ? `Nacimiento: ${formatDate(doctor.date_of_birth)}` : "Nacimiento no registrado"}</span>
-                  <span>{doctor.linked_user_email ?? "Sin usuario de acceso"}</span>
-                  <span>
-                    {doctor.clinics?.length
-                      ? doctor.clinics.map((clinic) => clinic.clinic_name).join(" · ")
-                      : "Sin clínicas registradas"}
-                  </span>
-                  {doctor.clinics?.length ? (
-                    <div className="detail-stack">
-                      {doctor.clinics.map((clinic) => (
-                        <span key={`doctor-clinic-inactive-${doctor.id}-${clinic.id}`}>
-                          {clinic.is_primary ? "Principal" : "Sede"}: {clinic.clinic_name}
-                          {clinic.address ? ` · ${clinic.address}` : ""}
-                          {clinic.phone_number ? ` · ${clinic.phone_number}` : ""}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="row-actions">
-                    <button type="button" className="secondary-button" onClick={() => startDoctorEdit(doctor)}>Editar</button>
-                    <button type="button" className="success-button" onClick={() => toggleDoctorActive(doctor)}>Activar</button>
-                  </div>
-                </div>
-              ))}
-              {!filteredInactiveDoctorsCount ? <p className="empty-state">No hay doctores inactivos para ese filtro.</p> : null}
-            </div>
-            {inactivePager}
+            <ClinicalDataGrid<Doctor>
+              columns={doctorColumns}
+              emptyMessage="No hay doctores inactivos para ese filtro."
+              exportFileName="doctores-inactivos"
+              quickFilter={doctorDirectorySearch}
+              rowData={filteredInactiveDoctors}
+            />
           </>
         )}
       </article>

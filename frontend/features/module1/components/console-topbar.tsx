@@ -47,6 +47,8 @@ export function ConsoleTopbar({
         ) : null}
         {isReceptionist && visibleDoctors.length > 1 ? (
           <SearchableSelect
+            id="topbar-doctor-filter"
+            name="doctor_filter"
             value={doctorFilter}
             onChange={onDoctorFilterChange}
             options={doctorOptions}
@@ -57,6 +59,8 @@ export function ConsoleTopbar({
         <label className="topbar-search-shell">
           <span className="topbar-search-label">Busqueda global</span>
           <input
+            id="topbar-global-search"
+            name="global_search"
             className="search-input topbar-search"
             placeholder="Paciente, expediente, telefono o motivo"
             value={searchValue}

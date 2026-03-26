@@ -5,6 +5,7 @@ import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel
 import { SearchableSelect } from "@/features/module1/components/form-fields";
 import { PatientSummarySection } from "@/features/module1/components/patient-summary-section";
 import { formatDateTime } from "@/features/module1/console-utils";
+import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Doctor, Encounter, Patient, PatientSummary } from "@/features/module1/types";
 
 type PatientsSectionProps = {
@@ -29,6 +30,7 @@ type PatientsSectionProps = {
   onPatientSearchChange: (value: string) => void;
   onSelectPatient: (patientId: string) => void;
   onShowCreatePatient: () => void;
+  onTogglePatientActive: () => void;
   setExpandedEncounterId: React.Dispatch<React.SetStateAction<number | null>>;
 };
 
@@ -54,6 +56,7 @@ export function PatientsSection({
   onPatientSearchChange,
   onSelectPatient,
   onShowCreatePatient,
+  onTogglePatientActive,
   setExpandedEncounterId,
 }: PatientsSectionProps) {
   const doctorOptions = availableDoctors.map((doctor) => ({
@@ -143,7 +146,7 @@ export function PatientsSection({
                         ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")
                         : "Sin asignación"}
                     </td>
-                    <td>{patient.primary_phone}</td>
+                    <td>{formatPhoneForDisplay(patient.primary_phone)}</td>
                     <td>{patient.created_at ? formatDateTime(patient.created_at) : "Sin fecha"}</td>
                     <td>{patient.is_active ? "Activo" : "Inactivo"}</td>
                   </tr>
@@ -179,6 +182,7 @@ export function PatientsSection({
         onGoToEncounters={onGoToEncounters}
         onGoToMessages={onGoToMessages}
         onOpenAttachment={onOpenAttachment}
+        onTogglePatientActive={onTogglePatientActive}
         selectedSummary={selectedSummary}
         setExpandedEncounterId={setExpandedEncounterId}
         sortedPatientEncounters={sortedPatientEncounters}

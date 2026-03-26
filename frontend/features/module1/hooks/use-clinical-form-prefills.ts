@@ -8,6 +8,8 @@ type AppointmentFormState = {
   appointment_type: string;
   created_by: string;
   doctor_id: string;
+  duration_minutes: string;
+  internal_notes: string;
   notify_patient: boolean;
   patient_id: string;
   reason: string;
@@ -16,6 +18,7 @@ type AppointmentFormState = {
   scheduled_start_date: string;
   scheduled_start_time: string;
   source: string;
+  use_manual_end_time: boolean;
 };
 
 type EncounterFormState = {

@@ -4,13 +4,14 @@ import type { ComponentProps } from "react";
 
 import { PatientsSection } from "@/features/module1/components/patients-section";
 
-type PatientsTabProps = Omit<ComponentProps<typeof PatientsSection>, "onEditPatient" | "onGoToAgendaAppointment" | "onShowCreatePatient"> & {
+type PatientsTabProps = Omit<ComponentProps<typeof PatientsSection>, "onEditPatient" | "onGoToAgendaAppointment" | "onShowCreatePatient" | "onTogglePatientActive"> & {
   onEditSelectedPatient: () => void;
   onGoToAgenda: () => void;
   onGoToAgendaFromPatient: (appointmentId: number) => void;
   onGoToEncounters: () => void;
   onGoToMessages: () => void;
   onShowCreatePatientModal: () => void;
+  onToggleSelectedPatientActive: () => void;
 };
 
 export function PatientsTab({
@@ -20,6 +21,7 @@ export function PatientsTab({
   onGoToEncounters,
   onGoToMessages,
   onShowCreatePatientModal,
+  onToggleSelectedPatientActive,
   ...sectionProps
 }: PatientsTabProps) {
   return (
@@ -31,6 +33,7 @@ export function PatientsTab({
       onGoToEncounters={onGoToEncounters}
       onGoToMessages={onGoToMessages}
       onShowCreatePatient={onShowCreatePatientModal}
+      onTogglePatientActive={onToggleSelectedPatientActive}
     />
   );
 }
