@@ -9,6 +9,8 @@ import { DEFAULT_COUNTRY_DIAL_CODE } from "@/features/module1/phone-utils";
 export type DoctorClinicForm = {
   clinic_name: string;
   address: string;
+  latitude: string;
+  longitude: string;
   phone_number: string;
   notes: string;
   is_primary: boolean;
@@ -32,6 +34,8 @@ export function emptyDoctorClinic(): DoctorClinicForm {
   return {
     clinic_name: "",
     address: "",
+    latitude: "",
+    longitude: "",
     phone_number: "",
     notes: "",
     is_primary: false,

@@ -24,6 +24,8 @@ export type Doctor = {
     id: number;
     clinic_name: string;
     address?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
     phone_number?: string | null;
     notes?: string | null;
     is_primary: boolean;

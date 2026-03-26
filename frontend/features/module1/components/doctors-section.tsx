@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 
 import type { ICellRendererParams } from "ag-grid-community";
@@ -10,6 +11,11 @@ import type { DoctorAdminForm, DoctorClinicForm } from "@/features/module1/clini
 import { formatDate } from "@/features/module1/console-utils";
 import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Doctor } from "@/features/module1/types";
+
+const DoctorClinicMapPicker = dynamic(
+  () => import("@/features/module1/components/doctor-clinic-map-picker").then((mod) => mod.DoctorClinicMapPicker),
+  { ssr: false },
+);
 
 type DoctorRosterTab = "activos" | "inactivos";
 
@@ -320,6 +326,36 @@ export function DoctorsSection({
                         <label className="span-two">
                           <span>Dirección</span>
                           <input value={clinic.address} onChange={(event) => updateDoctorClinic(index, "address", event.target.value)} />
+                        </label>
+                        <div className="span-two">
+                          <DoctorClinicMapPicker
+                            address={clinic.address}
+                            latitude={clinic.latitude}
+                            longitude={clinic.longitude}
+                            onAddressChange={(nextAddress) => updateDoctorClinic(index, "address", nextAddress)}
+                            onChange={(coordinates) => {
+                              updateDoctorClinic(index, "latitude", coordinates.latitude);
+                              updateDoctorClinic(index, "longitude", coordinates.longitude);
+                            }}
+                          />
+                        </div>
+                        <label>
+                          <span>Latitud Maps</span>
+                          <input
+                            inputMode="decimal"
+                            placeholder="14.6349"
+                            value={clinic.latitude}
+                            onChange={(event) => updateDoctorClinic(index, "latitude", event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          <span>Longitud Maps</span>
+                          <input
+                            inputMode="decimal"
+                            placeholder="-90.5069"
+                            value={clinic.longitude}
+                            onChange={(event) => updateDoctorClinic(index, "longitude", event.target.value)}
+                          />
                         </label>
                         <label className="span-two">
                           <span>Notas</span>

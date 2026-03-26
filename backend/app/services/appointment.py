@@ -64,6 +64,8 @@ class AppointmentService:
         doctor_title = self._resolve_doctor_title(getattr(appointment, "doctor", None))
         clinic_name = None
         clinic_address = None
+        clinic_latitude = None
+        clinic_longitude = None
         clinic_phone = None
 
         if getattr(appointment, "doctor", None) is not None:
@@ -75,6 +77,8 @@ class AppointmentService:
             if primary_clinic is not None:
                 clinic_name = primary_clinic.clinic_name
                 clinic_address = primary_clinic.address
+                clinic_latitude = primary_clinic.latitude
+                clinic_longitude = primary_clinic.longitude
                 clinic_phone = primary_clinic.phone_number
 
         status_label = "Por confirmar"
@@ -98,6 +102,8 @@ class AppointmentService:
             status_label=status_label,
             clinic_name=clinic_name,
             clinic_address=clinic_address,
+            clinic_latitude=clinic_latitude,
+            clinic_longitude=clinic_longitude,
             clinic_phone=clinic_phone,
         )
 

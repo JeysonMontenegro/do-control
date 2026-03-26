@@ -89,4 +89,6 @@ class AppointmentPublicCardRead(BaseModel):
     status_label: str
     clinic_name: str | None
     clinic_address: str | None
+    clinic_latitude: float | None = None
+    clinic_longitude: float | None = None
     clinic_phone: str | None

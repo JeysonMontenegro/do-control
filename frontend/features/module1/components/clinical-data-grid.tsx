@@ -64,6 +64,11 @@ export function ClinicalDataGrid<T extends object>({
   rowData,
 }: ClinicalDataGridProps<T>) {
   const gridRef = useRef<AgGridReact<T>>(null);
+  const gridColumns = useMemo<ColDef<T>[]>(
+    () =>
+      columns.map(({ excludeFromExport: _excludeFromExport, exportLabel: _exportLabel, exportValue: _exportValue, ...column }) => column),
+    [columns],
+  );
 
   const defaultColDef = useMemo<ColDef<T>>(
     () => ({
@@ -164,7 +169,7 @@ export function ClinicalDataGrid<T extends object>({
         <AgGridReact<T>
           ref={gridRef}
           rowData={rowData}
-          columnDefs={columns}
+          columnDefs={gridColumns}
           defaultColDef={defaultColDef}
           theme={themeQuartz}
           quickFilterText={quickFilter}

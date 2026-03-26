@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
+  buildGoogleCalendarUrl,
+  buildGoogleMapsUrl,
   fetchAppointmentCard,
   formatAppointmentDate,
   formatAppointmentKind,
@@ -63,6 +65,9 @@ export default async function PublicAppointmentPage({ params }: { params: Promis
     notFound();
   }
 
+  const mapsUrl = buildGoogleMapsUrl(card);
+  const calendarUrl = buildGoogleCalendarUrl(card);
+
   return (
     <main className="public-appointment-page">
       <section className="public-appointment-shell">
@@ -112,6 +117,17 @@ export default async function PublicAppointmentPage({ params }: { params: Promis
               <dd>{card.clinic_phone || "Teléfono no disponible"}</dd>
             </div>
           </dl>
+
+          <div className="public-appointment-actions">
+            <a className="public-appointment-action primary" href={calendarUrl} target="_blank" rel="noreferrer">
+              Agregar a Google Calendar
+            </a>
+            {mapsUrl ? (
+              <a className="public-appointment-action secondary" href={mapsUrl} target="_blank" rel="noreferrer">
+                Ver ubicación en Google Maps
+              </a>
+            ) : null}
+          </div>
         </article>
       </section>
     </main>

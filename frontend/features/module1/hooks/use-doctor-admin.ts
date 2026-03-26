@@ -26,6 +26,15 @@ export function useDoctorAdmin({
   setClinicSetting,
   setMessage,
 }: UseDoctorAdminParams) {
+  const parseCoordinate = (value: string) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const [doctorAdminForm, setDoctorAdminForm] = useState<DoctorAdminForm>(createDoctorAdminForm);
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
   const [showDoctorModal, setShowDoctorModal] = useState(false);
@@ -76,6 +85,8 @@ export function useDoctorAdmin({
           .map((clinic, index) => ({
             clinic_name: clinic.clinic_name.trim(),
             address: clinic.address.trim() || null,
+            latitude: parseCoordinate(clinic.latitude),
+            longitude: parseCoordinate(clinic.longitude),
             phone_number: clinic.phone_number.trim() || null,
             notes: clinic.notes.trim() || null,
             is_primary: clinic.is_primary || index === 0,
@@ -142,6 +153,8 @@ export function useDoctorAdmin({
         ? doctor.clinics.map((clinic) => ({
             clinic_name: clinic.clinic_name,
             address: clinic.address ?? "",
+            latitude: clinic.latitude != null ? String(clinic.latitude) : "",
+            longitude: clinic.longitude != null ? String(clinic.longitude) : "",
             phone_number: clinic.phone_number ?? "",
             notes: clinic.notes ?? "",
             is_primary: clinic.is_primary,

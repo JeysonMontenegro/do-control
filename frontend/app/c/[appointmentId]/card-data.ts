@@ -13,6 +13,8 @@ export type AppointmentCard = {
   status_label: string;
   clinic_name: string | null;
   clinic_address: string | null;
+  clinic_latitude: number | null;
+  clinic_longitude: number | null;
   clinic_phone: string | null;
 };
 
@@ -86,4 +88,52 @@ export function formatAppointmentTime(start: string, end: string) {
     timeZone: "America/Guatemala",
   });
   return `${formatter.format(new Date(start))} a ${formatter.format(new Date(end))}`;
+}
+
+export function buildGoogleMapsUrl(card: AppointmentCard) {
+  if (card.clinic_latitude != null && card.clinic_longitude != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${card.clinic_latitude},${card.clinic_longitude}`)}`;
+  }
+  if (card.clinic_address?.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.clinic_address.trim())}`;
+  }
+  return null;
+}
+
+function formatCalendarDate(value: string) {
+  const date = new Date(value);
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).formatToParts(date);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return `${pick("year")}${pick("month")}${pick("day")}T${pick("hour")}${pick("minute")}${pick("second")}Z`;
+}
+
+export function buildGoogleCalendarUrl(card: AppointmentCard) {
+  const text = `${formatAppointmentKind(card.appointment_type)} con ${[card.doctor_title?.trim(), card.doctor_name].filter(Boolean).join(" ")}`;
+  const details = [
+    card.reason?.trim() ? `Motivo: ${card.reason.trim()}` : null,
+    card.clinic_name?.trim() ? `Clínica: ${card.clinic_name.trim()}` : null,
+    card.clinic_address?.trim() ? `Dirección: ${card.clinic_address.trim()}` : null,
+    card.clinic_phone?.trim() ? `Teléfono: ${card.clinic_phone.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text,
+    dates: `${formatCalendarDate(card.scheduled_start)}/${formatCalendarDate(card.scheduled_end)}`,
+    details,
+    location: card.clinic_address?.trim() || card.clinic_name?.trim() || "Do-Control",
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

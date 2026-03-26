@@ -52,6 +52,8 @@ class PublicAppointmentCardHttpSmokeTests(unittest.TestCase):
         self.assertIn("scheduled_start", body)
         self.assertIn("appointment_type", body)
         self.assertIn("status_label", body)
+        self.assertIn("clinic_latitude", body)
+        self.assertIn("clinic_longitude", body)
         self.assertNotIn("patient_name", body)
         self.assertNotIn("patient_id", body)
 
