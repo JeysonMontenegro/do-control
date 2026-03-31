@@ -921,6 +921,13 @@ select.compact-input,
   font-weight: 700;
 }
 
+.sidebar-link strong,
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sidebar-link-compact,
 .sidebar-logout-compact {
   display: none;
@@ -929,6 +936,29 @@ select.compact-input,
 .sidebar-link span {
   color: rgba(235, 243, 255, 0.72);
   font-size: 0.79rem;
+}
+
+.sidebar-badge,
+.filter-chip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sidebar-badge {
+  background: #f9d66c;
+  color: #243247;
+}
+
+.filter-chip-badge {
+  background: rgba(15, 108, 120, 0.12);
+  color: #0f6c78;
 }
 
 .sidebar-link:hover,

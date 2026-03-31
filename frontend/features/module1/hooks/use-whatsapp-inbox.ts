@@ -19,6 +19,7 @@ type UseWhatsAppInboxParams = {
   isAuthenticated: boolean;
   messagesSubtab: "paciente" | "citas" | "operacion";
   patients: Patient[];
+  selectedPatientId: string;
   setMessage: (message: string) => void;
   setSelectedPatientId: (value: string) => void;
 };
@@ -30,6 +31,7 @@ export function useWhatsAppInbox({
   isAuthenticated,
   messagesSubtab,
   patients,
+  selectedPatientId,
   setMessage,
   setSelectedPatientId,
 }: UseWhatsAppInboxParams) {
@@ -53,6 +55,12 @@ export function useWhatsAppInbox({
 
   const patientByPhone = useMemo(() => {
     const entries = patients.map((patient) => [normalizePhoneWithDefaultCountry(patient.primary_phone), patient] as const);
+    return new Map(entries);
+  }, [patients]);
+  const conversationPhoneByPatientId = useMemo(() => {
+    const entries = patients
+      .filter((patient) => patient.primary_phone?.trim())
+      .map((patient) => [String(patient.id), normalizePhoneWithDefaultCountry(patient.primary_phone)] as const);
     return new Map(entries);
   }, [patients]);
 
@@ -147,6 +155,19 @@ export function useWhatsAppInbox({
   }, [refreshMessages]);
 
   useEffect(() => {
+    if (!selectedPatientId) {
+      return;
+    }
+    const patientPhone = conversationPhoneByPatientId.get(selectedPatientId);
+    if (!patientPhone) {
+      return;
+    }
+    if (conversations.some((conversation) => normalizePhoneWithDefaultCountry(conversation.patient_phone) === patientPhone)) {
+      setActiveConversationPhone((current) => (current === patientPhone ? current : patientPhone));
+    }
+  }, [conversationPhoneByPatientId, conversations, selectedPatientId]);
+
+  useEffect(() => {
     if (!isAuthenticated || messagesSubtab !== "paciente" || !targetDoctorId) {
       return;
     }
@@ -175,6 +196,8 @@ export function useWhatsAppInbox({
     loadingMessages,
     messages,
     sendingMessage,
+    refreshConversations,
+    refreshMessages,
     setActiveConversationPhone,
     setComposer,
     sendMessage,

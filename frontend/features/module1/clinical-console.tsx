@@ -664,6 +664,8 @@ export function ClinicalConsole() {
     loadingConversations,
     loadingMessages,
     messages,
+    refreshConversations,
+    refreshMessages,
     sendingMessage,
     sendMessage,
     setActiveConversationPhone,
@@ -676,9 +678,11 @@ export function ClinicalConsole() {
     isAuthenticated,
     messagesSubtab,
     patients: data.patients,
+    selectedPatientId,
     setMessage,
     setSelectedPatientId,
   });
+  const inboxUnreadCount = conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
 
   const { encountersTabProps, messagesTabProps, patientsTabProps } = useClinicalTabProps({
     encountersTabProps: {
@@ -731,6 +735,7 @@ export function ClinicalConsole() {
       dispatchFilters,
       expandedDispatchId,
       generateDispatchesNow,
+      inboxUnreadCount,
       isAdmin,
       isSendingMessage: sendingMessage,
       loadingConversations,
@@ -740,6 +745,10 @@ export function ClinicalConsole() {
       messagesSubtab,
       onComposerChange: setComposer,
       onDoctorFilterChange: setDoctorFilter,
+      onRefreshInbox: () => {
+        void refreshConversations();
+        void refreshMessages();
+      },
       onSendMessage: () => {
         void sendMessage();
       },
@@ -1052,6 +1061,7 @@ export function ClinicalConsole() {
             canViewMessages,
             canViewReviewQueue,
             currentRoles,
+            inboxUnreadCount,
             isAdmin,
             logout,
             onTabChange: setActiveTab,

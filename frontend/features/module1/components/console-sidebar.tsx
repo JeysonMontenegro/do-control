@@ -5,6 +5,7 @@ import type { ConsoleTab } from "@/features/module1/console-config";
 type ConsoleSidebarProps = {
   activeTab: ConsoleTab;
   appointmentCount: number;
+  inboxUnreadCount: number;
   patientCount: number;
   reviewCount: number;
   canViewGestion: boolean;
@@ -20,6 +21,7 @@ type ConsoleSidebarProps = {
 export function ConsoleSidebar({
   activeTab,
   appointmentCount,
+  inboxUnreadCount,
   patientCount,
   reviewCount,
   canViewGestion,
@@ -52,7 +54,10 @@ export function ConsoleSidebar({
               className={`sidebar-link ${activeTab === tab.id ? "sidebar-link-active" : ""}`}
               onClick={() => onTabChange(tab.id)}
             >
-              <strong className="sidebar-link-full">{tab.label}</strong>
+              <strong className="sidebar-link-full">
+                {tab.label}
+                {tab.id === "mensajes" && inboxUnreadCount > 0 ? <span className="sidebar-badge">{inboxUnreadCount}</span> : null}
+              </strong>
               <strong className="sidebar-link-compact">{getCompactTabLabel(tab.id)}</strong>
               <span>{getTabSupportText(tab.id)}</span>
             </button>

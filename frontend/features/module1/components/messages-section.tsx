@@ -56,6 +56,7 @@ type MessagesSectionProps = {
   };
   expandedDispatchId: number | null;
   generateDispatchesNow: () => void;
+  inboxUnreadCount: number;
   isAdmin: boolean;
   isSendingMessage: boolean;
   loadingConversations: boolean;
@@ -65,6 +66,7 @@ type MessagesSectionProps = {
   messagesSubtab: MessagesSubtab;
   onComposerChange: (value: string) => void;
   onDoctorFilterChange: (value: string) => void;
+  onRefreshInbox: () => void;
   onSendMessage: () => void;
   onSelectConversation: (phone: string) => void;
   previewActionsDisabled?: boolean;
@@ -103,6 +105,7 @@ export function MessagesSection({
   dispatchFilters,
   expandedDispatchId,
   generateDispatchesNow,
+  inboxUnreadCount,
   isAdmin,
   isSendingMessage,
   loadingConversations,
@@ -112,6 +115,7 @@ export function MessagesSection({
   messagesSubtab,
   onComposerChange,
   onDoctorFilterChange,
+  onRefreshInbox,
   onSendMessage,
   onSelectConversation,
   requeueDispatch,
@@ -129,6 +133,7 @@ export function MessagesSection({
   updateDispatchStatus,
 }: MessagesSectionProps) {
   const [conversationSearch, setConversationSearch] = useState("");
+  const [conversationFilter, setConversationFilter] = useState<"all" | "unread" | "window_open" | "unlinked">("all");
   const activeDispatchFilters = [
     dispatchFilters.status_filter ? { label: "Estado", value: dispatchStatusLabel(dispatchFilters.status_filter) } : null,
     dispatchFilters.channel ? { label: "Canal", value: dispatchFilters.channel } : null,
@@ -146,6 +151,42 @@ export function MessagesSection({
   const selectedConversationPatient = activeConversation
     ? patientByPhone.get(normalizePhoneWithDefaultCountry(activeConversation.patient_phone)) ?? null
     : null;
+  const conversationPatientIds = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const conversation of messageConversations) {
+      const patient = patientByPhone.get(normalizePhoneWithDefaultCountry(conversation.patient_phone));
+      if (patient) {
+        map.set(conversation.patient_phone, patient.id);
+      }
+    }
+    return map;
+  }, [messageConversations, patientByPhone]);
+  const filteredMessageConversations = useMemo(() => {
+    switch (conversationFilter) {
+      case "unread":
+        return messageConversations.filter((conversation) => conversation.unread_count > 0);
+      case "window_open":
+        return messageConversations.filter((conversation) => conversation.window_open);
+      case "unlinked":
+        return messageConversations.filter((conversation) => !conversationPatientIds.has(conversation.patient_phone));
+      default:
+        return messageConversations;
+    }
+  }, [conversationFilter, conversationPatientIds, messageConversations]);
+  const inboxActiveFilters = [
+    conversationFilter !== "all"
+      ? {
+          label: "Inbox",
+          value:
+            conversationFilter === "unread"
+              ? "No leídos"
+              : conversationFilter === "window_open"
+                ? "Ventana abierta"
+                : "Sin paciente ligado",
+        }
+      : null,
+    conversationSearch.trim() ? { label: "Búsqueda", value: conversationSearch.trim() } : null,
+  ].filter((item): item is { label: string; value: string } => item !== null);
   const selectedConversationAppointments = useMemo(() => {
     if (!selectedConversationPatient) {
       return [] as Appointment[];
@@ -378,6 +419,7 @@ export function MessagesSection({
             onClick={() => setMessagesSubtab("paciente")}
           >
             Inbox
+            {inboxUnreadCount > 0 ? <span className="filter-chip-badge">{inboxUnreadCount}</span> : null}
           </button>
           <button
             type="button"
@@ -409,8 +451,43 @@ export function MessagesSection({
                 <p className="eyebrow">Inbox</p>
                 <h2>Conversaciones de WhatsApp</h2>
               </div>
+              <div className="row-actions">
+                <button type="button" className="secondary-button compact-action-button" onClick={onRefreshInbox}>
+                  Actualizar
+                </button>
+              </div>
             </div>
             <div className="toolbar-row">
+              <div className="chip-row">
+                <button
+                  type="button"
+                  className={`filter-chip ${conversationFilter === "all" ? "filter-chip-active" : ""}`}
+                  onClick={() => setConversationFilter("all")}
+                >
+                  Todas
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${conversationFilter === "unread" ? "filter-chip-active" : ""}`}
+                  onClick={() => setConversationFilter("unread")}
+                >
+                  No leídos
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${conversationFilter === "window_open" ? "filter-chip-active" : ""}`}
+                  onClick={() => setConversationFilter("window_open")}
+                >
+                  Ventana 24h
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${conversationFilter === "unlinked" ? "filter-chip-active" : ""}`}
+                  onClick={() => setConversationFilter("unlinked")}
+                >
+                  Sin paciente ligado
+                </button>
+              </div>
               {canChooseAmongMultipleDoctors ? (
                 <label className="toolbar-search-shell">
                   <span>Doctor</span>
@@ -438,6 +515,20 @@ export function MessagesSection({
                 />
               </label>
             </div>
+            <ActiveFiltersBar
+              clearLabel="Limpiar filtros del inbox"
+              items={inboxActiveFilters}
+              onClearAll={
+                inboxActiveFilters.length
+                  ? () => {
+                      setConversationFilter("all");
+                      setConversationSearch("");
+                    }
+                  : undefined
+              }
+              resultsLabel="conversaciones visibles"
+              resultsValue={filteredMessageConversations.length}
+            />
             {!targetDoctorId ? (
               <EmptyStatePanel
                 body="Primero elige el doctor cuyo inbox quieres revisar."
@@ -446,13 +537,13 @@ export function MessagesSection({
               />
             ) : loadingConversations ? (
               <p className="empty-state">Cargando conversaciones...</p>
-            ) : messageConversations.length ? (
+            ) : filteredMessageConversations.length ? (
               <ClinicalDataGrid<MessagingConversation>
                 columns={conversationColumns}
                 emptyMessage="No hay conversaciones para este doctor."
                 exportFileName="inbox-whatsapp"
                 quickFilter={conversationSearch}
-                rowData={messageConversations}
+                rowData={filteredMessageConversations}
               />
             ) : (
               <EmptyStatePanel
@@ -491,6 +582,24 @@ export function MessagesSection({
                     <span>Paciente aún no ligado en do-control</span>
                   )}
                   <div className="row-actions">
+                    <button
+                      type="button"
+                      className="secondary-button compact-action-button"
+                      onClick={() => {
+                        if (typeof navigator !== "undefined" && navigator.clipboard) {
+                          void navigator.clipboard.writeText(activeConversation.patient_phone);
+                        }
+                      }}
+                    >
+                      Copiar teléfono
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button compact-action-button"
+                      onClick={() => window.open(`https://wa.me/${normalizePhoneWithDefaultCountry(activeConversation.patient_phone)}`, "_blank", "noopener,noreferrer")}
+                    >
+                      Abrir WhatsApp
+                    </button>
                     {selectedConversationPatient ? (
                       <button
                         type="button"
