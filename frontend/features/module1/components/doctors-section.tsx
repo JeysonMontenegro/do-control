@@ -7,7 +7,7 @@ import type { ICellRendererParams } from "ag-grid-community";
 
 import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
-import type { DoctorAdminForm, DoctorClinicForm } from "@/features/module1/clinical-console-defaults";
+import type { DoctorAdminForm, DoctorClinicForm, DoctorInviteForm } from "@/features/module1/clinical-console-defaults";
 import { formatDate } from "@/features/module1/console-utils";
 import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
 import type { Doctor } from "@/features/module1/types";
@@ -24,6 +24,7 @@ type DoctorsSectionProps = {
   activePager: React.ReactNode;
   doctorAdminForm: DoctorAdminForm;
   doctorDirectorySearch: string;
+  doctorInviteForm: DoctorInviteForm;
   doctorRosterTab: DoctorRosterTab;
   editingDoctorId: number | null;
   filteredActiveDoctorsCount: number;
@@ -31,18 +32,24 @@ type DoctorsSectionProps = {
   inactiveDoctors: Doctor[];
   inactivePager: React.ReactNode;
   isAdmin: boolean;
+  latestInvitationUrl: string;
   paginatedActiveDoctors: Doctor[];
   paginatedInactiveDoctors: Doctor[];
   addDoctorClinic: () => void;
   openDoctorModal: () => void;
+  openDoctorInviteModal: () => void;
   onDoctorDirectorySearchChange: (value: string) => void;
   removeDoctorClinic: (index: number) => void;
   resetDoctorAdminForm: () => void;
+  resetDoctorInviteForm: () => void;
   setDoctorAdminForm: React.Dispatch<React.SetStateAction<DoctorAdminForm>>;
+  setDoctorInviteForm: React.Dispatch<React.SetStateAction<DoctorInviteForm>>;
   setDoctorRosterTab: React.Dispatch<React.SetStateAction<DoctorRosterTab>>;
   showDoctorModal: boolean;
+  showDoctorInviteModal: boolean;
   startDoctorEdit: (doctor: Doctor) => void;
   submitDoctorAdmin: (event: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
+  submitDoctorInvitation: (event: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
   toggleDoctorActive: (doctor: Doctor) => void;
   updateDoctorClinic: (index: number, field: keyof DoctorClinicForm, value: string | boolean) => void;
 };
@@ -52,6 +59,7 @@ export function DoctorsSection({
   activePager,
   doctorAdminForm,
   doctorDirectorySearch,
+  doctorInviteForm,
   doctorRosterTab,
   editingDoctorId,
   filteredActiveDoctorsCount,
@@ -59,18 +67,24 @@ export function DoctorsSection({
   inactiveDoctors,
   inactivePager,
   isAdmin,
+  latestInvitationUrl,
   paginatedActiveDoctors,
   paginatedInactiveDoctors,
   addDoctorClinic,
   openDoctorModal,
+  openDoctorInviteModal,
   onDoctorDirectorySearchChange,
   removeDoctorClinic,
   resetDoctorAdminForm,
+  resetDoctorInviteForm,
   setDoctorAdminForm,
+  setDoctorInviteForm,
   setDoctorRosterTab,
   showDoctorModal,
+  showDoctorInviteModal,
   startDoctorEdit,
   submitDoctorAdmin,
+  submitDoctorInvitation,
   toggleDoctorActive,
   updateDoctorClinic,
 }: DoctorsSectionProps) {
@@ -170,10 +184,21 @@ export function DoctorsSection({
             <p className="eyebrow">Equipo clínico</p>
             <h2>Doctores</h2>
           </div>
-          <button type="button" className="success-button" onClick={openDoctorModal}>
-            Agregar doctor
-          </button>
+          <div className="row-actions">
+            <button type="button" className="secondary-button" onClick={openDoctorInviteModal}>
+              Invitar doctor
+            </button>
+            <button type="button" className="success-button" onClick={openDoctorModal}>
+              Agregar doctor
+            </button>
+          </div>
         </div>
+        {latestInvitationUrl ? (
+          <div className="inline-banner">
+            <strong>Último enlace de onboarding:</strong>
+            <span>{latestInvitationUrl}</span>
+          </div>
+        ) : null}
         <div className="chip-row">
           <button
             type="button"
@@ -379,6 +404,68 @@ export function DoctorsSection({
                   Cancelar
                 </button>
                 <button type="submit">{editingDoctorId ? "Actualizar doctor" : "Registrar doctor"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {showDoctorInviteModal ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card doctor-modal-card">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Equipo clínico</p>
+                <h2>Invitar doctor</h2>
+              </div>
+              <button type="button" className="secondary-button" onClick={resetDoctorInviteForm}>
+                Cerrar
+              </button>
+            </div>
+            <form
+              className="form-card compact-form"
+              onSubmit={async (event) => {
+                const saved = await submitDoctorInvitation(event);
+                if (saved) {
+                  resetDoctorInviteForm();
+                }
+              }}
+            >
+              <p className="empty-state">
+                El administrador solo registra nombre, correo y teléfono. El doctor completará el resto desde un enlace único.
+              </p>
+              <div className="three-column-grid">
+                <label className="span-two">
+                  <RequiredLabel>Nombre del doctor</RequiredLabel>
+                  <input
+                    value={doctorInviteForm.full_name}
+                    onChange={(event) => setDoctorInviteForm((current) => ({ ...current, full_name: event.target.value }))}
+                    placeholder="Nombre y apellido"
+                    required
+                  />
+                </label>
+                <label>
+                  <RequiredLabel>Correo</RequiredLabel>
+                  <input
+                    type="email"
+                    value={doctorInviteForm.email}
+                    onChange={(event) => setDoctorInviteForm((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="doctor@correo.com"
+                    required
+                  />
+                </label>
+                <PhoneField
+                  label="Teléfono"
+                  value={doctorInviteForm.phone_number}
+                  onChange={(nextValue) => setDoctorInviteForm((current) => ({ ...current, phone_number: nextValue }))}
+                  placeholder="58420737"
+                />
+              </div>
+              <div className="row-actions">
+                <button type="button" className="secondary-button" onClick={resetDoctorInviteForm}>
+                  Cancelar
+                </button>
+                <button type="submit">Enviar invitación</button>
               </div>
             </form>
           </div>

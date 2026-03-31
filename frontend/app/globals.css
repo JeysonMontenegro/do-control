@@ -3032,6 +3032,29 @@ select.compact-input,
   }
 }
 
+.inline-banner {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 33, 61, 0.12);
+  background: rgba(20, 33, 61, 0.04);
+  color: #14213d;
+  font-size: 0.92rem;
+}
+
+.inline-banner strong {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(20, 33, 61, 0.72);
+}
+
+.inline-banner span {
+  word-break: break-all;
+}
+
 @media (max-width: 640px) {
   .app-shell-auth {
     grid-template-columns: 82px minmax(0, 1fr);

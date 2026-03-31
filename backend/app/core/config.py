@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     email_delivery_enabled: bool = False
     password_reset_token_expire_minutes: int = 60
     admin_invite_token_expire_minutes: int = 1440
+    doctor_onboarding_token_expire_minutes: int = 60
     recaptcha_site_key: str | None = None
     recaptcha_secret_key: str | None = None
     appointme_webhook_url: str | None = None

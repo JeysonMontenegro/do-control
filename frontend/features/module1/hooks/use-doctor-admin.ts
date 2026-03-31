@@ -4,9 +4,11 @@ import { FormEvent, useMemo, useState } from "react";
 
 import {
   createDoctorAdminForm,
+  createDoctorInviteForm,
   emptyDoctorClinic,
   type DoctorAdminForm,
   type DoctorClinicForm,
+  type DoctorInviteForm,
 } from "@/features/module1/clinical-console-defaults";
 import { formatEditableDate, parseDisplayDate } from "@/features/module1/console-utils";
 import { normalizePhoneWithDefaultCountry } from "@/features/module1/phone-utils";
@@ -26,6 +28,16 @@ export function useDoctorAdmin({
   setClinicSetting,
   setMessage,
 }: UseDoctorAdminParams) {
+  type DoctorInvitationResponse = {
+    status: string;
+    doctor_id: number;
+    user_id: number;
+    email: string;
+    phone_number: string;
+    expires_at: string;
+    onboarding_url: string;
+  };
+
   const parseCoordinate = (value: string) => {
     const normalized = value.trim();
     if (!normalized) {
@@ -36,8 +48,11 @@ export function useDoctorAdmin({
   };
 
   const [doctorAdminForm, setDoctorAdminForm] = useState<DoctorAdminForm>(createDoctorAdminForm);
+  const [doctorInviteForm, setDoctorInviteForm] = useState<DoctorInviteForm>(createDoctorInviteForm);
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
+  const [latestInvitationUrl, setLatestInvitationUrl] = useState("");
   const [showDoctorModal, setShowDoctorModal] = useState(false);
+  const [showDoctorInviteModal, setShowDoctorInviteModal] = useState(false);
   const [doctorRosterTab, setDoctorRosterTab] = useState<"activos" | "inactivos">("activos");
   const [doctorDirectorySearch, setDoctorDirectorySearch] = useState("");
   const [activeDoctorPage, setActiveDoctorPage] = useState(1);
@@ -110,6 +125,27 @@ export function useDoctorAdmin({
     }
   }
 
+  async function submitDoctorInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      const response = await apiPost<DoctorInvitationResponse>("/api/doctors/invitations", {
+        full_name: doctorInviteForm.full_name.trim(),
+        email: doctorInviteForm.email.trim(),
+        phone_number: normalizePhoneWithDefaultCountry(doctorInviteForm.phone_number),
+      });
+      setLatestInvitationUrl(response.onboarding_url);
+      setDoctorInviteForm(createDoctorInviteForm());
+      setShowDoctorInviteModal(false);
+      await loadData();
+      setMessage(`Invitación enviada. Enlace generado: ${response.onboarding_url}`);
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo enviar la invitación del doctor.");
+      return false;
+    }
+  }
+
   async function toggleDoctorActive(doctor: Doctor) {
     setMessage("");
     try {
@@ -169,6 +205,11 @@ export function useDoctorAdmin({
     setDoctorAdminForm(createDoctorAdminForm());
   }
 
+  function resetDoctorInviteForm() {
+    setShowDoctorInviteModal(false);
+    setDoctorInviteForm(createDoctorInviteForm());
+  }
+
   function updateDoctorClinic(index: number, field: keyof DoctorClinicForm, value: string | boolean) {
     setDoctorAdminForm((current) => {
       const clinics = current.clinics.map((clinic, clinicIndex) => {
@@ -219,22 +260,29 @@ export function useDoctorAdmin({
     addDoctorClinic,
     doctorAdminForm,
     doctorDirectorySearch,
+    doctorInviteForm,
     doctorRosterTab,
     editingDoctorId,
     filteredActiveDoctors,
     filteredInactiveDoctors,
     inactiveDoctorPage,
     inactiveDoctors,
+    latestInvitationUrl,
     removeDoctorClinic,
     resetDoctorAdminForm,
+    resetDoctorInviteForm,
     setActiveDoctorPage,
     setDoctorAdminForm,
+    setDoctorInviteForm,
     setDoctorRosterTab,
     setShowDoctorModal,
+    setShowDoctorInviteModal,
     setInactiveDoctorPage,
     showDoctorModal,
+    showDoctorInviteModal,
     startDoctorEdit,
     submitDoctorAdmin,
+    submitDoctorInvitation,
     toggleDoctorActive,
     toggleMultiDoctorVisibility,
     updateDoctorClinic,

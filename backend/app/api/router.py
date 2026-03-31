@@ -8,6 +8,7 @@ from app.api.routes import (
     clinic_settings,
     communication_dispatches,
     communication_templates,
+    doctor_onboarding,
     doctors,
     email_dispatches,
     email_templates,
@@ -30,6 +31,7 @@ api_router.include_router(communication_dispatches.router, prefix="/communicatio
 api_router.include_router(email_templates.router, prefix="/email-templates", tags=["email-templates"])
 api_router.include_router(email_dispatches.router, prefix="/email-dispatches", tags=["email-dispatches"])
 api_router.include_router(doctors.router, prefix="/doctors", tags=["doctors"])
+api_router.include_router(doctor_onboarding.router, prefix="/doctor-onboarding", tags=["doctor-onboarding"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(messaging_inbox.router, prefix="/messaging-inbox", tags=["messaging-inbox"])
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])

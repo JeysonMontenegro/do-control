@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
+from app.schemas.doctor_onboarding import DoctorOnboardingInviteCreate, DoctorOnboardingInviteRead
 from app.schemas.doctor import DoctorCreate, DoctorRead, DoctorUpdate
+from app.services.doctor_onboarding import DoctorOnboardingService
 from app.services.doctor import DoctorService
 from app.services.errors import NotFoundError, ValidationError
 
@@ -41,6 +43,18 @@ def create_doctor(
     try:
         service = DoctorService(db)
         return service.serialize_doctor(service.create_doctor(payload))
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/invitations", response_model=DoctorOnboardingInviteRead, status_code=status.HTTP_201_CREATED)
+def create_doctor_invitation(
+    payload: DoctorOnboardingInviteCreate,
+    db: Session = Depends(get_db_session),
+    _current_user=Depends(require_roles("admin")),
+) -> DoctorOnboardingInviteRead:
+    try:
+        return DoctorOnboardingService(db).create_invitation(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

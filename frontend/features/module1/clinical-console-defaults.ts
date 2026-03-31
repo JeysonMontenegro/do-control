@@ -30,6 +30,12 @@ export type DoctorAdminForm = {
   clinics: DoctorClinicForm[];
 };
 
+export type DoctorInviteForm = {
+  full_name: string;
+  email: string;
+  phone_number: string;
+};
+
 export function emptyDoctorClinic(): DoctorClinicForm {
   return {
     clinic_name: "",
@@ -55,6 +61,14 @@ export function createDoctorAdminForm(): DoctorAdminForm {
     user_email: "",
     user_password: "",
     clinics: [emptyDoctorClinic()],
+  };
+}
+
+export function createDoctorInviteForm(): DoctorInviteForm {
+  return {
+    full_name: "",
+    email: "",
+    phone_number: DEFAULT_COUNTRY_DIAL_CODE,
   };
 }
 
