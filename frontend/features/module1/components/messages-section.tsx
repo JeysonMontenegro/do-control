@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { ICellRendererParams } from "ag-grid-community";
 
@@ -177,7 +177,24 @@ export function MessagesSection({
       }
     })();
 
-    return base.slice().sort((left, right) => {
+    const normalizedSearch = conversationSearch.trim().toLowerCase();
+    const searched = normalizedSearch
+      ? base.filter((conversation) => {
+          const linkedPatient = patientByPhone.get(normalizePhoneWithDefaultCountry(conversation.patient_phone));
+          const searchable = [
+            conversation.patient_name ?? "",
+            linkedPatient ? `${linkedPatient.first_name} ${linkedPatient.last_name}` : "",
+            normalizePhoneWithDefaultCountry(conversation.patient_phone),
+            formatPhoneForDisplay(conversation.patient_phone),
+            conversation.last_message ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          return searchable.includes(normalizedSearch);
+        })
+      : base;
+
+    return searched.slice().sort((left, right) => {
       if (left.unread_count !== right.unread_count) {
         return right.unread_count - left.unread_count;
       }
@@ -186,7 +203,7 @@ export function MessagesSection({
       }
       return right.last_at.localeCompare(left.last_at);
     });
-  }, [conversationFilter, conversationPatientIds, messageConversations]);
+  }, [conversationFilter, conversationPatientIds, conversationSearch, messageConversations, patientByPhone]);
   const inboxActiveFilters = [
     conversationFilter !== "all"
       ? {
@@ -201,6 +218,15 @@ export function MessagesSection({
       : null,
     conversationSearch.trim() ? { label: "Búsqueda", value: conversationSearch.trim() } : null,
   ].filter((item): item is { label: string; value: string } => item !== null);
+  useEffect(() => {
+    if (!filteredMessageConversations.length) {
+      return;
+    }
+    if (filteredMessageConversations.some((conversation) => conversation.patient_phone === activeConversationPhone)) {
+      return;
+    }
+    onSelectConversation(filteredMessageConversations[0].patient_phone);
+  }, [activeConversationPhone, filteredMessageConversations, onSelectConversation]);
   const selectedConversationAppointments = useMemo(() => {
     if (!selectedConversationPatient) {
       return [] as Appointment[];
