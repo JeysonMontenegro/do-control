@@ -36,6 +36,7 @@ from app.schemas.integration import (
     PatientMatchRequest,
     PatientMatchResponse,
     PendingAppointmentRead,
+    PendingAppointmentsRead,
     PendingCommunicationDispatchRead,
     ProposedAppointmentRequest,
     ProposedAppointmentResponse,
@@ -181,12 +182,12 @@ def get_doctor_schedule(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/appointments/pending", response_model=PendingAppointmentRead | None)
+@router.get("/appointments/pending", response_model=PendingAppointmentsRead)
 def get_pending_appointment(
     patient_id: int = Query(...),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
-) -> PendingAppointmentRead | None:
+) -> PendingAppointmentsRead:
     return IntegrationService(db).get_pending_appointment(patient_id)
 
 

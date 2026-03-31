@@ -92,18 +92,21 @@ class AppointmentRepository:
         )
         return list(self.db.scalars(statement))
 
-    def get_pending_for_patient(self, patient_id: int) -> Appointment | None:
+    def get_pending_for_patient(self, patient_id: int) -> List[Appointment]:
         statement = (
             select(Appointment)
+            .options(
+                selectinload(Appointment.doctor).selectinload(Doctor.linked_user),
+                selectinload(Appointment.doctor).selectinload(Doctor.clinics),
+            )
             .where(
                 Appointment.patient_id == patient_id,
                 Appointment.status == "scheduled",
                 Appointment.scheduled_start >= datetime.now(timezone.utc),
             )
             .order_by(Appointment.scheduled_start.asc())
-            .limit(1)
         )
-        return self.db.scalar(statement)
+        return list(self.db.scalars(statement))
 
     def find_cancel_candidate(self, doctor_id: int, patient_name: str, target_date: date | None) -> Appointment | None:
         normalized_name = " ".join(patient_name.lower().split())

@@ -1,9 +1,11 @@
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.services.integration import IntegrationService
 from app.schemas.integration import PatientMatchRequest
+from app.services.errors import NotFoundError
 
 
 class DummySession:
@@ -173,6 +175,86 @@ class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertEqual(result.phone_number, "55550007")
         self.assertEqual(result.permissions, [])
+
+
+class IntegrationServicePendingAppointmentsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = IntegrationService(DummySession())
+
+    def test_returns_pending_appointments_list_with_doctor_and_clinic_details(self) -> None:
+        first_appointment = SimpleNamespace(
+            id=11,
+            public_id="pub-11",
+            doctor_id=3,
+            patient_id=9,
+            scheduled_start="2026-04-01T15:00:00Z",
+            scheduled_end="2026-04-01T15:30:00Z",
+            status="scheduled",
+            confirmation_status="pending",
+            doctor=SimpleNamespace(
+                first_name="Steve",
+                last_name="Alay",
+                specialty="Medicina general",
+                clinics=[
+                    SimpleNamespace(
+                        clinic_name="Clínica Norte",
+                        address="Zona 15, Ciudad de Guatemala",
+                        is_primary=True,
+                    )
+                ],
+            ),
+        )
+        second_appointment = SimpleNamespace(
+            id=12,
+            public_id="pub-12",
+            doctor_id=3,
+            patient_id=9,
+            scheduled_start="2026-04-02T16:00:00Z",
+            scheduled_end="2026-04-02T16:45:00Z",
+            status="scheduled",
+            confirmation_status="confirmed",
+            doctor=SimpleNamespace(
+                first_name="Steve",
+                last_name="Alay",
+                specialty="Medicina general",
+                clinics=[
+                    SimpleNamespace(
+                        clinic_name="Clínica Norte",
+                        address="Zona 15, Ciudad de Guatemala",
+                        is_primary=True,
+                    )
+                ],
+            ),
+        )
+        self.service.appointment_service = SimpleNamespace(
+            get_pending_for_patient=lambda _patient_id: [first_appointment, second_appointment]
+        )
+
+        result = self.service.get_pending_appointment(9)
+
+        self.assertEqual(len(result.appointments), 2)
+        self.assertEqual(result.appointments[0].appointment_id, 11)
+        self.assertEqual(result.appointments[0].doctor_name, "Steve Alay")
+        self.assertEqual(result.appointments[0].doctor_specialty, "Medicina general")
+        self.assertEqual(result.appointments[0].clinic_name, "Clínica Norte")
+        self.assertEqual(result.appointments[0].clinic_address, "Zona 15, Ciudad de Guatemala")
+        self.assertEqual(result.appointments[0].confirmation_status, "pending")
+        self.assertEqual(result.appointments[1].scheduled_end, datetime(2026, 4, 2, 16, 45, tzinfo=timezone.utc))
+
+    def test_returns_empty_list_when_patient_has_no_pending_appointments(self) -> None:
+        self.service.appointment_service = SimpleNamespace(get_pending_for_patient=lambda _patient_id: [])
+
+        result = self.service.get_pending_appointment(9)
+
+        self.assertEqual(result.appointments, [])
+
+    def test_raises_when_patient_does_not_exist(self) -> None:
+        self.service.appointment_service = SimpleNamespace(
+            get_pending_for_patient=lambda _patient_id: (_ for _ in ()).throw(NotFoundError("Patient not found."))
+        )
+
+        with self.assertRaises(NotFoundError):
+            self.service.get_pending_appointment(999)
 
 
 if __name__ == "__main__":

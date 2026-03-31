@@ -32,6 +32,7 @@ from app.schemas.integration import (
     PatientMatchRequest,
     PatientMatchResponse,
     PendingAppointmentRead,
+    PendingAppointmentsRead,
     PendingCommunicationDispatchRead,
     ProposedAppointmentRequest,
     ProposedAppointmentResponse,
@@ -594,19 +595,43 @@ class IntegrationService:
             for appointment in appointments
         ]
 
-    def get_pending_appointment(self, patient_id: int) -> PendingAppointmentRead | None:
-        try:
-            appointment = self.appointment_service.get_pending_for_patient(patient_id)
-        except NotFoundError:
-            return None
-        return PendingAppointmentRead(
-            appointment_id=appointment.id,
-            **self._appointment_public_fields(appointment),
-            doctor_id=appointment.doctor_id,
-            patient_id=appointment.patient_id,
-            scheduled_start=appointment.scheduled_start,
-            status=appointment.status,
-        )
+    @staticmethod
+    def _select_primary_clinic(appointment) -> tuple[str | None, str | None]:
+        doctor = getattr(appointment, "doctor", None)
+        if doctor is None or not getattr(doctor, "clinics", None):
+            return None, None
+
+        clinic = next((item for item in doctor.clinics if item.is_primary), doctor.clinics[0])
+        return clinic.clinic_name, clinic.address
+
+    def get_pending_appointment(self, patient_id: int) -> PendingAppointmentsRead:
+        appointments = self.appointment_service.get_pending_for_patient(patient_id)
+        results: list[PendingAppointmentRead] = []
+        for appointment in appointments:
+            clinic_name, clinic_address = self._select_primary_clinic(appointment)
+            doctor_name = "Doctor asignado"
+            doctor_specialty = None
+            if getattr(appointment, "doctor", None) is not None:
+                doctor_name = f"{appointment.doctor.first_name} {appointment.doctor.last_name}".strip() or doctor_name
+                doctor_specialty = appointment.doctor.specialty
+
+            results.append(
+                PendingAppointmentRead(
+                    appointment_id=appointment.id,
+                    **self._appointment_public_fields(appointment),
+                    doctor_id=appointment.doctor_id,
+                    doctor_name=doctor_name,
+                    doctor_specialty=doctor_specialty,
+                    clinic_name=clinic_name,
+                    clinic_address=clinic_address,
+                    patient_id=appointment.patient_id,
+                    scheduled_start=appointment.scheduled_start,
+                    scheduled_end=appointment.scheduled_end,
+                    status=appointment.status,
+                    confirmation_status=appointment.confirmation_status,
+                )
+            )
+        return PendingAppointmentsRead(appointments=results)
 
     def create_encounter(self, payload: IntegrationEncounterCreateRequest) -> IntegrationEncounterCreateResponse:
         encounter = self.encounter_service.create_encounter(

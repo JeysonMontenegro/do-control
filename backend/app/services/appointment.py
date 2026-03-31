@@ -283,13 +283,10 @@ class AppointmentService:
             raise NotFoundError("Doctor not found.")
         return self.repository.list_for_doctor_date(doctor_id, target_date)
 
-    def get_pending_for_patient(self, patient_id: int) -> Appointment:
+    def get_pending_for_patient(self, patient_id: int) -> list[Appointment]:
         if self.patient_repository.get(patient_id) is None:
             raise NotFoundError("Patient not found.")
-        appointment = self.repository.get_pending_for_patient(patient_id)
-        if appointment is None:
-            raise NotFoundError("Pending appointment not found.")
-        return appointment
+        return self.repository.get_pending_for_patient(patient_id)
 
     def cancel_for_doctor_patient_name(
         self,

@@ -279,9 +279,19 @@ class PendingAppointmentRead(BaseModel):
     appointment_public_id: str | None = None
     appointment_public_url: str | None = None
     doctor_id: int
+    doctor_name: str
+    doctor_specialty: str | None = None
+    clinic_name: str | None = None
+    clinic_address: str | None = None
     patient_id: int
     scheduled_start: datetime
+    scheduled_end: datetime
     status: str
+    confirmation_status: str
+
+
+class PendingAppointmentsRead(BaseModel):
+    appointments: list[PendingAppointmentRead] = []
 
 
 class IntegrationDiagnosisCreate(BaseModel):
