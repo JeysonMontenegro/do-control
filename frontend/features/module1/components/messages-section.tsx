@@ -162,16 +162,28 @@ export function MessagesSection({
     return map;
   }, [messageConversations, patientByPhone]);
   const filteredMessageConversations = useMemo(() => {
-    switch (conversationFilter) {
-      case "unread":
-        return messageConversations.filter((conversation) => conversation.unread_count > 0);
-      case "window_open":
-        return messageConversations.filter((conversation) => conversation.window_open);
-      case "unlinked":
-        return messageConversations.filter((conversation) => !conversationPatientIds.has(conversation.patient_phone));
-      default:
-        return messageConversations;
-    }
+    const base = (() => {
+      switch (conversationFilter) {
+        case "unread":
+          return messageConversations.filter((conversation) => conversation.unread_count > 0);
+        case "window_open":
+          return messageConversations.filter((conversation) => conversation.window_open);
+        case "unlinked":
+          return messageConversations.filter((conversation) => !conversationPatientIds.has(conversation.patient_phone));
+        default:
+          return messageConversations;
+      }
+    })();
+
+    return base.slice().sort((left, right) => {
+      if (left.unread_count !== right.unread_count) {
+        return right.unread_count - left.unread_count;
+      }
+      if (left.window_open !== right.window_open) {
+        return left.window_open ? -1 : 1;
+      }
+      return right.last_at.localeCompare(left.last_at);
+    });
   }, [conversationFilter, conversationPatientIds, messageConversations]);
   const inboxActiveFilters = [
     conversationFilter !== "all"
@@ -223,10 +235,13 @@ export function MessagesSection({
       },
       {
         headerName: "Estado",
-        minWidth: 150,
+        minWidth: 220,
         valueGetter: ({ data }) =>
-          data ? `${data.window_open ? "Ventana abierta" : "Solo template"} · ${data.unread_count} no leídos` : "",
-        exportValue: (row) => `${row.window_open ? "Ventana abierta" : "Solo template"} · ${row.unread_count} no leídos`,
+          data
+            ? `${data.window_open ? "Ventana abierta" : "Solo template"} · ${data.unread_count} no leídos · ${conversationPatientIds.has(data.patient_phone) ? "Paciente ligado" : "Sin ligar"}`
+            : "",
+        exportValue: (row) =>
+          `${row.window_open ? "Ventana abierta" : "Solo template"} · ${row.unread_count} no leídos · ${conversationPatientIds.has(row.patient_phone) ? "Paciente ligado" : "Sin ligar"}`,
       },
       {
         headerName: "Actividad",
@@ -257,7 +272,7 @@ export function MessagesSection({
         },
       },
     ],
-    [activeConversationPhone, onSelectConversation],
+    [activeConversationPhone, conversationPatientIds, onSelectConversation],
   );
   const appointmentEventRows = useMemo<AppointmentEventRow[]>(
     () =>
