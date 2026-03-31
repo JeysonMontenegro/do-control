@@ -13,6 +13,7 @@ from app.api.routes import (
     email_templates,
     encounters,
     integrations,
+    messaging_inbox,
     patients,
     public_appointments,
     receptionists,
@@ -30,6 +31,7 @@ api_router.include_router(email_templates.router, prefix="/email-templates", tag
 api_router.include_router(email_dispatches.router, prefix="/email-dispatches", tags=["email-dispatches"])
 api_router.include_router(doctors.router, prefix="/doctors", tags=["doctors"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
+api_router.include_router(messaging_inbox.router, prefix="/messaging-inbox", tags=["messaging-inbox"])
 api_router.include_router(patients.router, prefix="/patients", tags=["patients"])
 api_router.include_router(public_appointments.router, prefix="/public/appointments", tags=["public-appointments"])
 api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])

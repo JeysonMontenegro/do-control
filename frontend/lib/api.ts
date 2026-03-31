@@ -138,6 +138,21 @@ function toFriendlyErrorMessage(rawMessage: string, status: number): string {
   if (message.includes("Patient does not have a primary phone number")) {
     return "El paciente no tiene un teléfono principal registrado.";
   }
+  if (message.includes("Doctor id is required")) {
+    return "Debes seleccionar un doctor para abrir este inbox.";
+  }
+  if (message.includes("You do not have doctor inbox access")) {
+    return "Tu usuario no tiene acceso al inbox de doctores.";
+  }
+  if (message.includes("You do not have access to that doctor inbox")) {
+    return "No tienes acceso al inbox de ese doctor.";
+  }
+  if (message.includes("La integración de WhatsApp no está configurada")) {
+    return "La integración de WhatsApp todavía no está configurada.";
+  }
+  if (message.includes("No se pudo conectar con la integración de WhatsApp")) {
+    return "No se pudo conectar con WhatsApp en este momento.";
+  }
   if (message.includes("Cannot send reminders for a cancelled appointment")) {
     return "No se puede enviar un recordatorio para una cita cancelada.";
   }

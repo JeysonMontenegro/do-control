@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { ICellRendererParams } from "ag-grid-community";
 
@@ -16,12 +16,15 @@ import {
   dispatchStatusLabel,
   formatDateTime,
 } from "@/features/module1/console-utils";
-import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
+import { formatPhoneForDisplay, normalizePhoneWithDefaultCountry } from "@/features/module1/phone-utils";
 import type {
   Appointment,
   CommunicationDispatch,
   CommunicationDispatchAttempt,
   CommunicationDispatchSummary,
+  Doctor,
+  MessagingConversation,
+  MessagingConversationMessage,
   Patient,
   PatientSummary,
 } from "@/features/module1/types";
@@ -33,10 +36,16 @@ type AppointmentEventRow = Appointment & {
 };
 
 type MessagesSectionProps = {
+  activeConversation: MessagingConversation | null;
+  activeConversationPhone: string;
+  availableDoctors: Doctor[];
+  canChooseAmongMultipleDoctors: boolean;
   canViewGlobalCommunications: boolean;
+  composer: string;
   communicationDispatchSummary: CommunicationDispatchSummary | null;
   communicationDispatches: CommunicationDispatch[];
   data: {
+    appointments: Appointment[];
     patients: Patient[];
   };
   dispatchAttempts: Record<number, CommunicationDispatchAttempt[]>;
@@ -48,13 +57,23 @@ type MessagesSectionProps = {
   expandedDispatchId: number | null;
   generateDispatchesNow: () => void;
   isAdmin: boolean;
+  isSendingMessage: boolean;
+  loadingConversations: boolean;
+  loadingMessages: boolean;
+  messageConversations: MessagingConversation[];
+  messageItems: MessagingConversationMessage[];
   messagesSubtab: MessagesSubtab;
+  onComposerChange: (value: string) => void;
+  onDoctorFilterChange: (value: string) => void;
+  onSendMessage: () => void;
+  onSelectConversation: (phone: string) => void;
   previewActionsDisabled?: boolean;
   requeueDispatch: (dispatchId: number) => void;
   requeueVisibleFailedDispatches: () => void;
   selectedPatientDispatches: CommunicationDispatch[];
   selectedPatientId: string;
   selectedSummary: PatientSummary | null;
+  targetDoctorId: string;
   setActiveTab: React.Dispatch<React.SetStateAction<ConsoleTab>>;
   setDispatchFilters: React.Dispatch<
     React.SetStateAction<{
@@ -71,7 +90,12 @@ type MessagesSectionProps = {
 };
 
 export function MessagesSection({
+  activeConversation,
+  activeConversationPhone,
+  availableDoctors,
+  canChooseAmongMultipleDoctors,
   canViewGlobalCommunications,
+  composer,
   communicationDispatchSummary,
   communicationDispatches,
   data,
@@ -80,12 +104,22 @@ export function MessagesSection({
   expandedDispatchId,
   generateDispatchesNow,
   isAdmin,
+  isSendingMessage,
+  loadingConversations,
+  loadingMessages,
+  messageConversations,
+  messageItems,
   messagesSubtab,
+  onComposerChange,
+  onDoctorFilterChange,
+  onSendMessage,
+  onSelectConversation,
   requeueDispatch,
   requeueVisibleFailedDispatches,
   selectedPatientDispatches,
   selectedPatientId,
   selectedSummary,
+  targetDoctorId,
   setActiveTab,
   setDispatchFilters,
   setMessagesSubtab,
@@ -94,80 +128,95 @@ export function MessagesSection({
   toggleDispatchAttempts,
   updateDispatchStatus,
 }: MessagesSectionProps) {
-  const patientOptions = data.patients.map((patient) => ({
-    value: String(patient.id),
-    label: `${patient.first_name} ${patient.last_name}`,
-    description: patient.medical_record_number,
-    keywords: [patient.primary_phone ?? "", patient.national_id ?? ""],
-  }));
+  const [conversationSearch, setConversationSearch] = useState("");
   const activeDispatchFilters = [
     dispatchFilters.status_filter ? { label: "Estado", value: dispatchStatusLabel(dispatchFilters.status_filter) } : null,
     dispatchFilters.channel ? { label: "Canal", value: dispatchFilters.channel } : null,
     dispatchFilters.query.trim() ? { label: "Busqueda", value: dispatchFilters.query.trim() } : null,
   ].filter((item): item is { label: string; value: string } => item !== null);
-  const patientDispatchColumns = useMemo<ClinicalGridColumn<CommunicationDispatch>[]>(
+  const doctorOptions = availableDoctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: `${doctor.doctor_title?.trim() || "Dr."} ${doctor.first_name} ${doctor.last_name}`,
+    description: doctor.specialty ?? "Sin especialidad",
+  }));
+  const patientByPhone = useMemo(() => {
+    const entries = data.patients.map((patient) => [normalizePhoneWithDefaultCountry(patient.primary_phone), patient] as const);
+    return new Map(entries);
+  }, [data.patients]);
+  const selectedConversationPatient = activeConversation
+    ? patientByPhone.get(normalizePhoneWithDefaultCountry(activeConversation.patient_phone)) ?? null
+    : null;
+  const selectedConversationAppointments = useMemo(() => {
+    if (!selectedConversationPatient) {
+      return [] as Appointment[];
+    }
+    return data.appointments
+      .filter((appointment) => appointment.patient_id === selectedConversationPatient.id)
+      .sort((left, right) => left.scheduled_start.localeCompare(right.scheduled_start));
+  }, [data.appointments, selectedConversationPatient]);
+  const upcomingConversationAppointment = useMemo(() => {
+    const nowIso = new Date().toISOString();
+    return (
+      selectedConversationAppointments.find(
+        (appointment) => appointment.status !== "cancelled" && appointment.scheduled_start >= nowIso,
+      ) ?? selectedConversationAppointments[selectedConversationAppointments.length - 1] ?? null
+    );
+  }, [selectedConversationAppointments]);
+  const conversationColumns = useMemo<ClinicalGridColumn<MessagingConversation>[]>(
     () => [
       {
-        headerName: "Tipo",
-        minWidth: 170,
-        valueGetter: ({ data }) => (data ? communicationKindLabel(data) : ""),
-        exportValue: (row) => communicationKindLabel(row),
+        headerName: "Paciente",
+        minWidth: 220,
+        valueGetter: ({ data }) =>
+          data
+            ? `${data.patient_name ?? "Sin nombre"} · ${formatPhoneForDisplay(data.patient_phone)}`
+            : "",
+        exportValue: (row) => `${row.patient_name ?? "Sin nombre"} · ${formatPhoneForDisplay(row.patient_phone)}`,
+      },
+      {
+        headerName: "Último mensaje",
+        minWidth: 260,
+        flex: 1.3,
+        valueGetter: ({ data }) => data?.last_message ?? "Sin mensajes recientes",
+        exportValue: (row) => row.last_message ?? "",
       },
       {
         headerName: "Estado",
-        minWidth: 130,
-        valueGetter: ({ data }) => (data ? dispatchStatusLabel(data.status) : ""),
-        exportValue: (row) => dispatchStatusLabel(row.status),
-      },
-      {
-        headerName: "Doctor / template",
-        minWidth: 240,
-        valueGetter: ({ data }) => (data ? `${data.template_title ?? "Mensaje clínico"}${data.doctor_name ? ` · ${data.doctor_name}` : ""}` : ""),
-        exportValue: (row) => `${row.template_title ?? "Mensaje clínico"}${row.doctor_name ? ` · ${row.doctor_name}` : ""}`,
-      },
-      {
-        headerName: "Fecha",
-        minWidth: 180,
+        minWidth: 150,
         valueGetter: ({ data }) =>
-          data ? (data.appointment_scheduled_start ? formatDateTime(data.appointment_scheduled_start) : formatDateTime(data.created_at)) : "",
-        exportValue: (row) => (row.appointment_scheduled_start ? formatDateTime(row.appointment_scheduled_start) : formatDateTime(row.created_at)),
+          data ? `${data.window_open ? "Ventana abierta" : "Solo template"} · ${data.unread_count} no leídos` : "",
+        exportValue: (row) => `${row.window_open ? "Ventana abierta" : "Solo template"} · ${row.unread_count} no leídos`,
       },
       {
-        headerName: "Contenido",
-        minWidth: 340,
-        flex: 1.6,
-        valueGetter: ({ data }) => data?.rendered_message ?? data?.error_message ?? "Sin texto generado.",
-        exportValue: (row) => row.rendered_message ?? row.error_message ?? "Sin texto generado.",
+        headerName: "Actividad",
+        minWidth: 160,
+        valueGetter: ({ data }) => (data ? formatDateTime(data.last_at) : ""),
+        exportValue: (row) => formatDateTime(row.last_at),
       },
       {
         headerName: "Acciones",
-        minWidth: 220,
+        minWidth: 160,
         excludeFromExport: true,
-        cellRenderer: (params: ICellRendererParams<CommunicationDispatch>) => {
+        cellRenderer: (params: ICellRendererParams<MessagingConversation>) => {
           const data = params.data;
-          return data ? (
+          if (!data) {
+            return null;
+          }
+          return (
             <div className="ag-actions-cell">
-              <button type="button" className="secondary-button" onClick={() => setActiveTab("pacientes")}>
-                Ver expediente
+              <button
+                type="button"
+                className={`secondary-button compact-action-button ${activeConversationPhone === data.patient_phone ? "is-selected" : ""}`}
+                onClick={() => onSelectConversation(data.patient_phone)}
+              >
+                Abrir
               </button>
-              {data.appointment_id ? (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    setActiveTab("agenda");
-                    toggleAppointmentHistory(data.appointment_id as number);
-                  }}
-                >
-                  Ver cita
-                </button>
-              ) : null}
             </div>
-          ) : null;
+          );
         },
       },
     ],
-    [setActiveTab, toggleAppointmentHistory],
+    [activeConversationPhone, onSelectConversation],
   );
   const appointmentEventRows = useMemo<AppointmentEventRow[]>(
     () =>
@@ -328,7 +377,7 @@ export function MessagesSection({
             className={`filter-chip ${messagesSubtab === "paciente" ? "filter-chip-active" : ""}`}
             onClick={() => setMessagesSubtab("paciente")}
           >
-            Paciente
+            Inbox
           </button>
           <button
             type="button"
@@ -348,68 +397,203 @@ export function MessagesSection({
           ) : null}
         </div>
         <p className="empty-state">
-          Organiza las comunicaciones por paciente, por citas relacionadas o como seguimiento operativo global.
+          Revisa el inbox de WhatsApp, los eventos ligados a citas y el seguimiento operativo global desde un solo punto.
         </p>
       </article>
 
       {messagesSubtab === "paciente" ? (
-        <article className="card section-card span-three">
-          <div className="subsection-header">
-            <div>
-              <p className="eyebrow">Mensajes</p>
-              <h2>Timeline del paciente</h2>
-            </div>
-          </div>
-          <div className="toolbar-row">
-            <label className="toolbar-search-shell">
-              <span>Paciente seleccionado</span>
-              <SearchableSelect
-                id="messages-patient-filter"
-                name="messages_patient_filter"
-                value={selectedPatientId}
-                onChange={setSelectedPatientId}
-                options={patientOptions}
-                placeholder="Seleccionar paciente"
-                clearLabel="Seleccionar paciente"
-                searchPlaceholder="Buscar paciente"
-              />
-            </label>
-          </div>
-          {selectedSummary ? (
-            <>
-              <div className="detail-panel compact-panel">
-                <strong>
-                  {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}
-                </strong>
-                <span>{selectedSummary.patient.medical_record_number}</span>
-                <span>{formatPhoneForDisplay(selectedSummary.patient.primary_phone)}</span>
+        <>
+          <article className="card section-card">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Inbox</p>
+                <h2>Conversaciones de WhatsApp</h2>
               </div>
-              {selectedPatientDispatches.length ? (
-                <ClinicalDataGrid<CommunicationDispatch>
-                  columns={patientDispatchColumns}
-                  emptyMessage="Este paciente todavía no tiene comunicaciones."
-                  exportFileName="timeline-paciente"
-                  quickFilter=""
-                  rowData={selectedPatientDispatches}
+            </div>
+            <div className="toolbar-row">
+              {canChooseAmongMultipleDoctors ? (
+                <label className="toolbar-search-shell">
+                  <span>Doctor</span>
+                  <SearchableSelect
+                    id="messages-doctor-filter"
+                    name="messages_doctor_filter"
+                    value={targetDoctorId}
+                    onChange={onDoctorFilterChange}
+                    options={doctorOptions}
+                    placeholder="Seleccionar doctor"
+                    clearLabel="Seleccionar doctor"
+                    searchPlaceholder="Buscar doctor"
+                  />
+                </label>
+              ) : null}
+              <label className="toolbar-search-shell">
+                <span>Buscar conversación</span>
+                <input
+                  className="search-input compact-input"
+                  id="messages-conversation-search"
+                  name="messages_conversation_search"
+                  value={conversationSearch}
+                  onChange={(event) => setConversationSearch(event.target.value)}
+                  placeholder="Buscar por paciente o teléfono"
                 />
-              ) : (
-                <EmptyStatePanel
-                  body="Cuando este paciente tenga recordatorios, confirmaciones o seguimientos enviados, apareceran aqui."
-                  eyebrow="Timeline"
-                  title="Este paciente todavia no tiene comunicaciones"
-                />
-              )}
-            </>
-          ) : (
-            <EmptyStatePanel
-              actionLabel="Ir a Pacientes"
-              body="Necesitas enfocar un paciente para revisar su timeline y sus mensajes relacionados."
-              eyebrow="Paciente"
-              onAction={() => setActiveTab("pacientes")}
-              title="Selecciona un paciente para ver su timeline"
-            />
-          )}
-        </article>
+              </label>
+            </div>
+            {!targetDoctorId ? (
+              <EmptyStatePanel
+                body="Primero elige el doctor cuyo inbox quieres revisar."
+                eyebrow="Inbox"
+                title="Selecciona un doctor para cargar conversaciones"
+              />
+            ) : loadingConversations ? (
+              <p className="empty-state">Cargando conversaciones...</p>
+            ) : messageConversations.length ? (
+              <ClinicalDataGrid<MessagingConversation>
+                columns={conversationColumns}
+                emptyMessage="No hay conversaciones para este doctor."
+                exportFileName="inbox-whatsapp"
+                quickFilter={conversationSearch}
+                rowData={messageConversations}
+              />
+            ) : (
+              <EmptyStatePanel
+                body="Cuando este doctor tenga conversaciones activas en WhatsApp, aparecerán aquí."
+                eyebrow="Inbox"
+                title="Todavía no hay conversaciones visibles"
+              />
+            )}
+          </article>
+
+          <article className="card section-card span-two">
+            <div className="subsection-header">
+              <div>
+                <p className="eyebrow">Chat</p>
+                <h2>{activeConversation?.patient_name ?? "Conversación"}</h2>
+              </div>
+              {activeConversation ? (
+                <div className="row-actions">
+                  <span className={`status-badge ${activeConversation.window_open ? "status-badge-success" : "status-badge-warning"}`}>
+                    {activeConversation.window_open ? "Ventana 24h abierta" : "Solo templates"}
+                  </span>
+                  {activeConversation.unread_count ? (
+                    <span className="status-badge">{activeConversation.unread_count} no leídos</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {activeConversation ? (
+              <>
+                <div className="detail-panel compact-panel">
+                  <strong>{activeConversation.patient_name ?? "Paciente sin nombre"}</strong>
+                  <span>{formatPhoneForDisplay(activeConversation.patient_phone)}</span>
+                  {selectedConversationPatient ? (
+                    <span>{selectedConversationPatient.medical_record_number}</span>
+                  ) : (
+                    <span>Paciente aún no ligado en do-control</span>
+                  )}
+                  <div className="row-actions">
+                    {selectedConversationPatient ? (
+                      <button
+                        type="button"
+                        className="secondary-button compact-action-button"
+                        onClick={() => {
+                          setSelectedPatientId(String(selectedConversationPatient.id));
+                          setActiveTab("pacientes");
+                        }}
+                      >
+                        Ver expediente
+                      </button>
+                    ) : null}
+                    {upcomingConversationAppointment ? (
+                      <button
+                        type="button"
+                        className="secondary-button compact-action-button"
+                        onClick={() => {
+                          setActiveTab("agenda");
+                          toggleAppointmentHistory(upcomingConversationAppointment.id);
+                        }}
+                      >
+                        Ver cita
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                {upcomingConversationAppointment ? (
+                  <div className="detail-panel compact-panel">
+                    <strong>Contexto clínico inmediato</strong>
+                    <span>
+                      {appointmentTypeLabel(upcomingConversationAppointment.appointment_type)} · {confirmationLabel(upcomingConversationAppointment.confirmation_status)}
+                    </span>
+                    <span>{formatDateTime(upcomingConversationAppointment.scheduled_start)}</span>
+                    <span>{upcomingConversationAppointment.reason?.trim() || "Sin motivo registrado"}</span>
+                  </div>
+                ) : null}
+                <div className="conversation-thread">
+                  {loadingMessages ? (
+                    <p className="empty-state">Cargando conversación...</p>
+                  ) : messageItems.length ? (
+                    messageItems.map((message) => (
+                      <article
+                        key={`conversation-message-${message.id}`}
+                        className={`conversation-bubble ${message.direction === "outbound" ? "conversation-bubble-outbound" : "conversation-bubble-inbound"}`}
+                      >
+                        <div className="conversation-bubble-meta">
+                          <strong>{message.direction === "outbound" ? "Clínica" : "Paciente"}</strong>
+                          <span>{formatDateTime(message.created_at)}</span>
+                        </div>
+                        <p>{message.text?.trim() || "Mensaje sin cuerpo visible."}</p>
+                        <div className="conversation-bubble-tags">
+                          <span className="status-badge">{message.type}</span>
+                          <span className="status-badge">{message.status}</span>
+                          {message.intent ? <span className="status-badge">{message.intent}</span> : null}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <EmptyStatePanel
+                      body="La conversación existe, pero todavía no hay mensajes visibles para este hilo."
+                      eyebrow="Chat"
+                      title="No hay mensajes para mostrar"
+                    />
+                  )}
+                </div>
+                <div className="conversation-composer">
+                  <label>
+                    <span>Responder</span>
+                    <textarea
+                      id="messages-conversation-composer"
+                      name="messages_conversation_composer"
+                      value={composer}
+                      onChange={(event) => onComposerChange(event.target.value)}
+                      placeholder={
+                        activeConversation.window_open
+                          ? "Escribe una respuesta para el paciente"
+                          : "La ventana de 24 horas está cerrada. Solo pueden enviarse templates desde appoint-me."
+                      }
+                      rows={4}
+                      disabled={!activeConversation.window_open || isSendingMessage}
+                    />
+                  </label>
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="success-button"
+                      disabled={!activeConversation.window_open || !composer.trim() || isSendingMessage}
+                      onClick={onSendMessage}
+                    >
+                      {isSendingMessage ? "Enviando..." : "Enviar mensaje"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <EmptyStatePanel
+                body="Selecciona una conversación de la izquierda para revisar el historial y responder desde aquí."
+                eyebrow="Chat"
+                title="Selecciona una conversación"
+              />
+            )}
+          </article>
+        </>
       ) : null}
 
       {messagesSubtab === "citas" ? (

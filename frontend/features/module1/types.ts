@@ -232,6 +232,33 @@ export type MessagingWhitelistState = {
   phones: string[];
 };
 
+export type MessagingConversation = {
+  patient_phone: string;
+  patient_name: string | null;
+  last_message: string | null;
+  last_direction: "inbound" | "outbound";
+  last_at: string;
+  unread_count: number;
+  window_open: boolean;
+};
+
+export type MessagingConversationMessage = {
+  id: string | number;
+  direction: "inbound" | "outbound";
+  type: "text" | "template" | "contacts" | "button";
+  text: string | null;
+  sender_type: string | null;
+  intent: string | null;
+  created_at: string;
+  status: "received" | "sent";
+};
+
+export type MessagingConversationSendResponse = {
+  status: string;
+  window_open: boolean;
+  message_id: string | null;
+};
+
 export type EmailWhitelistState = {
   enabled: boolean;
   addresses: string[];

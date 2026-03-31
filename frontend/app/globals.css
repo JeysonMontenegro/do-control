@@ -1984,6 +1984,16 @@ select.compact-input,
   border-color: rgba(31, 122, 100, 0.26);
 }
 
+.status-badge-success {
+  background: #e8f5f1;
+  border-color: rgba(31, 122, 100, 0.26);
+}
+
+.status-badge-warning {
+  background: #fff3e3;
+  border-color: rgba(240, 164, 58, 0.28);
+}
+
 .status-badge-failed,
 .status-badge-skipped {
   background: #fff0ec;
@@ -1994,6 +2004,70 @@ select.compact-input,
   width: 100%;
   text-align: left;
   cursor: pointer;
+}
+
+.conversation-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.conversation-bubble {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #dbe6f6;
+  max-width: min(82%, 640px);
+}
+
+.conversation-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.conversation-bubble-inbound {
+  justify-self: start;
+  background: #fff;
+}
+
+.conversation-bubble-outbound {
+  justify-self: end;
+  background: #eff7ff;
+  border-color: #cfe1f6;
+}
+
+.conversation-bubble-meta,
+.conversation-bubble-tags,
+.conversation-composer .row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.conversation-bubble-meta {
+  justify-content: space-between;
+}
+
+.conversation-bubble-meta span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.conversation-composer {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e3ebf7;
+}
+
+.conversation-composer textarea {
+  min-height: 112px;
+  resize: vertical;
 }
 
 .two-column-grid {

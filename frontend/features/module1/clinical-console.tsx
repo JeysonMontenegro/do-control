@@ -35,6 +35,7 @@ import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
 import { useReceptionistAdmin } from "@/features/module1/hooks/use-receptionist-admin";
 import { useReminderAdmin } from "@/features/module1/hooks/use-reminder-admin";
 import { useReviewQueue } from "@/features/module1/hooks/use-review-queue";
+import { useWhatsAppInbox } from "@/features/module1/hooks/use-whatsapp-inbox";
 import {
   CONFIRMATION_TEMPLATE_KEY,
   DEFAULT_CONFIRMATION_BODY,
@@ -655,6 +656,30 @@ export function ClinicalConsole() {
     toggleAppointmentHistory,
   });
 
+  const {
+    activeConversation,
+    activeConversationPhone,
+    composer,
+    conversations,
+    loadingConversations,
+    loadingMessages,
+    messages,
+    sendingMessage,
+    sendMessage,
+    setActiveConversationPhone,
+    setComposer,
+    targetDoctorId,
+  } = useWhatsAppInbox({
+    availableDoctors,
+    currentRoles,
+    doctorFilter,
+    isAuthenticated,
+    messagesSubtab,
+    patients: data.patients,
+    setMessage,
+    setSelectedPatientId,
+  });
+
   const { encountersTabProps, messagesTabProps, patientsTabProps } = useClinicalTabProps({
     encountersTabProps: {
       appointments: filteredAppointments,
@@ -693,21 +718,38 @@ export function ClinicalConsole() {
       submitEncounter,
     },
     messagesTabProps: {
+      activeConversation,
+      activeConversationPhone,
+      availableDoctors,
+      canChooseAmongMultipleDoctors,
       canViewGlobalCommunications,
+      composer,
       communicationDispatchSummary,
       communicationDispatches,
-      data: { patients: filteredPatients },
+      data: { appointments: data.appointments, patients: data.patients },
       dispatchAttempts,
       dispatchFilters,
       expandedDispatchId,
       generateDispatchesNow,
       isAdmin,
+      isSendingMessage: sendingMessage,
+      loadingConversations,
+      loadingMessages,
+      messageConversations: conversations,
+      messageItems: messages,
       messagesSubtab,
+      onComposerChange: setComposer,
+      onDoctorFilterChange: setDoctorFilter,
+      onSendMessage: () => {
+        void sendMessage();
+      },
+      onSelectConversation: setActiveConversationPhone,
       requeueDispatch,
       requeueVisibleFailedDispatches,
       selectedPatientDispatches,
       selectedPatientId,
       selectedSummary,
+      targetDoctorId,
       setActiveTab,
       setDispatchFilters,
       setMessagesSubtab,

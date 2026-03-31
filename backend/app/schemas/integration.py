@@ -126,6 +126,39 @@ class MessagingWhitelistPhoneMutationRead(BaseModel):
     removed: str | None = None
 
 
+class MessagingConversationRead(BaseModel):
+    patient_phone: str
+    patient_name: str | None = None
+    last_message: str | None = None
+    last_direction: str
+    last_at: datetime
+    unread_count: int = 0
+    window_open: bool = False
+
+
+class MessagingConversationMessageRead(BaseModel):
+    id: str | int
+    direction: str
+    type: str
+    text: str | None = None
+    sender_type: str | None = None
+    intent: str | None = None
+    created_at: datetime
+    status: str
+
+
+class MessagingConversationSendRequest(BaseModel):
+    doctor_id: int
+    patient_phone: str
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class MessagingConversationSendResponse(BaseModel):
+    status: str
+    window_open: bool
+    message_id: str | None = None
+
+
 class EmailWhitelistAllowedRead(BaseModel):
     allowed: bool
 
