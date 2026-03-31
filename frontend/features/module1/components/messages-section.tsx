@@ -14,7 +14,9 @@ import {
   communicationKindLabel,
   confirmationLabel,
   dispatchStatusLabel,
+  formatDate,
   formatDateTime,
+  formatTime,
 } from "@/features/module1/console-utils";
 import { formatPhoneForDisplay, normalizePhoneWithDefaultCountry } from "@/features/module1/phone-utils";
 import type {
@@ -215,6 +217,30 @@ export function MessagesSection({
       ) ?? selectedConversationAppointments[selectedConversationAppointments.length - 1] ?? null
     );
   }, [selectedConversationAppointments]);
+  const quickReplyOptions = useMemo(() => {
+    const appointmentContext = upcomingConversationAppointment
+      ? ` su cita de ${appointmentTypeLabel(upcomingConversationAppointment.appointment_type).toLowerCase()} el ${formatDate(
+          upcomingConversationAppointment.scheduled_start,
+        )} a las ${formatTime(upcomingConversationAppointment.scheduled_start)}`
+      : " su cita";
+    return [
+      {
+        id: "confirm-check",
+        label: "Confirmar asistencia",
+        text: `Buenos días. Le escribimos para confirmar${appointmentContext}. ¿Nos puede indicar si asistirá?`,
+      },
+      {
+        id: "share-location",
+        label: "Compartir ubicación",
+        text: "Con gusto. Si lo necesita, podemos compartirle nuevamente la ubicación exacta de la clínica.",
+      },
+      {
+        id: "reschedule-offer",
+        label: "Ofrecer reagendar",
+        text: `Si ese horario ya no le funciona, podemos ayudarle a reagendar${appointmentContext}.`,
+      },
+    ];
+  }, [upcomingConversationAppointment]);
   const conversationColumns = useMemo<ClinicalGridColumn<MessagingConversation>[]>(
     () => [
       {
@@ -681,6 +707,18 @@ export function MessagesSection({
                   )}
                 </div>
                 <div className="conversation-composer">
+                  <div className="chip-row">
+                    {quickReplyOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="filter-chip"
+                        onClick={() => onComposerChange(option.text)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                   <label>
                     <span>Responder</span>
                     <textarea
