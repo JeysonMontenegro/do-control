@@ -303,13 +303,14 @@ export function MessagesSection({
       },
       {
         headerName: "Acciones",
-        minWidth: 160,
+        minWidth: 260,
         excludeFromExport: true,
         cellRenderer: (params: ICellRendererParams<MessagingConversation>) => {
           const data = params.data;
           if (!data) {
             return null;
           }
+          const linkedPatient = patientByPhone.get(normalizePhoneWithDefaultCountry(data.patient_phone)) ?? null;
           return (
             <div className="ag-actions-cell">
               <button
@@ -319,12 +320,24 @@ export function MessagesSection({
               >
                 Abrir
               </button>
+              {linkedPatient ? (
+                <button
+                  type="button"
+                  className="secondary-button compact-action-button"
+                  onClick={() => {
+                    setSelectedPatientId(String(linkedPatient.id));
+                    setActiveTab("pacientes");
+                  }}
+                >
+                  Expediente
+                </button>
+              ) : null}
             </div>
           );
         },
       },
     ],
-    [activeConversationPhone, conversationPatientIds, onSelectConversation],
+    [activeConversationPhone, conversationPatientIds, onSelectConversation, patientByPhone, setActiveTab, setSelectedPatientId],
   );
   const appointmentEventRows = useMemo<AppointmentEventRow[]>(
     () =>
