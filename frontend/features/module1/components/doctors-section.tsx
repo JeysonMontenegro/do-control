@@ -8,9 +8,9 @@ import type { ICellRendererParams } from "ag-grid-community";
 import { ClinicalDataGrid, type ClinicalGridColumn } from "@/features/module1/components/clinical-data-grid";
 import { DateField, PhoneField, RequiredLabel } from "@/features/module1/components/form-fields";
 import type { DoctorAdminForm, DoctorClinicForm, DoctorInviteForm } from "@/features/module1/clinical-console-defaults";
-import { formatDate } from "@/features/module1/console-utils";
+import { formatDate, formatDateTime } from "@/features/module1/console-utils";
 import { formatPhoneForDisplay } from "@/features/module1/phone-utils";
-import type { Doctor } from "@/features/module1/types";
+import type { Doctor, DoctorOnboardingAdminStatus } from "@/features/module1/types";
 
 const DoctorClinicMapPicker = dynamic(
   () => import("@/features/module1/components/doctor-clinic-map-picker").then((mod) => mod.DoctorClinicMapPicker),
@@ -25,6 +25,7 @@ type DoctorsSectionProps = {
   doctorAdminForm: DoctorAdminForm;
   doctorDirectorySearch: string;
   doctorInviteForm: DoctorInviteForm;
+  doctorOnboardingStatuses: DoctorOnboardingAdminStatus[];
   doctorRosterTab: DoctorRosterTab;
   editingDoctorId: number | null;
   filteredActiveDoctorsCount: number;
@@ -33,6 +34,7 @@ type DoctorsSectionProps = {
   inactivePager: React.ReactNode;
   isAdmin: boolean;
   latestInvitationUrl: string;
+  onboardingAdminTarget: DoctorOnboardingAdminStatus | null;
   paginatedActiveDoctors: Doctor[];
   paginatedInactiveDoctors: Doctor[];
   addDoctorClinic: () => void;
@@ -40,14 +42,17 @@ type DoctorsSectionProps = {
   openDoctorInviteModal: () => void;
   onDoctorDirectorySearchChange: (value: string) => void;
   removeDoctorClinic: (index: number) => void;
+  reissueDoctorOnboarding: (doctorId: number) => void;
   resetDoctorAdminForm: () => void;
   resetDoctorInviteForm: () => void;
+  revokeDoctorOnboarding: (doctorId: number) => void;
   setDoctorAdminForm: React.Dispatch<React.SetStateAction<DoctorAdminForm>>;
   setDoctorInviteForm: React.Dispatch<React.SetStateAction<DoctorInviteForm>>;
   setDoctorRosterTab: React.Dispatch<React.SetStateAction<DoctorRosterTab>>;
   showDoctorModal: boolean;
   showDoctorInviteModal: boolean;
   startDoctorEdit: (doctor: Doctor) => void;
+  startDoctorOnboardingAdmin: (status: DoctorOnboardingAdminStatus) => void;
   submitDoctorAdmin: (event: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
   submitDoctorInvitation: (event: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
   toggleDoctorActive: (doctor: Doctor) => void;
@@ -60,6 +65,7 @@ export function DoctorsSection({
   doctorAdminForm,
   doctorDirectorySearch,
   doctorInviteForm,
+  doctorOnboardingStatuses,
   doctorRosterTab,
   editingDoctorId,
   filteredActiveDoctorsCount,
@@ -68,6 +74,7 @@ export function DoctorsSection({
   inactivePager,
   isAdmin,
   latestInvitationUrl,
+  onboardingAdminTarget,
   paginatedActiveDoctors,
   paginatedInactiveDoctors,
   addDoctorClinic,
@@ -75,14 +82,17 @@ export function DoctorsSection({
   openDoctorInviteModal,
   onDoctorDirectorySearchChange,
   removeDoctorClinic,
+  reissueDoctorOnboarding,
   resetDoctorAdminForm,
   resetDoctorInviteForm,
+  revokeDoctorOnboarding,
   setDoctorAdminForm,
   setDoctorInviteForm,
   setDoctorRosterTab,
   showDoctorModal,
   showDoctorInviteModal,
   startDoctorEdit,
+  startDoctorOnboardingAdmin,
   submitDoctorAdmin,
   submitDoctorInvitation,
   toggleDoctorActive,
@@ -245,6 +255,70 @@ export function DoctorsSection({
           </>
         )}
       </article>
+      <article className="card section-card span-three">
+        <div className="subsection-header">
+          <div>
+            <p className="eyebrow">Onboarding médico</p>
+            <h2>Gestión administrativa</h2>
+          </div>
+        </div>
+        <div className="table-wrap">
+          {doctorOnboardingStatuses.length ? (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Doctor</th>
+                  <th>Estado</th>
+                  <th>Token</th>
+                  <th>Pasos</th>
+                  <th>Expira</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {doctorOnboardingStatuses.map((status) => (
+                  <tr key={`doctor-onboarding-${status.doctor_id}`}>
+                    <td>
+                      <strong>{`${status.first_name} ${status.last_name}`}</strong>
+                      <div>{status.email}</div>
+                      <div>{formatPhoneForDisplay(status.phone_number)}</div>
+                    </td>
+                    <td>{status.onboarding_status}</td>
+                    <td>{status.token_status}</td>
+                    <td>{status.steps.map((step) => `${step.title}: ${step.status}`).join(" · ")}</td>
+                    <td>{status.expires_at ? formatDateTime(status.expires_at) : "Sin token"}</td>
+                    <td>
+                      <div className="ag-actions-cell">
+                        <button type="button" className="secondary-button" onClick={() => startDoctorOnboardingAdmin(status)}>
+                          {status.can_complete_for_doctor ? "Completar por admin" : "Corregir"}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => reissueDoctorOnboarding(status.doctor_id)}
+                          disabled={!status.can_reissue}
+                        >
+                          Reemitir
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-button"
+                          onClick={() => revokeDoctorOnboarding(status.doctor_id)}
+                          disabled={!status.can_revoke}
+                        >
+                          Revocar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">No hay onboardings médicos registrados.</div>
+          )}
+        </div>
+      </article>
 
       {showDoctorModal ? (
         <div className="modal-overlay" role="dialog" aria-modal="true">
@@ -252,7 +326,7 @@ export function DoctorsSection({
             <div className="subsection-header">
               <div>
                 <p className="eyebrow">Equipo clínico</p>
-                <h2>{editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
+                <h2>{onboardingAdminTarget ? "Completar onboarding por admin" : editingDoctorId ? "Editar doctor" : "Registrar doctor"}</h2>
               </div>
               <button type="button" className="secondary-button" onClick={resetDoctorAdminForm}>
                 Cerrar
@@ -316,7 +390,7 @@ export function DoctorsSection({
                   <input type="email" value={doctorAdminForm.user_email} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_email: event.target.value }))} disabled={editingDoctorId !== null} />
                 </label>
                 <label>
-                  <span>{editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
+                  <span>{onboardingAdminTarget ? "Contraseña temporal" : editingDoctorId ? "Nueva contraseña" : "Contraseña inicial"}</span>
                   <input type="password" value={doctorAdminForm.user_password} onChange={(event) => setDoctorAdminForm((current) => ({ ...current, user_password: event.target.value }))} />
                 </label>
               </div>

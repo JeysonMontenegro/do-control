@@ -38,7 +38,34 @@ class DoctorOnboardingTokenRead(BaseModel):
     last_name: str
     email: str
     phone_number: str | None = None
+    profile_photo_url: str | None = None
     expires_at: datetime
+
+
+class DoctorOnboardingStepRead(BaseModel):
+    key: str
+    title: str
+    status: str
+
+
+class DoctorOnboardingAdminRead(BaseModel):
+    doctor_id: int
+    user_id: int
+    first_name: str
+    last_name: str
+    email: str
+    phone_number: str | None = None
+    profile_photo_url: str | None = None
+    onboarding_status: str
+    token_status: str
+    invitation_sent_at: datetime | None = None
+    expires_at: datetime | None = None
+    token_used_at: datetime | None = None
+    token_revoked_at: datetime | None = None
+    can_reissue: bool = False
+    can_revoke: bool = False
+    can_complete_for_doctor: bool = False
+    steps: list[DoctorOnboardingStepRead] = []
 
 
 class DoctorOnboardingCompleteRequest(BaseModel):
@@ -59,3 +86,17 @@ class DoctorOnboardingCompleteRead(BaseModel):
     doctor_id: int
     user_id: int
     email: str
+
+
+class DoctorOnboardingAdminCompleteRequest(BaseModel):
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, min_length=1, max_length=100)
+    gender: str | None = None
+    doctor_title: str | None = Field(default=None, max_length=50)
+    date_of_birth: date | None = None
+    license_number: str | None = Field(default=None, max_length=100)
+    specialty: str | None = Field(default=None, max_length=100)
+    phone_number: str | None = Field(default=None, min_length=8, max_length=30)
+    user_password: str | None = Field(default=None, min_length=8, max_length=200)
+    activate_user: bool = True
+    clinics: list[DoctorClinicCreate] | None = None

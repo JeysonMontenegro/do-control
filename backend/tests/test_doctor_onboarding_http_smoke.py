@@ -39,6 +39,51 @@ def login(email: str, password: str) -> tuple[int, dict]:
     return status_code, body if isinstance(body, dict) else {}
 
 
+def request_multipart(
+    path: str,
+    *,
+    fields: dict[str, str],
+    files: list[tuple[str, str, bytes, str]],
+) -> tuple[int, dict | list]:
+    boundary = f"----WebKitFormBoundary{time.time_ns()}"
+    body_parts: list[bytes] = []
+    for key, value in fields.items():
+        body_parts.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"),
+                value.encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+    for field_name, file_name, content, content_type in files:
+        body_parts.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                (
+                    f'Content-Disposition: form-data; name="{field_name}"; filename="{file_name}"\r\n'
+                    f"Content-Type: {content_type}\r\n\r\n"
+                ).encode("utf-8"),
+                content,
+                b"\r\n",
+            ]
+        )
+    body_parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+    payload = b"".join(body_parts)
+
+    req = request.Request(
+        f"{BASE_URL}{path}",
+        data=payload,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=5) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
+
+
 class DoctorOnboardingHttpSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -74,6 +119,16 @@ class DoctorOnboardingHttpSmokeTests(unittest.TestCase):
         self.assertEqual(validate_status, 200)
         self.assertEqual(validate_body["email"], invite_email)
         self.assertEqual(validate_body["phone_number"], invite_phone)
+        self.assertIsNone(validate_body["profile_photo_url"])
+
+        photo_status, photo_body = request_multipart(
+            "/doctor-onboarding/photo",
+            fields={"token": raw_token},
+            files=[("file", "doctor.png", b"fake-image-content", "image/png")],
+        )
+        self.assertEqual(photo_status, 200)
+        self.assertEqual(photo_body["email"], invite_email)
+        self.assertTrue(photo_body["profile_photo_url"])
 
         complete_status, complete_body = request_json(
             "/doctor-onboarding/complete",
@@ -115,6 +170,83 @@ class DoctorOnboardingHttpSmokeTests(unittest.TestCase):
             reused_body["detail"],
             "El enlace de registro no es válido, ya venció o ya fue utilizado.",
         )
+
+    def test_admin_can_list_reissue_revoke_and_complete_onboarding(self) -> None:
+        unique_suffix = str(time.time_ns())
+        invite_email = f"doctor-admin-onboarding-{unique_suffix[-8:]}@docontrol.local"
+        invite_phone = f"553{int(unique_suffix[-7:]):07d}"
+
+        invite_status, invite_body = request_json(
+            "/doctors/invitations",
+            method="POST",
+            token=self.admin_token,
+            payload={
+                "full_name": f"Doctor Admin {unique_suffix[-6:]}",
+                "email": invite_email,
+                "phone_number": invite_phone,
+            },
+        )
+        self.assertEqual(invite_status, 201)
+        doctor_id = invite_body["doctor_id"]
+
+        list_status, list_body = request_json("/doctors/onboarding", token=self.admin_token)
+        self.assertEqual(list_status, 200)
+        self.assertIsInstance(list_body, list)
+        onboarding_item = next(item for item in list_body if item["doctor_id"] == doctor_id)
+        self.assertEqual(onboarding_item["token_status"], "active")
+        self.assertTrue(onboarding_item["can_reissue"])
+        self.assertTrue(any(step["key"] == "invitation" for step in onboarding_item["steps"]))
+
+        reissue_status, reissue_body = request_json(
+            f"/doctors/{doctor_id}/onboarding/reissue",
+            method="POST",
+            token=self.admin_token,
+        )
+        self.assertEqual(reissue_status, 200)
+        self.assertEqual(reissue_body["status"], "reissued")
+        self.assertIn("/doctor/onboarding/", reissue_body["onboarding_url"])
+
+        revoke_status, revoke_body = request_json(
+            f"/doctors/{doctor_id}/onboarding/revoke",
+            method="POST",
+            token=self.admin_token,
+        )
+        self.assertEqual(revoke_status, 200)
+        self.assertEqual(revoke_body["token_status"], "revoked")
+
+        complete_status, complete_body = request_json(
+            f"/doctors/{doctor_id}/onboarding",
+            method="PATCH",
+            token=self.admin_token,
+            payload={
+                "first_name": "Admin",
+                "last_name": "Completa",
+                "gender": "male",
+                "doctor_title": "Dr.",
+                "specialty": "Radiología",
+                "phone_number": invite_phone,
+                "user_password": "TempAdminComplete123!",
+                "activate_user": True,
+                "clinics": [
+                    {
+                        "clinic_name": "Centro Diagnóstico",
+                        "address": "Zona 14",
+                        "latitude": 14.6,
+                        "longitude": -90.5,
+                        "phone_number": "55551111",
+                        "notes": "Ingreso administrativo",
+                        "is_primary": True,
+                    }
+                ],
+            },
+        )
+        self.assertEqual(complete_status, 200)
+        self.assertEqual(complete_body["onboarding_status"], "completed")
+        self.assertEqual(complete_body["token_status"], "revoked")
+
+        login_status, login_body = login(invite_email, "TempAdminComplete123!")
+        self.assertEqual(login_status, 200)
+        self.assertIn("access_token", login_body)
 
 
 if __name__ == "__main__":

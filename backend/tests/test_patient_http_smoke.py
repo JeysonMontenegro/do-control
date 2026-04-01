@@ -44,36 +44,43 @@ def login(email: str, password: str) -> str:
 class PatientHttpSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.doctor_token = login("doctor@docontrol.local", "Doctor123!")
         cls.admin_token = login("admin@docontrol.local", "ChangeMe123!")
+        doctors_status, doctors_body = request_json("/doctors", token=cls.admin_token)
+        if doctors_status != 200 or not isinstance(doctors_body, list) or not doctors_body:
+            raise AssertionError(f"Unable to load doctors: {doctors_status} {doctors_body}")
+        cls.doctor_id = doctors_body[0]["id"]
 
-    def test_doctor_can_create_and_update_patient(self) -> None:
+    def test_admin_can_create_and_update_patient(self) -> None:
         unique_suffix = str(int(time.time() * 1000) % 10000000)
         unique_phone = f"557{int(time.time() * 1000) % 10000000:07d}"
 
         create_status, created_patient = request_json(
             "/patients",
             method="POST",
-            token=self.doctor_token,
+            token=self.admin_token,
             payload={
                 "medical_record_number": f"EXP-DR-{unique_suffix}",
+                "display_name": f"Paciente Doctor {unique_suffix}",
                 "first_name": "Paciente",
                 "last_name": f"Doctor{unique_suffix}",
                 "primary_phone": unique_phone,
                 "national_id": f"DPI-{unique_suffix}",
                 "tax_id": None,
                 "email": None,
+                "doctor_id": self.doctor_id,
             },
         )
         self.assertEqual(create_status, 201)
         self.assertIsInstance(created_patient, dict)
         self.assertEqual(created_patient["first_name"], "Paciente")
+        self.assertEqual(created_patient["display_name"], f"Paciente Doctor {unique_suffix}")
 
         update_status, updated_patient = request_json(
             f"/patients/{created_patient['id']}",
             method="PATCH",
-            token=self.doctor_token,
+            token=self.admin_token,
             payload={
+                "display_name": "Paciente Editado (mamá)",
                 "first_name": "Paciente Editado",
                 "primary_phone": f"558{int(time.time() * 1000) % 10000000:07d}",
                 "notes": "Actualizado por doctor",
@@ -82,6 +89,7 @@ class PatientHttpSmokeTests(unittest.TestCase):
         self.assertEqual(update_status, 200)
         self.assertIsInstance(updated_patient, dict)
         self.assertEqual(updated_patient["first_name"], "Paciente Editado")
+        self.assertEqual(updated_patient["display_name"], "Paciente Editado (mamá)")
         self.assertEqual(updated_patient["notes"], "Actualizado por doctor")
 
     def test_admin_must_select_doctor_when_creating_patient(self) -> None:

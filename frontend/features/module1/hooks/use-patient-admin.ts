@@ -39,6 +39,7 @@ export function usePatientAdmin({
     try {
       await apiPost<Patient>("/api/patients", {
         ...patientForm,
+        display_name: patientForm.display_name.trim() || null,
         national_id: patientForm.national_id || null,
         doctor_id: patientForm.doctor_id ? Number(patientForm.doctor_id) : scopedDoctorId,
       });
@@ -63,6 +64,7 @@ export function usePatientAdmin({
       const updatePath =
         scopedDoctorId !== null ? `/api/patients/${selectedPatientId}?doctor_id=${scopedDoctorId}` : `/api/patients/${selectedPatientId}`;
       await apiPatch<Patient>(updatePath, {
+        display_name: patientEditForm.display_name.trim() || null,
         first_name: patientEditForm.first_name,
         last_name: patientEditForm.last_name,
         primary_phone: patientEditForm.primary_phone,

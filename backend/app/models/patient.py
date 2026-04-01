@@ -16,6 +16,7 @@ class Patient(TimestampMixin, Base):
         Index("ix_patients_owner_doctor_id", "owner_doctor_id"),
         CheckConstraint("btrim(first_name) <> ''", name="ck_patients_first_name_not_blank"),
         CheckConstraint("btrim(last_name) <> ''", name="ck_patients_last_name_not_blank"),
+        CheckConstraint("display_name IS NULL OR btrim(display_name) <> ''", name="ck_patients_display_name_not_blank"),
         CheckConstraint("btrim(primary_phone) <> ''", name="ck_patients_primary_phone_not_blank"),
         CheckConstraint("btrim(medical_record_number) <> ''", name="ck_patients_mrn_not_blank"),
         CheckConstraint("national_id IS NULL OR btrim(national_id) <> ''", name="ck_patients_national_id_not_blank"),
@@ -32,6 +33,7 @@ class Patient(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     medical_record_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     first_name: Mapped[str] = mapped_column(String(100))
     middle_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str] = mapped_column(String(100))

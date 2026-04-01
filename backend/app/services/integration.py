@@ -20,12 +20,14 @@ from app.schemas.integration import (
     DoctorMatchResponse,
     DoctorScheduleAppointmentRead,
     DoctorVerificationRead,
+    AvailablePatientOption,
     IntegrationDoctorProfileRead,
     IntegrationUserVerificationRead,
     IntegrationEncounterCreateRequest,
     IntegrationEncounterCreateResponse,
     IntegrationPatientCreateRequest,
     IntegrationPatientCreateResponse,
+    IntegrationPatientDeactivateResponse,
     IntegrationPatientPhoneUpdateRequest,
     IntegrationPatientPhoneUpdateResponse,
     PatientMatchCandidate,
@@ -192,6 +194,8 @@ class IntegrationService:
         candidates = []
         requested_name = payload.patient_name.strip()
         for patient in results:
+            if not patient.is_active:
+                continue
             patient_name = f"{patient.first_name} {patient.last_name}".strip()
             confidence = self._patient_name_confidence(requested_name, patient_name)
             if confidence is None:
@@ -201,8 +205,11 @@ class IntegrationService:
                     patient_id=patient.id,
                     medical_record_number=patient.medical_record_number,
                     patient_name=patient_name,
+                    display_name=patient.display_name,
                     primary_phone=patient.primary_phone,
                     confidence=confidence,
+                    created_at=patient.created_at,
+                    updated_at=patient.updated_at,
                 )
             )
 
@@ -216,11 +223,13 @@ class IntegrationService:
         else:
             status = "candidate_matches"
 
+        audit_entity_id = payload.phone_number.strip() or requested_name or f"patient-match:{status}"
+
         create_audit_log(
             self.db,
             action="integration_patient_match",
             entity_type="integration",
-            entity_id=payload.phone_number,
+            entity_id=audit_entity_id,
             after_data={"status": status, "candidate_count": len(candidates)},
         )
         self.db.commit()
@@ -239,12 +248,14 @@ class IntegrationService:
                 last_name=last_name,
                 primary_phone=payload.primary_phone,
                 doctor_id=payload.doctor_id,
+                display_name=payload.display_name,
             )
         )
         return IntegrationPatientCreateResponse(
             id=patient.id,
             medical_record_number=patient.medical_record_number,
             patient_name=f"{patient.first_name} {patient.last_name}".strip(),
+            display_name=patient.display_name,
             primary_phone=patient.primary_phone,
         )
 
@@ -260,6 +271,10 @@ class IntegrationService:
             primary_phone=patient.primary_phone,
             previous_phone=previous_phone,
         )
+
+    def deactivate_patient(self, patient_id: int) -> IntegrationPatientDeactivateResponse:
+        patient = self.patient_service.deactivate_patient(patient_id)
+        return IntegrationPatientDeactivateResponse(status="deactivated", patient_id=patient.id)
 
     def match_doctor(self, payload: DoctorMatchRequest) -> DoctorMatchResponse:
         results = self.doctor_service.list_doctors(query=payload.phone_number)
@@ -294,11 +309,13 @@ class IntegrationService:
         else:
             status = "candidate_matches"
 
+        audit_entity_id = payload.phone_number.strip() or (payload.doctor_name or "").strip() or f"doctor-match:{status}"
+
         create_audit_log(
             self.db,
             action="integration_doctor_match",
             entity_type="integration",
-            entity_id=payload.phone_number,
+            entity_id=audit_entity_id,
             after_data={"status": status, "candidate_count": len(candidates)},
         )
         self.db.commit()
@@ -400,40 +417,64 @@ class IntegrationService:
             create_review_item(review_reason="doctor_resolution", review_message=str(exc))
             return ProposedAppointmentResponse(status="needs_manual_review", message=str(exc))
 
-        match = self.match_patient(
-            PatientMatchRequest(patient_name=payload.patient_name, phone_number=payload.phone_number)
-        )
-
         patient_id: int | None = None
-        if match.status == "matched":
-            patient_id = match.candidate_matches[0].patient_id
-        elif match.status == "candidate_matches":
-            review_message = "Multiple patient candidates found for the provided phone number."
-            create_review_item(review_reason="patient_resolution", review_message=review_message, doctor_id=doctor.id)
-            return ProposedAppointmentResponse(
-                status="needs_manual_review",
-                doctor_id=doctor.id,
-                message=review_message,
-            )
-        elif payload.create_patient_if_missing:
-            first_name, last_name = self.patient_service.split_full_name(payload.patient_name)
-            patient = self.patient_service.create_patient(
-                PatientCreate(
-                    first_name=first_name,
-                    last_name=last_name,
-                    primary_phone=payload.phone_number,
+        if payload.patient_id is not None:
+            try:
+                patient = self.patient_service.get_patient(payload.patient_id)
+            except NotFoundError:
+                review_message = "The provided patient_id does not exist."
+                create_review_item(review_reason="patient_resolution", review_message=review_message, doctor_id=doctor.id)
+                return ProposedAppointmentResponse(
+                    status="needs_manual_review",
                     doctor_id=doctor.id,
+                    message=review_message,
                 )
-            )
             patient_id = patient.id
         else:
-            review_message = "No patient match found and automatic creation is disabled."
-            create_review_item(review_reason="patient_missing", review_message=review_message, doctor_id=doctor.id)
-            return ProposedAppointmentResponse(
-                status="no_match",
-                doctor_id=doctor.id,
-                message=review_message,
+            match = self.match_patient(
+                PatientMatchRequest(patient_name=payload.patient_name, phone_number=payload.phone_number)
             )
+            if match.status == "matched":
+                patient_id = match.candidate_matches[0].patient_id
+            elif match.status == "candidate_matches":
+                review_message = "Multiple patient candidates found for the provided phone number."
+                create_review_item(review_reason="patient_resolution", review_message=review_message, doctor_id=doctor.id)
+                return ProposedAppointmentResponse(
+                    status="needs_manual_review",
+                    doctor_id=doctor.id,
+                    message=review_message,
+                    available_patients=[
+                        AvailablePatientOption(
+                            patient_id=candidate.patient_id,
+                            patient_name=candidate.patient_name,
+                            display_name=candidate.display_name,
+                            medical_record_number=candidate.medical_record_number,
+                            primary_phone=candidate.primary_phone,
+                            created_at=candidate.created_at,
+                            updated_at=candidate.updated_at,
+                        )
+                        for candidate in match.candidate_matches
+                    ],
+                )
+            elif payload.create_patient_if_missing:
+                first_name, last_name = self.patient_service.split_full_name(payload.patient_name)
+                patient = self.patient_service.create_patient(
+                    PatientCreate(
+                        first_name=first_name,
+                        last_name=last_name,
+                        primary_phone=payload.phone_number,
+                        doctor_id=doctor.id,
+                    )
+                )
+                patient_id = patient.id
+            else:
+                review_message = "No patient match found and automatic creation is disabled."
+                create_review_item(review_reason="patient_missing", review_message=review_message, doctor_id=doctor.id)
+                return ProposedAppointmentResponse(
+                    status="no_match",
+                    doctor_id=doctor.id,
+                    message=review_message,
+                )
 
         overlap = self.appointment_service.repository.find_overlap(
             doctor.id,

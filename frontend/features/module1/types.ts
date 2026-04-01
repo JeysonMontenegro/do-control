@@ -37,6 +37,7 @@ export type Doctor = {
 export type Patient = {
   id: number;
   medical_record_number: string;
+  display_name?: string | null;
   first_name: string;
   middle_name?: string | null;
   last_name: string;
@@ -185,6 +186,44 @@ export type AttachmentDownload = {
   file_name: string;
   download_url: string;
   expires_in_seconds: number;
+};
+
+export type DoctorOnboardingToken = {
+  doctor_id: number;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string | null;
+  profile_photo_url: string | null;
+  expires_at: string;
+};
+
+export type DoctorOnboardingAdminStatus = {
+  doctor_id: number;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string | null;
+  profile_photo_url: string | null;
+  onboarding_status: string;
+  token_status: string;
+  invitation_sent_at: string | null;
+  expires_at: string | null;
+  token_used_at: string | null;
+  token_revoked_at: string | null;
+  can_reissue: boolean;
+  can_revoke: boolean;
+  can_complete_for_doctor: boolean;
+  steps: { key: string; title: string; status: string }[];
+};
+
+export type DoctorOnboardingCompleteResponse = {
+  status: string;
+  doctor_id: number;
+  user_id: number;
+  email: string;
 };
 
 export type LoginResponse = {

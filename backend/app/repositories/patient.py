@@ -47,6 +47,7 @@ class PatientRepository:
                 or_(
                     func.lower(Patient.first_name).like(search),
                     func.lower(Patient.last_name).like(search),
+                    func.lower(func.coalesce(Patient.display_name, "")).like(search),
                     func.lower(Patient.primary_phone).like(search),
                     func.lower(func.coalesce(PatientPhoneNumber.phone_number, "")).like(search),
                     func.lower(func.coalesce(Patient.national_id, "")).like(search),
@@ -73,6 +74,7 @@ class PatientRepository:
                 or_(
                     func.lower(Patient.first_name).like(search),
                     func.lower(Patient.last_name).like(search),
+                    func.lower(func.coalesce(Patient.display_name, "")).like(search),
                     func.lower(Patient.primary_phone).like(search),
                     func.lower(func.coalesce(PatientPhoneNumber.phone_number, "")).like(search),
                     func.lower(func.coalesce(Patient.national_id, "")).like(search),

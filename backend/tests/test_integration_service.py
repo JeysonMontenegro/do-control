@@ -26,17 +26,25 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
             list_patients=lambda query: [
                 SimpleNamespace(
                     id=3,
+                    display_name=None,
                     first_name="Ana",
                     last_name="Lopez",
                     medical_record_number="EXP-000003",
                     primary_phone="55530000",
+                    is_active=True,
+                    created_at=datetime(2026, 3, 15, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, tzinfo=timezone.utc),
                 ),
                 SimpleNamespace(
                     id=5,
+                    display_name="Pedro Ruiz (padre)",
                     first_name="Pedro",
                     last_name="Ruiz",
                     medical_record_number="EXP-000005",
                     primary_phone="5599887766",
+                    is_active=True,
+                    created_at=datetime(2026, 3, 17, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 18, tzinfo=timezone.utc),
                 ),
             ]
         )
@@ -47,6 +55,9 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
         self.assertEqual(len(result.candidate_matches), 1)
         self.assertEqual(result.candidate_matches[0].patient_id, 5)
         self.assertEqual(result.candidate_matches[0].confidence, "high")
+        self.assertEqual(result.candidate_matches[0].display_name, "Pedro Ruiz (padre)")
+        self.assertEqual(result.candidate_matches[0].created_at, datetime(2026, 3, 17, tzinfo=timezone.utc))
+        self.assertEqual(result.candidate_matches[0].updated_at, datetime(2026, 3, 18, tzinfo=timezone.utc))
 
     @patch("app.services.integration.create_audit_log")
     def test_returns_candidate_matches_for_partial_name_matches(
@@ -57,17 +68,25 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
             list_patients=lambda query: [
                 SimpleNamespace(
                     id=3,
+                    display_name="Ana María (mamá)",
                     first_name="Ana Maria",
                     last_name="Lopez Hernandez",
                     medical_record_number="EXP-000003",
                     primary_phone="55530000",
+                    is_active=True,
+                    created_at=datetime(2026, 3, 15, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, tzinfo=timezone.utc),
                 ),
                 SimpleNamespace(
                     id=4,
+                    display_name=None,
                     first_name="Maria",
                     last_name="Lopez",
                     medical_record_number="EXP-000004",
                     primary_phone="55540000",
+                    is_active=True,
+                    created_at=datetime(2026, 3, 17, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 18, tzinfo=timezone.utc),
                 ),
             ]
         )
@@ -87,17 +106,25 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
             list_patients=lambda query: [
                 SimpleNamespace(
                     id=1,
+                    display_name=None,
                     first_name="Ana",
                     last_name="Lopez",
                     medical_record_number="EXP-000001",
                     primary_phone="55510000",
+                    is_active=True,
+                    created_at=datetime(2026, 3, 15, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 16, tzinfo=timezone.utc),
                 ),
                 SimpleNamespace(
                     id=2,
+                    display_name="Maria Perez (inactivo)",
                     first_name="Maria",
                     last_name="Perez",
                     medical_record_number="EXP-000002",
                     primary_phone="55520000",
+                    is_active=False,
+                    created_at=datetime(2026, 3, 17, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 18, tzinfo=timezone.utc),
                 ),
             ]
         )
@@ -255,6 +282,105 @@ class IntegrationServicePendingAppointmentsTests(unittest.TestCase):
 
         with self.assertRaises(NotFoundError):
             self.service.get_pending_appointment(999)
+
+
+class IntegrationServiceProposedAppointmentsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = IntegrationService(DummySession())
+        self.payload = SimpleNamespace(
+            patient_name="Edward Gomez",
+            phone_number="50252827538",
+            patient_id=29,
+            requester_phone_number=None,
+            doctor_id=3,
+            doctor_phone_number=None,
+            doctor_name=None,
+            scheduled_start=datetime(2026, 4, 1, 15, 0, tzinfo=timezone.utc),
+            scheduled_end=datetime(2026, 4, 1, 15, 30, tzinfo=timezone.utc),
+            appointment_type="follow_up",
+            reason="Control",
+            source="integration",
+            create_patient_if_missing=False,
+        )
+
+    @patch("app.services.integration.create_audit_log")
+    def test_uses_explicit_patient_id_without_matching(self, _audit_log) -> None:
+        doctor = SimpleNamespace(id=3)
+        appointment = SimpleNamespace(id=77, public_id="pub-77")
+        self.service._resolve_doctor = lambda _payload: doctor
+        self.service.patient_service = SimpleNamespace(
+            get_patient=lambda patient_id: SimpleNamespace(id=patient_id)
+        )
+        self.service.match_patient = lambda _payload: (_ for _ in ()).throw(AssertionError("match_patient should not be called"))
+        self.service.appointment_service = SimpleNamespace(
+            repository=SimpleNamespace(find_overlap=lambda *_args, **_kwargs: None),
+            create_appointment=lambda appointment_payload: appointment,
+        )
+
+        result = self.service.create_proposed_appointment(self.payload)
+
+        self.assertEqual(result.status, "created")
+        self.assertEqual(result.patient_id, 29)
+        self.assertEqual(result.appointment_id, 77)
+
+    @patch("app.services.integration.create_audit_log")
+    def test_returns_available_patients_when_duplicate_candidates_exist(self, _audit_log) -> None:
+        doctor = SimpleNamespace(id=3)
+        review_items: list[dict] = []
+        self.service._resolve_doctor = lambda _payload: doctor
+        self.service.appointment_review_item_service = SimpleNamespace(
+            create_item=lambda **kwargs: review_items.append(kwargs)
+        )
+        self.service.match_patient = lambda _payload: SimpleNamespace(
+            status="candidate_matches",
+            candidate_matches=[
+                SimpleNamespace(
+                    patient_id=29,
+                    patient_name="Edward Gomez",
+                    display_name="Edward Gomez (padre)",
+                    medical_record_number="EXP-000029",
+                    primary_phone="50252827538",
+                    created_at=datetime(2026, 3, 15, 10, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 18, 23, 0, tzinfo=timezone.utc),
+                ),
+                SimpleNamespace(
+                    patient_id=41,
+                    patient_name="Edward Gomez",
+                    display_name="Edward Gomez (hijo)",
+                    medical_record_number="EXP-000041",
+                    primary_phone="50252827538",
+                    created_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+                    updated_at=datetime(2026, 3, 18, 10, 0, tzinfo=timezone.utc),
+                ),
+            ],
+        )
+        duplicate_payload = SimpleNamespace(**{**self.payload.__dict__, "patient_id": None})
+
+        result = self.service.create_proposed_appointment(duplicate_payload)
+
+        self.assertEqual(result.status, "needs_manual_review")
+        self.assertEqual(result.doctor_id, 3)
+        self.assertEqual(len(result.available_patients), 2)
+        self.assertEqual(result.available_patients[0].patient_id, 29)
+        self.assertEqual(result.available_patients[0].display_name, "Edward Gomez (padre)")
+        self.assertEqual(result.available_patients[0].medical_record_number, "EXP-000029")
+        self.assertEqual(result.available_patients[0].updated_at, datetime(2026, 3, 18, 23, 0, tzinfo=timezone.utc))
+        self.assertEqual(len(review_items), 1)
+
+
+class IntegrationServicePatientDeactivationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = IntegrationService(DummySession())
+
+    def test_returns_deactivated_status(self) -> None:
+        self.service.patient_service = SimpleNamespace(
+            deactivate_patient=lambda patient_id: SimpleNamespace(id=patient_id)
+        )
+
+        result = self.service.deactivate_patient(29)
+
+        self.assertEqual(result.status, "deactivated")
+        self.assertEqual(result.patient_id, 29)
 
 
 if __name__ == "__main__":

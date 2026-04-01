@@ -21,6 +21,7 @@ class UserActionTokenRepository:
                 UserActionToken.token_hash == token_hash,
                 UserActionToken.action_type == action_type,
                 UserActionToken.used_at.is_(None),
+                UserActionToken.revoked_at.is_(None),
                 UserActionToken.expires_at > datetime.now(timezone.utc),
             )
         )
@@ -31,7 +32,20 @@ class UserActionTokenRepository:
                 select(UserActionToken).where(
                     UserActionToken.action_type == action_type,
                     UserActionToken.used_at.is_(None),
+                    UserActionToken.revoked_at.is_(None),
                     UserActionToken.expires_at > datetime.now(timezone.utc),
                 )
+            )
+        )
+
+    def list_for_user(self, user_id: int, *, action_type: str) -> list[UserActionToken]:
+        return list(
+            self.db.scalars(
+                select(UserActionToken)
+                .where(
+                    UserActionToken.user_id == user_id,
+                    UserActionToken.action_type == action_type,
+                )
+                .order_by(UserActionToken.created_at.desc(), UserActionToken.id.desc())
             )
         )

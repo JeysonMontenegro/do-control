@@ -11,6 +11,7 @@ from app.schemas.patient_phone_number import PatientPhoneNumberRead
 
 class PatientBase(BaseModel):
     medical_record_number: str | None = None
+    display_name: str | None = None
     first_name: str
     middle_name: str | None = None
     last_name: str
@@ -37,6 +38,7 @@ class PatientCreate(PatientBase):
 
 
 class PatientUpdate(BaseModel):
+    display_name: str | None = None
     first_name: str | None = None
     middle_name: str | None = None
     last_name: str | None = None

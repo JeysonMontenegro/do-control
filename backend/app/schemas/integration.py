@@ -12,8 +12,11 @@ class PatientMatchCandidate(BaseModel):
     patient_id: int
     medical_record_number: str
     patient_name: str
+    display_name: str | None = None
     primary_phone: str
     confidence: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class PatientMatchResponse(BaseModel):
@@ -72,6 +75,7 @@ class IntegrationUserVerificationRead(BaseModel):
 
 class IntegrationPatientCreateRequest(BaseModel):
     full_name: str | None = None
+    display_name: str | None = None
     first_name: str | None = None
     last_name: str | None = None
     primary_phone: str
@@ -90,6 +94,7 @@ class IntegrationPatientCreateResponse(BaseModel):
     id: int
     medical_record_number: str
     patient_name: str
+    display_name: str | None = None
     primary_phone: str
 
 
@@ -102,6 +107,11 @@ class IntegrationPatientPhoneUpdateResponse(BaseModel):
     patient_id: int
     primary_phone: str
     previous_phone: str | None = None
+
+
+class IntegrationPatientDeactivateResponse(BaseModel):
+    status: str
+    patient_id: int
 
 
 class MessagingWhitelistAllowedRead(BaseModel):
@@ -184,6 +194,7 @@ class EmailWhitelistAddressMutationRead(BaseModel):
 class ProposedAppointmentRequest(BaseModel):
     patient_name: str
     phone_number: str
+    patient_id: int | None = None
     requester_phone_number: str | None = None
     doctor_id: int | None = None
     doctor_phone_number: str | None = None
@@ -207,6 +218,16 @@ class AvailableDoctorOption(BaseModel):
     full_name: str
 
 
+class AvailablePatientOption(BaseModel):
+    patient_id: int
+    patient_name: str
+    display_name: str | None = None
+    medical_record_number: str
+    primary_phone: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class ProposedAppointmentResponse(BaseModel):
     status: str
     patient_id: int | None = None
@@ -217,6 +238,7 @@ class ProposedAppointmentResponse(BaseModel):
     message: str
     existing_appointment_id: int | None = None
     available_doctors: list[AvailableDoctorOption] = []
+    available_patients: list[AvailablePatientOption] = []
 
 
 class AppointmentActionResponse(BaseModel):

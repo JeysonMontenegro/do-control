@@ -42,13 +42,16 @@ export function PatientSummarySection({
   sortedPatientEncounters,
 }: PatientSummarySectionProps) {
   const selectedPatient = selectedSummary?.patient ?? null;
+  const selectedPatientLabel = selectedPatient
+    ? selectedPatient.display_name?.trim() || `${selectedPatient.first_name} ${selectedPatient.last_name}`
+    : null;
 
   return (
     <article className="card section-card span-two">
       <div className="subsection-header">
         <div>
           <p className="eyebrow">Ficha del paciente</p>
-          <h2>{selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "Selecciona un paciente"}</h2>
+          <h2>{selectedPatientLabel ?? "Selecciona un paciente"}</h2>
         </div>
         {canManagePatients ? (
           <div className="section-action-panel">
@@ -101,7 +104,8 @@ export function PatientSummarySection({
           <div className="detail-panel compact-panel">
             <strong>Datos principales</strong>
             <div className="two-column-grid">
-              <span>Nombre: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
+              <span>Nombre legal: {selectedSummary.patient.first_name} {selectedSummary.patient.last_name}</span>
+              <span>Alias visible: {selectedSummary.patient.display_name ?? "Sin alias"}</span>
               <span>Teléfono: {formatPhoneForDisplay(selectedSummary.patient.primary_phone)}</span>
               <span>
                 Doctor(es):{" "}

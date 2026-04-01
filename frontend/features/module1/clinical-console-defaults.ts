@@ -128,6 +128,7 @@ export function createProfileForm(phoneNumber = "") {
 export function createPatientForm(doctorId = "") {
   return {
     medical_record_number: "",
+    display_name: "",
     first_name: "",
     last_name: "",
     primary_phone: "",
@@ -140,6 +141,7 @@ export function createPatientForm(doctorId = "") {
 
 export function createPatientEditForm() {
   return {
+    display_name: "",
     first_name: "",
     last_name: "",
     primary_phone: "",

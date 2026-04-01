@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
@@ -29,6 +29,26 @@ def complete_doctor_onboarding(
 ) -> DoctorOnboardingCompleteRead:
     try:
         return DoctorOnboardingService(db).complete_onboarding(payload)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/photo", response_model=DoctorOnboardingTokenRead)
+async def upload_doctor_onboarding_photo(
+    token: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db_session),
+) -> DoctorOnboardingTokenRead:
+    try:
+        content = await file.read()
+        return DoctorOnboardingService(db).upload_profile_photo(
+            raw_token=token,
+            file_name=file.filename or "doctor-profile-image.bin",
+            content_type=file.content_type,
+            content=content,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:

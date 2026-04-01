@@ -59,6 +59,7 @@ export function PatientsSection({
   onTogglePatientActive,
   setExpandedEncounterId,
 }: PatientsSectionProps) {
+  const patientLabel = (patient: Patient) => patient.display_name?.trim() || `${patient.first_name} ${patient.last_name}`;
   const doctorOptions = availableDoctors.map((doctor) => ({
     value: String(doctor.id),
     label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
@@ -138,9 +139,7 @@ export function PatientsSection({
                     onClick={() => onSelectPatient(String(patient.id))}
                   >
                     <td>{patient.medical_record_number}</td>
-                    <td>
-                      {patient.first_name} {patient.last_name}
-                    </td>
+                    <td>{patientLabel(patient)}</td>
                     <td>
                       {patient.assigned_doctors?.length
                         ? patient.assigned_doctors.map((doctor) => `${doctor.first_name} ${doctor.last_name}`).join(", ")

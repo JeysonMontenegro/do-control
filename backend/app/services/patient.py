@@ -37,6 +37,7 @@ class PatientService:
             "primary_phone": "Primary phone",
         }
         optional_text_fields = (
+            "display_name",
             "middle_name",
             "second_last_name",
             "married_name",
@@ -198,6 +199,25 @@ class PatientService:
         self.db.commit()
         self.db.refresh(patient)
         return patient, previous_phone
+
+    def deactivate_patient(self, patient_id: int) -> Patient:
+        patient = self.get_patient(patient_id)
+        if not patient.is_active:
+            return patient
+
+        patient.is_active = False
+        self.repository.deactivate_primary_phone_numbers(patient.id)
+        create_audit_log(
+            self.db,
+            action="deactivate",
+            entity_type="patient",
+            entity_id=str(patient.id),
+            before_data={"is_active": True},
+            after_data={"is_active": False},
+        )
+        self.db.commit()
+        self.db.refresh(patient)
+        return patient
 
     def _replace_primary_phone(self, patient: Patient, phone_number: str) -> None:
         self.repository.unset_primary_phone_numbers(patient.id)

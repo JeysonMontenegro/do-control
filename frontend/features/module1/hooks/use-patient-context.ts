@@ -98,6 +98,7 @@ export function usePatientContext({
     }
 
     setPatientEditForm({
+      display_name: selectedSummary.patient.display_name ?? "",
       first_name: selectedSummary.patient.first_name ?? "",
       last_name: selectedSummary.patient.last_name ?? "",
       primary_phone: selectedSummary.patient.primary_phone ?? "",

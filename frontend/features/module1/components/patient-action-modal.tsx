@@ -7,6 +7,7 @@ type PatientAction = "patient_create" | "patient_edit" | null;
 
 type PatientForm = {
   medical_record_number: string;
+  display_name: string;
   first_name: string;
   last_name: string;
   primary_phone: string;
@@ -17,6 +18,7 @@ type PatientForm = {
 };
 
 type PatientEditForm = {
+  display_name: string;
   first_name: string;
   last_name: string;
   primary_phone: string;
@@ -97,6 +99,14 @@ export function PatientActionModal({
                 />
               </label>
               <label>
+                <span>Alias visible</span>
+                <input
+                  value={patientForm.display_name}
+                  onChange={(event) => setPatientForm((current) => ({ ...current, display_name: event.target.value }))}
+                  placeholder="Ej. Edward Gomez (padre)"
+                />
+              </label>
+              <label>
                 <RequiredLabel>Nombres</RequiredLabel>
                 <input
                   value={patientForm.first_name}
@@ -168,6 +178,14 @@ export function PatientActionModal({
         </div>
         <form className="form-card compact-form" onSubmit={submitPatientUpdate}>
           <div className="three-column-grid">
+            <label>
+              <span>Alias visible</span>
+              <input
+                value={patientEditForm.display_name}
+                onChange={(event) => setPatientEditForm((current) => ({ ...current, display_name: event.target.value }))}
+                placeholder="Ej. Edward Gomez (padre)"
+              />
+            </label>
             <label>
               <RequiredLabel>Nombres</RequiredLabel>
               <input
