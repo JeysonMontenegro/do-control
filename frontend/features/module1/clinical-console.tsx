@@ -29,6 +29,7 @@ import { useClinicalTabProps } from "@/features/module1/hooks/use-clinical-tab-p
 import { useDoctorAdmin } from "@/features/module1/hooks/use-doctor-admin";
 import { useEncounterAttachmentAdmin } from "@/features/module1/hooks/use-encounter-attachment-admin";
 import { useEmailSettingsAdmin } from "@/features/module1/hooks/use-email-settings-admin";
+import { useExamAnalysisConsole } from "@/features/module1/hooks/use-exam-analysis-console";
 import { useIntegrationWhitelistAdmin } from "@/features/module1/hooks/use-integration-whitelist-admin";
 import { usePatientContext } from "@/features/module1/hooks/use-patient-context";
 import { usePatientAdmin } from "@/features/module1/hooks/use-patient-admin";
@@ -658,6 +659,7 @@ export function ClinicalConsole() {
     goToAgenda,
     goToAgendaAppointment,
     goToEncounters,
+    goToExamAnalyses,
     goToMessages,
     goToMessagesForAppointment,
     goToPatient,
@@ -695,6 +697,30 @@ export function ClinicalConsole() {
     setSelectedPatientId,
   });
   const inboxUnreadCount = conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
+
+  const {
+    chatDraft,
+    chatMessages,
+    isLoadingAnalyses,
+    isRefreshingViewer,
+    isRequestingAnalysis,
+    requestAnalysis,
+    selectedAnalysis,
+    selectedAnalysisId,
+    selectedAttachment,
+    selectedAttachmentAnalyses,
+    selectedAttachmentId,
+    sendChatMessage,
+    setChatDraft,
+    setSelectedAnalysisId,
+    setSelectedAttachmentId,
+    studyAttachments,
+    viewerUrl,
+  } = useExamAnalysisConsole({
+    selectedPatientId,
+    selectedSummary,
+    setMessage,
+  });
 
   const { encountersTabProps, messagesTabProps, patientsTabProps } = useClinicalTabProps({
     encountersTabProps: {
@@ -790,6 +816,7 @@ export function ClinicalConsole() {
       onGoToAgenda: goToAgenda,
       onGoToAgendaFromPatient: goToAgendaAppointment,
       onGoToEncounters: goToEncounters,
+      onGoToExamAnalyses: goToExamAnalyses,
       onGoToMessages: goToMessages,
       onPatientDoctorFilterChange: setDoctorFilter,
       onOpenAttachment: openAttachment,
@@ -833,7 +860,7 @@ export function ClinicalConsole() {
                 pendingAppointmentsCount: filteredAppointments.filter((item) => item.confirmation_status === "pending").length,
                 whatsappAppointmentsCount: filteredAppointments.filter((item) => item.source === "whatsapp").length,
               }}
-              agendaTabProps={{
+          agendaTabProps={{
                 agendaDays,
                 allowMultiDoctorVisibility,
                 appointmentDispatches,
@@ -896,7 +923,7 @@ export function ClinicalConsole() {
                 updateAppointmentStatus,
               }}
               canViewGestion={canViewGestion}
-              doctorsSectionProps={{
+          doctorsSectionProps={{
                 activeDoctors,
                 activePager: <PagerBar onChange={setActiveDoctorPage} page={activeDoctorPage} pageSize={teamPageSize} totalItems={filteredActiveDoctors.length} />,
                 addDoctorClinic,
@@ -941,8 +968,29 @@ export function ClinicalConsole() {
                 toggleDoctorActive,
                 updateDoctorClinic,
               }}
-              encountersTabProps={encountersTabProps}
-              gestionHubProps={{
+          encountersTabProps={encountersTabProps}
+          examAnalysesTabProps={{
+            chatDraft,
+            chatMessages,
+            isLoadingAnalyses,
+            isRefreshingViewer,
+            isRequestingAnalysis,
+            onChatDraftChange: setChatDraft,
+            onRequestAnalysis: requestAnalysis,
+            onSelectAnalysis: setSelectedAnalysisId,
+            onSelectAttachment: setSelectedAttachmentId,
+            onSendChatMessage: sendChatMessage,
+            selectedAnalysis,
+            selectedAnalysisId,
+            selectedAttachment,
+            selectedAttachmentAnalyses,
+            selectedAttachmentId,
+            selectedPatientId,
+            selectedSummary,
+            studyAttachments,
+            viewerUrl,
+          }}
+          gestionHubProps={{
                 activateDefault24HourReminder,
                 activeDoctorsCount: activeDoctors.length,
                 activeReceptionists,

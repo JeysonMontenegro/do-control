@@ -20,6 +20,7 @@ type PatientSummarySectionProps = {
   onGoToAgenda: () => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGoToEncounters: () => void;
+  onGoToExamAnalyses: () => void;
   onGoToMessages: () => void;
   onOpenAttachment: (attachmentId: number) => void;
   selectedSummary: PatientSummary | null;
@@ -35,6 +36,7 @@ export function PatientSummarySection({
   onGoToAgenda,
   onGoToAgendaAppointment,
   onGoToEncounters,
+  onGoToExamAnalyses,
   onGoToMessages,
   onOpenAttachment,
   selectedSummary,
@@ -93,12 +95,14 @@ export function PatientSummarySection({
           </div>
           <PatientWorkspaceShortcuts
             appointmentsCount={selectedSummary.appointments.length}
+            examStudiesCount={selectedSummary.attachments.length}
             encountersCount={selectedSummary.encounters.length}
             messagesCount={selectedSummary.attachments.length}
             onGoToAgenda={() =>
               selectedSummary.appointments.length ? onGoToAgendaAppointment(selectedSummary.appointments[0].id) : onGoToAgenda()
             }
             onGoToEncounters={onGoToEncounters}
+            onGoToExamAnalyses={onGoToExamAnalyses}
             onGoToMessages={onGoToMessages}
           />
           <div className="detail-panel compact-panel">

@@ -24,6 +24,7 @@ type PatientsSectionProps = {
   onGoToAgenda: () => void;
   onGoToAgendaAppointment: (appointmentId: number) => void;
   onGoToEncounters: () => void;
+  onGoToExamAnalyses: () => void;
   onGoToMessages: () => void;
   onPatientDoctorFilterChange: (value: string) => void;
   onOpenAttachment: (attachmentId: number) => void;
@@ -50,6 +51,7 @@ export function PatientsSection({
   onGoToAgenda,
   onGoToAgendaAppointment,
   onGoToEncounters,
+  onGoToExamAnalyses,
   onGoToMessages,
   onPatientDoctorFilterChange,
   onOpenAttachment,
@@ -179,6 +181,7 @@ export function PatientsSection({
         onGoToAgenda={onGoToAgenda}
         onGoToAgendaAppointment={onGoToAgendaAppointment}
         onGoToEncounters={onGoToEncounters}
+        onGoToExamAnalyses={onGoToExamAnalyses}
         onGoToMessages={onGoToMessages}
         onOpenAttachment={onOpenAttachment}
         onTogglePatientActive={onTogglePatientActive}

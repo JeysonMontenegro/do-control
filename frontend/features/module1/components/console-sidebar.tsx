@@ -107,6 +107,8 @@ function getTabSupportText(tab: ConsoleTab) {
       return "Expedientes y linea clinica";
     case "consultas":
       return "Encuentros y adjuntos";
+    case "examenes":
+      return "Analisis, evidencia y chat";
     case "mensajes":
       return "Despachos y comunicacion";
     case "pendientes":
@@ -130,6 +132,8 @@ function getCompactTabLabel(tab: ConsoleTab) {
       return "Px";
     case "consultas":
       return "Cx";
+    case "examenes":
+      return "IA";
     case "mensajes":
       return "Ms";
     case "pendientes":

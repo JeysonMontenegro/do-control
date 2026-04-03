@@ -6,6 +6,7 @@ import { AgendaTab } from "@/features/module1/components/agenda-tab";
 import { ConsoleContentRouter } from "@/features/module1/components/console-content-router";
 import { DoctorsSection } from "@/features/module1/components/doctors-section";
 import { EncountersTab } from "@/features/module1/components/encounters-tab";
+import { ExamAnalysesTab } from "@/features/module1/components/exam-analyses-tab";
 import { GestionHub } from "@/features/module1/components/gestion-hub";
 import { MessagesTab } from "@/features/module1/components/messages-tab";
 import { OverviewTab } from "@/features/module1/components/overview-tab";
@@ -20,6 +21,7 @@ type ConsoleMainContentProps = {
   canViewGestion: boolean;
   doctorsSectionProps: ComponentProps<typeof DoctorsSection>;
   encountersTabProps: ComponentProps<typeof EncountersTab>;
+  examAnalysesTabProps: ComponentProps<typeof ExamAnalysesTab>;
   gestionHubProps: ComponentProps<typeof GestionHub>;
   isAdmin: boolean;
   messagesTabProps: ComponentProps<typeof MessagesTab>;
@@ -34,6 +36,7 @@ export function ConsoleMainContent({
   canViewGestion,
   doctorsSectionProps,
   encountersTabProps,
+  examAnalysesTabProps,
   gestionHubProps,
   isAdmin,
   messagesTabProps,
@@ -54,6 +57,7 @@ export function ConsoleMainContent({
   const renderPacientesTab = () => <PatientsTab {...patientsTabProps} />;
 
   const renderConsultasTab = () => <EncountersTab {...encountersTabProps} />;
+  const renderExamAnalysesTab = () => <ExamAnalysesTab {...examAnalysesTabProps} />;
 
   const renderMensajesTab = () => <MessagesTab {...messagesTabProps} />;
 
@@ -68,6 +72,7 @@ export function ConsoleMainContent({
       agendaContent={renderAgendaTab}
       doctorsContent={isAdmin ? renderDoctoresTab : renderAgendaTab}
       encountersContent={renderConsultasTab}
+      examAnalysesContent={renderExamAnalysesTab}
       gestionContent={canViewGestion ? renderGestionTab : renderAgendaTab}
       messagesContent={renderMensajesTab}
       patientsContent={renderPacientesTab}

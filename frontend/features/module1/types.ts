@@ -181,6 +181,34 @@ export type FileAttachment = {
   created_at: string;
 };
 
+export type ExamAnalysis = {
+  id: number;
+  patient_id: number;
+  owner_doctor_id: number | null;
+  attachment_id: number;
+  encounter_id: number | null;
+  exam_order_id: number | null;
+  source: string;
+  provider_name: string;
+  provider_job_id: string | null;
+  request_idempotency_key: string | null;
+  status: "pending_submission" | "submitted" | "processing" | "completed" | "failed";
+  review_status: "not_ready" | "pending_review" | "reviewed";
+  summary: string | null;
+  anomalies: Array<Record<string, unknown>> | null;
+  structured_results: Record<string, unknown> | Array<unknown> | null;
+  raw_provider_payload: Record<string, unknown> | Array<unknown> | null;
+  error_message: string | null;
+  requested_by: string | null;
+  reviewed_by: string | null;
+  submitted_at: string | null;
+  completed_at: string | null;
+  reviewed_at: string | null;
+  last_callback_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AttachmentDownload = {
   attachment_id: number;
   file_name: string;

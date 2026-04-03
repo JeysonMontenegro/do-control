@@ -8,6 +8,7 @@ type ConsoleContentRouterProps = {
   agendaContent: () => React.ReactNode;
   doctorsContent: () => React.ReactNode;
   encountersContent: () => React.ReactNode;
+  examAnalysesContent: () => React.ReactNode;
   gestionContent: () => React.ReactNode;
   messagesContent: () => React.ReactNode;
   patientsContent: () => React.ReactNode;
@@ -20,6 +21,7 @@ export function ConsoleContentRouter({
   agendaContent,
   doctorsContent,
   encountersContent,
+  examAnalysesContent,
   gestionContent,
   messagesContent,
   patientsContent,
@@ -39,6 +41,9 @@ export function ConsoleContentRouter({
   }
   if (activeTab === "consultas") {
     return <>{encountersContent()}</>;
+  }
+  if (activeTab === "examenes") {
+    return <>{examAnalysesContent()}</>;
   }
   if (activeTab === "mensajes") {
     return <>{messagesContent()}</>;

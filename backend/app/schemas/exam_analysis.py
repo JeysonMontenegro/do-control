@@ -15,6 +15,13 @@ class ExamAnalysisRequest(BaseModel):
     source: str = "appoint-me"
 
 
+class AttachmentExamAnalysisRequest(BaseModel):
+    encounter_id: int | None = None
+    exam_order_id: int | None = None
+    requested_by: str | None = None
+    source: str = "console"
+
+
 class ExamAnalysisRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

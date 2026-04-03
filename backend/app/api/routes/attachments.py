@@ -3,10 +3,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
-from app.schemas.exam_analysis import ExamAnalysisRead, ExamAnalysisReviewUpdateRequest
+from app.schemas.exam_analysis import AttachmentExamAnalysisRequest, ExamAnalysisRead, ExamAnalysisReviewUpdateRequest
 from app.schemas.file_attachment import FileAttachmentDeleteRead, FileAttachmentDownloadRead, FileAttachmentRead
 from app.services.doctor import DoctorService
-from app.services.errors import NotFoundError, ValidationError
+from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.exam_analysis import ExamAnalysisService
 from app.services.file_attachment import FileAttachmentService
 
@@ -97,6 +97,31 @@ def list_attachment_analyses(
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/{attachment_id}/analyses", response_model=ExamAnalysisRead, status_code=status.HTTP_202_ACCEPTED)
+def request_attachment_analysis(
+    attachment_id: int,
+    payload: AttachmentExamAnalysisRequest,
+    db: Session = Depends(get_db_session),
+    current_user=Depends(require_roles("admin", "doctor")),
+) -> ExamAnalysisRead:
+    try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return ExamAnalysisService(db).request_analysis_for_attachment(
+            attachment_id=attachment_id,
+            encounter_id=payload.encounter_id,
+            exam_order_id=payload.exam_order_id,
+            requested_by=payload.requested_by,
+            source=payload.source,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.patch("/{attachment_id}/analyses/{analysis_id}/review", response_model=ExamAnalysisRead)

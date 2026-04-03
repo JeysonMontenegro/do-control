@@ -9,6 +9,7 @@ type PatientsTabProps = Omit<ComponentProps<typeof PatientsSection>, "onEditPati
   onGoToAgenda: () => void;
   onGoToAgendaFromPatient: (appointmentId: number) => void;
   onGoToEncounters: () => void;
+  onGoToExamAnalyses: () => void;
   onGoToMessages: () => void;
   onShowCreatePatientModal: () => void;
   onToggleSelectedPatientActive: () => void;
@@ -19,6 +20,7 @@ export function PatientsTab({
   onGoToAgenda,
   onGoToAgendaFromPatient,
   onGoToEncounters,
+  onGoToExamAnalyses,
   onGoToMessages,
   onShowCreatePatientModal,
   onToggleSelectedPatientActive,
@@ -31,6 +33,7 @@ export function PatientsTab({
       onGoToAgenda={onGoToAgenda}
       onGoToAgendaAppointment={onGoToAgendaFromPatient}
       onGoToEncounters={onGoToEncounters}
+      onGoToExamAnalyses={onGoToExamAnalyses}
       onGoToMessages={onGoToMessages}
       onShowCreatePatient={onShowCreatePatientModal}
       onTogglePatientActive={onToggleSelectedPatientActive}

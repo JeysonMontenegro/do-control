@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib import error, request
+from uuid import uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
@@ -359,6 +360,33 @@ class ExamAnalysisService:
         self.db.commit()
         self.db.refresh(analysis)
         return ExamAnalysisRead.model_validate(analysis)
+
+    def request_analysis_for_attachment(
+        self,
+        *,
+        attachment_id: int,
+        encounter_id: int | None,
+        exam_order_id: int | None,
+        requested_by: str | None,
+        source: str,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> ExamAnalysisRead:
+        attachment = self.attachment_repository.get(attachment_id)
+        if attachment is None:
+            raise NotFoundError("Attachment not found.")
+        if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
+            raise NotFoundError("Attachment not found.")
+        return self.request_analysis(
+            ExamAnalysisRequest(
+                patient_id=attachment.patient_id,
+                attachment_id=attachment.id,
+                encounter_id=encounter_id,
+                exam_order_id=exam_order_id,
+                requested_by=requested_by,
+                source=source,
+            ),
+            idempotency_key=f"console-{uuid4()}",
+        )
 
     def get_analysis(self, analysis_id: int) -> ExamAnalysisRead:
         return ExamAnalysisRead.model_validate(self._get_analysis(analysis_id))

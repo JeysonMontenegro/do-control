@@ -46,11 +46,16 @@ export function useClinicalNavigation({
     setActiveTab("consultas");
   };
 
+  const goToExamAnalyses = () => {
+    setActiveTab("examenes");
+  };
+
   return {
     clearPatientFocus,
     goToAgenda,
     goToAgendaAppointment,
     goToEncounters,
+    goToExamAnalyses,
     goToMessages,
     goToMessagesForAppointment,
     goToPatient,
