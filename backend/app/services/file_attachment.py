@@ -40,6 +40,18 @@ class FileAttachmentService:
             raise ValidationError(f"{field_label} is required.")
         return normalized
 
+    @staticmethod
+    def _resolve_owner_doctor_id(*, patient, encounter) -> int:
+        candidates = [
+            getattr(encounter, "owner_doctor_id", None) if encounter is not None else None,
+            getattr(encounter, "doctor_id", None) if encounter is not None else None,
+            getattr(patient, "owner_doctor_id", None),
+        ]
+        for candidate in candidates:
+            if candidate is not None:
+                return candidate
+        raise ValidationError("File attachment must be linked to an owning doctor.")
+
     def upload_attachment(
         self,
         *,
@@ -65,7 +77,7 @@ class FileAttachmentService:
         if accessible_doctor_ids is not None and patient.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Patient not found.")
 
-        owner_doctor_id = patient.owner_doctor_id
+        encounter = None
         if encounter_id is not None:
             encounter = self.encounter_repository.get(encounter_id)
             if encounter is None:
@@ -74,7 +86,7 @@ class FileAttachmentService:
                 raise ValidationError("Encounter does not belong to the selected patient.")
             if accessible_doctor_ids is not None and encounter.doctor_id not in accessible_doctor_ids:
                 raise NotFoundError("Encounter not found.")
-            owner_doctor_id = encounter.owner_doctor_id or encounter.doctor_id or owner_doctor_id
+        owner_doctor_id = self._resolve_owner_doctor_id(patient=patient, encounter=encounter)
 
         suffix = Path(normalized_file_name).suffix
         key = f"patients/{patient_id}/{uuid4()}{suffix}"

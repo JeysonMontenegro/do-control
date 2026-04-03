@@ -20,7 +20,7 @@ class FileAttachment(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
-    owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     encounter_id: Mapped[int | None] = mapped_column(ForeignKey("encounters.id"), nullable=True)
     file_type: Mapped[str] = mapped_column(String(50))
     file_name: Mapped[str] = mapped_column(String(255))

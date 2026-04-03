@@ -244,9 +244,11 @@ class PatientService:
         doctor_id: int | None = None,
     ) -> PatientSummaryRead:
         patient = self.get_patient(patient_id, accessible_doctor_ids=accessible_doctor_ids, doctor_id=doctor_id)
-        appointments = self.repository.list_appointments(patient_id)
-        encounters = self.repository.list_encounters(patient_id)
-        attachments = self.repository.list_attachments(patient_id)
+        scoped_doctor_id = self._resolve_scoped_doctor_id(accessible_doctor_ids, doctor_id)
+        summary_doctor_ids = None if scoped_doctor_id is None else {scoped_doctor_id}
+        appointments = self.repository.list_appointments(patient_id, doctor_ids=summary_doctor_ids)
+        encounters = self.repository.list_encounters(patient_id, doctor_ids=summary_doctor_ids)
+        attachments = self.repository.list_attachments(patient_id, doctor_ids=summary_doctor_ids)
         return PatientSummaryRead(
             patient=patient,
             appointments=appointments,

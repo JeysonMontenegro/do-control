@@ -111,32 +111,29 @@ class PatientRepository:
         next_id = (self.db.scalar(select(func.max(Patient.id))) or 0) + 1
         return f"EXP-{next_id:06d}"
 
-    def list_appointments(self, patient_id: int) -> List[Appointment]:
-        return list(
-            self.db.scalars(
-                select(Appointment)
-                .where(Appointment.patient_id == patient_id)
-                .order_by(Appointment.scheduled_start.desc()),
-            )
-        )
+    def list_appointments(self, patient_id: int, *, doctor_ids: set[int] | None = None) -> List[Appointment]:
+        statement = select(Appointment).where(Appointment.patient_id == patient_id)
+        if doctor_ids is not None:
+            if not doctor_ids:
+                return []
+            statement = statement.where(Appointment.doctor_id.in_(doctor_ids))
+        return list(self.db.scalars(statement.order_by(Appointment.scheduled_start.desc())))
 
-    def list_encounters(self, patient_id: int) -> List[Encounter]:
-        return list(
-            self.db.scalars(
-                select(Encounter)
-                .where(Encounter.patient_id == patient_id)
-                .order_by(Encounter.encounter_date.desc()),
-            )
-        )
+    def list_encounters(self, patient_id: int, *, doctor_ids: set[int] | None = None) -> List[Encounter]:
+        statement = select(Encounter).where(Encounter.patient_id == patient_id)
+        if doctor_ids is not None:
+            if not doctor_ids:
+                return []
+            statement = statement.where(Encounter.doctor_id.in_(doctor_ids))
+        return list(self.db.scalars(statement.order_by(Encounter.encounter_date.desc())))
 
-    def list_attachments(self, patient_id: int) -> List[FileAttachment]:
-        return list(
-            self.db.scalars(
-                select(FileAttachment)
-                .where(FileAttachment.patient_id == patient_id)
-                .order_by(FileAttachment.created_at.desc()),
-            )
-        )
+    def list_attachments(self, patient_id: int, *, doctor_ids: set[int] | None = None) -> List[FileAttachment]:
+        statement = select(FileAttachment).where(FileAttachment.patient_id == patient_id)
+        if doctor_ids is not None:
+            if not doctor_ids:
+                return []
+            statement = statement.where(FileAttachment.owner_doctor_id.in_(doctor_ids))
+        return list(self.db.scalars(statement.order_by(FileAttachment.created_at.desc())))
 
     def is_assigned_to_doctor(self, patient_id: int, doctor_id: int) -> bool:
         return bool(
