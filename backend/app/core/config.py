@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     appointme_integration_key: str | None = None
     appointme_webhook_enabled: bool = False
     appointme_webhook_timeout_seconds: int = 5
+    med_ia_base_url: str | None = None
+    med_ia_api_key: str | None = None
+    med_ia_callback_secret: str | None = None
+    med_ia_enabled: bool = False
+    med_ia_timeout_seconds: int = 15
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

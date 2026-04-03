@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
@@ -42,7 +42,9 @@ from app.schemas.integration import (
     ProposedAppointmentRequest,
     ProposedAppointmentResponse,
 )
+from app.schemas.exam_analysis import ExamAnalysisRead, ExamAnalysisRequest
 from app.services.errors import ConflictError, NotFoundError, ValidationError
+from app.services.exam_analysis import ExamAnalysisService
 from app.services.email_whitelist import EmailWhitelistService
 from app.services.integration import IntegrationService
 from app.services.messaging_whitelist import MessagingWhitelistService
@@ -202,6 +204,47 @@ def get_pending_appointment(
     _key: str = Depends(require_integration_key),
 ) -> PendingAppointmentsRead:
     return IntegrationService(db).get_pending_appointment(patient_id)
+
+
+@router.post("/exam-analyses", response_model=ExamAnalysisRead, status_code=status.HTTP_202_ACCEPTED)
+def request_exam_analysis(
+    payload: ExamAnalysisRequest,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> ExamAnalysisRead:
+    try:
+        return ExamAnalysisService(db).request_analysis(payload)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/exam-analyses/{analysis_id}", response_model=ExamAnalysisRead)
+def get_exam_analysis(
+    analysis_id: int,
+    db: Session = Depends(get_db_session),
+    _key: str = Depends(require_integration_key),
+) -> ExamAnalysisRead:
+    try:
+        return ExamAnalysisService(db).get_analysis(analysis_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/exam-analyses/callback", response_model=ExamAnalysisRead)
+async def exam_analysis_callback(
+    request: Request,
+    db: Session = Depends(get_db_session),
+    x_med_ia_signature: str | None = Header(default=None),
+) -> ExamAnalysisRead:
+    try:
+        raw_body = await request.body()
+        return ExamAnalysisService(db).handle_provider_callback(raw_body, signature=x_med_ia_signature)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.post("/encounters", response_model=IntegrationEncounterCreateResponse, status_code=status.HTTP_201_CREATED)

@@ -12,6 +12,7 @@ from app.models.doctor_staff_assignment import DoctorStaffAssignment
 from app.models.email_dispatch import EmailDispatch
 from app.models.email_template import EmailTemplate
 from app.models.encounter import Diagnosis, Encounter, ExamOrder, Prescription, PrescriptionItem
+from app.models.exam_analysis import ExamAnalysis
 from app.models.file_attachment import FileAttachment
 from app.models.patient import Patient
 from app.models.patient_doctor_assignment import PatientDoctorAssignment
@@ -38,6 +39,7 @@ __all__ = [
     "EmailDispatch",
     "EmailTemplate",
     "Encounter",
+    "ExamAnalysis",
     "ExamOrder",
     "FileAttachment",
     "Patient",

@@ -3,9 +3,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, require_roles
+from app.schemas.exam_analysis import ExamAnalysisRead, ExamAnalysisReviewUpdateRequest
 from app.schemas.file_attachment import FileAttachmentDeleteRead, FileAttachmentDownloadRead, FileAttachmentRead
 from app.services.doctor import DoctorService
 from app.services.errors import NotFoundError, ValidationError
+from app.services.exam_analysis import ExamAnalysisService
 from app.services.file_attachment import FileAttachmentService
 
 router = APIRouter()
@@ -79,6 +81,45 @@ def download_attachment_content(
         return StreamingResponse(stream, media_type=media_type, headers=headers)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/{attachment_id}/analyses", response_model=list[ExamAnalysisRead])
+def list_attachment_analyses(
+    attachment_id: int,
+    db: Session = Depends(get_db_session),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+) -> list[ExamAnalysisRead]:
+    try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return ExamAnalysisService(db).list_attachment_analyses(
+            attachment_id,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.patch("/{attachment_id}/analyses/{analysis_id}/review", response_model=ExamAnalysisRead)
+def update_attachment_analysis_review(
+    attachment_id: int,
+    analysis_id: int,
+    payload: ExamAnalysisReviewUpdateRequest,
+    db: Session = Depends(get_db_session),
+    current_user=Depends(require_roles("admin", "doctor")),
+) -> ExamAnalysisRead:
+    try:
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return ExamAnalysisService(db).update_review_status(
+            attachment_id=attachment_id,
+            analysis_id=analysis_id,
+            review_status=payload.review_status,
+            reviewed_by=payload.reviewed_by,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/{attachment_id}", response_model=FileAttachmentDeleteRead)
