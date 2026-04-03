@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.exam_analysis import ExamAnalysis
+from app.models.exam_analysis import ExamAnalysis, ExamAnalysisEvent
 
 
 class ExamAnalysisRepository:
@@ -22,5 +22,18 @@ class ExamAnalysisRepository:
                 select(ExamAnalysis)
                 .where(ExamAnalysis.attachment_id == attachment_id)
                 .order_by(ExamAnalysis.created_at.desc(), ExamAnalysis.id.desc())
+            )
+        )
+
+    def create_event(self, event: ExamAnalysisEvent) -> ExamAnalysisEvent:
+        self.db.add(event)
+        self.db.flush()
+        return event
+
+    def get_event(self, *, event_type: str, idempotency_key: str) -> ExamAnalysisEvent | None:
+        return self.db.scalar(
+            select(ExamAnalysisEvent).where(
+                ExamAnalysisEvent.event_type == event_type,
+                ExamAnalysisEvent.idempotency_key == idempotency_key,
             )
         )

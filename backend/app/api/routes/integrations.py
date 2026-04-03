@@ -210,12 +210,15 @@ def get_pending_appointment(
 def request_exam_analysis(
     payload: ExamAnalysisRequest,
     db: Session = Depends(get_db_session),
+    x_idempotency_key: str = Header(...),
     _key: str = Depends(require_integration_key),
 ) -> ExamAnalysisRead:
     try:
-        return ExamAnalysisService(db).request_analysis(payload)
+        return ExamAnalysisService(db).request_analysis(payload, idempotency_key=x_idempotency_key)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -236,13 +239,22 @@ def get_exam_analysis(
 async def exam_analysis_callback(
     request: Request,
     db: Session = Depends(get_db_session),
+    x_idempotency_key: str = Header(...),
     x_med_ia_signature: str | None = Header(default=None),
+    x_med_ia_timestamp: str | None = Header(default=None),
 ) -> ExamAnalysisRead:
     try:
         raw_body = await request.body()
-        return ExamAnalysisService(db).handle_provider_callback(raw_body, signature=x_med_ia_signature)
+        return ExamAnalysisService(db).handle_provider_callback(
+            raw_body,
+            signature=x_med_ia_signature,
+            timestamp=x_med_ia_timestamp,
+            idempotency_key=x_idempotency_key,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

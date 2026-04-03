@@ -27,6 +27,7 @@ class ExamAnalysisRead(BaseModel):
     source: str
     provider_name: str
     provider_job_id: str | None
+    request_idempotency_key: str | None
     status: str
     review_status: str
     summary: str | None

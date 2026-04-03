@@ -9,24 +9,27 @@ from typing import Any
 from urllib import error, request
 
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.encounter import Encounter, ExamOrder
-from app.models.exam_analysis import ExamAnalysis
+from app.models.exam_analysis import ExamAnalysis, ExamAnalysisEvent
 from app.repositories.exam_analysis import ExamAnalysisRepository
 from app.repositories.file_attachment import FileAttachmentRepository
 from app.repositories.patient import PatientRepository
 from app.repositories.user import UserRepository
 from app.schemas.exam_analysis import ExamAnalysisCallbackRequest, ExamAnalysisRead, ExamAnalysisRequest
 from app.services.audit import create_audit_log
-from app.services.errors import NotFoundError, ValidationError
+from app.services.errors import ConflictError, NotFoundError, ValidationError
 from app.services.service_utils import resolve_actor_user_id
 from app.services.storage import StorageService
 
 
 class ExamAnalysisService:
     CALLBACK_SIGNATURE_HEADER = "x-med-ia-signature"
+    CALLBACK_TIMESTAMP_HEADER = "x-med-ia-timestamp"
+    IDEMPOTENCY_KEY_HEADER = "x-idempotency-key"
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -64,6 +67,41 @@ class ExamAnalysisService:
     def _callback_url() -> str:
         return f"{settings.app_url.rstrip('/')}/api/integrations/exam-analyses/callback"
 
+    @staticmethod
+    def _payload_hash_from_bytes(raw_body: bytes) -> str:
+        return hashlib.sha256(raw_body).hexdigest()
+
+    @classmethod
+    def _payload_hash_from_request(cls, payload: ExamAnalysisRequest) -> str:
+        canonical = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return cls._payload_hash_from_bytes(canonical)
+
+    @classmethod
+    def _normalize_idempotency_key(cls, idempotency_key: str | None) -> str:
+        normalized = cls._normalize_optional_text(idempotency_key)
+        if normalized is None:
+            raise ValidationError("Idempotency key is required.")
+        return normalized
+
+    @staticmethod
+    def _signed_message(timestamp: str, raw_body: bytes) -> bytes:
+        return timestamp.encode("utf-8") + b"." + raw_body
+
+    @classmethod
+    def _parse_callback_timestamp(cls, timestamp: str | None) -> datetime:
+        normalized = cls._normalize_optional_text(timestamp)
+        if normalized is None:
+            raise ValidationError("Callback timestamp is required.")
+        try:
+            seconds = int(normalized)
+        except ValueError as exc:
+            raise ValidationError("Callback timestamp must be a unix timestamp in seconds.") from exc
+        parsed = datetime.fromtimestamp(seconds, tz=timezone.utc)
+        age_seconds = abs((cls._utcnow() - parsed).total_seconds())
+        if age_seconds > settings.med_ia_callback_tolerance_seconds:
+            raise ValidationError("Callback timestamp is expired or outside the allowed tolerance.")
+        return parsed
+
     @classmethod
     def _provider_ready(cls) -> bool:
         return bool(
@@ -89,6 +127,7 @@ class ExamAnalysisService:
             "analysis_id": analysis.id,
             "patient_id": patient.id,
             "attachment_id": attachment.id,
+            "request_idempotency_key": analysis.request_idempotency_key,
             "source": analysis.source,
             "provider": analysis.provider_name,
             "file_name": attachment.file_name,
@@ -97,6 +136,8 @@ class ExamAnalysisService:
             "download_url": download_url,
             "callback_url": self._callback_url(),
             "callback_signature_header": self.CALLBACK_SIGNATURE_HEADER,
+            "callback_timestamp_header": self.CALLBACK_TIMESTAMP_HEADER,
+            "callback_idempotency_header": self.IDEMPOTENCY_KEY_HEADER,
             "patient": {
                 "patient_id": patient.id,
                 "medical_record_number": patient.medical_record_number,
@@ -136,18 +177,69 @@ class ExamAnalysisService:
         return json.loads(body) if body else {}
 
     @classmethod
-    def build_callback_signature(cls, raw_body: bytes) -> str:
+    def build_callback_signature(cls, raw_body: bytes, *, timestamp: str) -> str:
         secret = settings.med_ia_callback_secret or ""
-        digest = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        digest = hmac.new(secret.encode("utf-8"), cls._signed_message(timestamp, raw_body), hashlib.sha256).hexdigest()
         return f"sha256={digest}"
 
     @classmethod
-    def verify_callback_signature(cls, raw_body: bytes, signature: str | None) -> bool:
+    def verify_callback_signature(cls, raw_body: bytes, *, signature: str | None, timestamp: str | None) -> bool:
         if not signature or not settings.med_ia_callback_secret:
             return False
-        return hmac.compare_digest(cls.build_callback_signature(raw_body), signature.strip())
+        try:
+            cls._parse_callback_timestamp(timestamp)
+        except ValidationError:
+            return False
+        assert timestamp is not None
+        return hmac.compare_digest(cls.build_callback_signature(raw_body, timestamp=timestamp), signature.strip())
 
-    def request_analysis(self, payload: ExamAnalysisRequest) -> ExamAnalysisRead:
+    def _record_event(
+        self,
+        *,
+        event_type: str,
+        idempotency_key: str,
+        payload_hash: str,
+        analysis_id: int | None,
+        signature_timestamp: datetime | None = None,
+    ) -> None:
+        self.repository.create_event(
+            ExamAnalysisEvent(
+                analysis_id=analysis_id,
+                event_type=event_type,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                signature_timestamp=signature_timestamp,
+                created_at=self._utcnow(),
+            )
+        )
+
+    def request_analysis(self, payload: ExamAnalysisRequest, *, idempotency_key: str) -> ExamAnalysisRead:
+        normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
+        payload_hash = self._payload_hash_from_request(payload)
+        existing_event = self.repository.get_event(event_type="request", idempotency_key=normalized_idempotency_key)
+        if existing_event is not None:
+            if existing_event.payload_hash != payload_hash:
+                create_audit_log(
+                    self.db,
+                    action="exam_analysis_request_idempotency_rejected",
+                    entity_type="integration",
+                    entity_id=normalized_idempotency_key,
+                    after_data={"reason": "payload_mismatch"},
+                )
+                self.db.commit()
+                raise ConflictError("Idempotency key was already used for a different exam analysis request.")
+            if existing_event.analysis_id is None:
+                raise ConflictError("Idempotent exam analysis request is incomplete.")
+            create_audit_log(
+                self.db,
+                action="exam_analysis_request_idempotent_replay",
+                entity_type="exam_analysis",
+                entity_id=str(existing_event.analysis_id),
+                after_data={"idempotency_key": normalized_idempotency_key},
+            )
+            self.db.commit()
+            return ExamAnalysisRead.model_validate(self._get_analysis(existing_event.analysis_id))
+
         patient = self.patient_repository.get(payload.patient_id)
         if patient is None:
             raise NotFoundError("Patient not found.")
@@ -182,21 +274,27 @@ class ExamAnalysisService:
             encounter = encounter or exam_order.encounter
             resolved_encounter_id = exam_order.encounter_id
 
-        analysis = self.repository.create(
-            ExamAnalysis(
-                patient_id=patient.id,
-                owner_doctor_id=attachment.owner_doctor_id,
-                attachment_id=attachment.id,
-                encounter_id=resolved_encounter_id,
-                exam_order_id=resolved_exam_order_id,
-                source=self._normalize_required_text(payload.source, field_label="Source"),
-                provider_name="med-ia",
-                status="pending_submission",
-                review_status="not_ready",
-                requested_by=self._normalize_optional_text(payload.requested_by),
-                requested_by_user_id=resolve_actor_user_id(self.user_repository, self._normalize_optional_text(payload.requested_by)),
+        try:
+            analysis = self.repository.create(
+                ExamAnalysis(
+                    patient_id=patient.id,
+                    owner_doctor_id=attachment.owner_doctor_id,
+                    attachment_id=attachment.id,
+                    encounter_id=resolved_encounter_id,
+                    exam_order_id=resolved_exam_order_id,
+                    source=self._normalize_required_text(payload.source, field_label="Source"),
+                    provider_name="med-ia",
+                    request_idempotency_key=normalized_idempotency_key,
+                    status="pending_submission",
+                    review_status="not_ready",
+                    requested_by=self._normalize_optional_text(payload.requested_by),
+                    requested_by_user_id=resolve_actor_user_id(self.user_repository, self._normalize_optional_text(payload.requested_by)),
+                )
             )
-        )
+        except IntegrityError as exc:
+            if hasattr(self.db, "rollback"):
+                self.db.rollback()
+            raise ConflictError("Exam analysis request could not be persisted safely.") from exc
         create_audit_log(
             self.db,
             action="exam_analysis_requested",
@@ -209,8 +307,20 @@ class ExamAnalysisService:
                 "encounter_id": analysis.encounter_id,
                 "exam_order_id": analysis.exam_order_id,
                 "source": analysis.source,
+                "idempotency_key": normalized_idempotency_key,
             },
         )
+        try:
+            self._record_event(
+                event_type="request",
+                idempotency_key=normalized_idempotency_key,
+                payload_hash=payload_hash,
+                analysis_id=analysis.id,
+            )
+        except IntegrityError as exc:
+            if hasattr(self.db, "rollback"):
+                self.db.rollback()
+            raise ConflictError("Exam analysis request could not be persisted safely.") from exc
 
         submission_payload = self._submission_payload(analysis, patient, attachment, encounter, exam_order)
         try:
@@ -246,7 +356,6 @@ class ExamAnalysisService:
                 actor_id=analysis.requested_by,
                 after_data={"status": analysis.status, "error_message": analysis.error_message},
             )
-
         self.db.commit()
         self.db.refresh(analysis)
         return ExamAnalysisRead.model_validate(analysis)
@@ -312,16 +421,89 @@ class ExamAnalysisService:
         self.db.refresh(analysis)
         return ExamAnalysisRead.model_validate(analysis)
 
-    def handle_provider_callback(self, raw_body: bytes, *, signature: str | None) -> ExamAnalysisRead:
-        if not self.verify_callback_signature(raw_body, signature):
+    def handle_provider_callback(
+        self,
+        raw_body: bytes,
+        *,
+        signature: str | None,
+        timestamp: str | None,
+        idempotency_key: str,
+    ) -> ExamAnalysisRead:
+        normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
+        payload_hash = self._payload_hash_from_bytes(raw_body)
+        try:
+            signature_timestamp = self._parse_callback_timestamp(timestamp)
+        except ValidationError as exc:
+            create_audit_log(
+                self.db,
+                action="exam_analysis_callback_rejected",
+                entity_type="integration",
+                entity_id=normalized_idempotency_key,
+                after_data={"reason": str(exc)},
+            )
+            self.db.commit()
+            raise
+        if not self.verify_callback_signature(raw_body, signature=signature, timestamp=timestamp):
+            create_audit_log(
+                self.db,
+                action="exam_analysis_callback_rejected",
+                entity_type="integration",
+                entity_id=normalized_idempotency_key,
+                after_data={"reason": "invalid_signature"},
+            )
+            self.db.commit()
             raise ValidationError("Invalid exam analysis signature.")
+
+        existing_event = self.repository.get_event(event_type="callback", idempotency_key=normalized_idempotency_key)
+        if existing_event is not None:
+            if existing_event.payload_hash != payload_hash:
+                create_audit_log(
+                    self.db,
+                    action="exam_analysis_callback_rejected",
+                    entity_type="integration",
+                    entity_id=normalized_idempotency_key,
+                    after_data={"reason": "idempotency_payload_mismatch"},
+                )
+                self.db.commit()
+                raise ConflictError("Idempotency key was already used for a different callback payload.")
+            if existing_event.analysis_id is None:
+                raise ConflictError("Idempotent exam analysis callback is incomplete.")
+            create_audit_log(
+                self.db,
+                action="exam_analysis_callback_idempotent_replay",
+                entity_type="exam_analysis",
+                entity_id=str(existing_event.analysis_id),
+                after_data={"idempotency_key": normalized_idempotency_key},
+            )
+            self.db.commit()
+            return ExamAnalysisRead.model_validate(self._get_analysis(existing_event.analysis_id))
 
         try:
             payload = ExamAnalysisCallbackRequest.model_validate_json(raw_body)
         except PydanticValidationError as exc:
+            create_audit_log(
+                self.db,
+                action="exam_analysis_callback_rejected",
+                entity_type="integration",
+                entity_id=normalized_idempotency_key,
+                after_data={"reason": "invalid_payload"},
+            )
+            self.db.commit()
             raise ValidationError(str(exc)) from exc
 
         analysis = self._get_analysis(payload.analysis_id)
+        try:
+            self._record_event(
+                event_type="callback",
+                idempotency_key=normalized_idempotency_key,
+                payload_hash=payload_hash,
+                analysis_id=analysis.id,
+                signature_timestamp=signature_timestamp,
+            )
+        except IntegrityError as exc:
+            if hasattr(self.db, "rollback"):
+                self.db.rollback()
+            raise ConflictError("Exam analysis callback could not be persisted safely.") from exc
         analysis.provider_job_id = payload.provider_job_id or analysis.provider_job_id
         analysis.status = payload.status
         analysis.summary = payload.summary
@@ -344,13 +526,14 @@ class ExamAnalysisService:
 
         create_audit_log(
             self.db,
-            action="exam_analysis_callback_received",
+            action="exam_analysis_callback_accepted",
             entity_type="exam_analysis",
             entity_id=str(analysis.id),
             after_data={
                 "status": analysis.status,
                 "review_status": analysis.review_status,
                 "provider_job_id": analysis.provider_job_id,
+                "idempotency_key": normalized_idempotency_key,
             },
         )
         self.db.commit()

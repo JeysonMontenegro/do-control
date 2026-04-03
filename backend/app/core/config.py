@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     med_ia_callback_secret: str | None = None
     med_ia_enabled: bool = False
     med_ia_timeout_seconds: int = 15
+    med_ia_callback_tolerance_seconds: int = 300
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
