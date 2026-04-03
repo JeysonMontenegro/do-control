@@ -112,10 +112,31 @@ class ExamAnalysisService:
             and settings.med_ia_callback_secret
         )
 
-    def _get_analysis(self, analysis_id: int) -> ExamAnalysis:
+    @staticmethod
+    def _resolve_owner_doctor_id(*, patient: Any, attachment: Any, encounter: Any | None, exam_order: Any | None) -> int:
+        candidates = [
+            getattr(attachment, "owner_doctor_id", None),
+            getattr(encounter, "owner_doctor_id", None) if encounter is not None else None,
+            getattr(encounter, "doctor_id", None) if encounter is not None else None,
+            getattr(exam_order.encounter, "owner_doctor_id", None) if exam_order is not None and getattr(exam_order, "encounter", None) is not None else None,
+            getattr(exam_order.encounter, "doctor_id", None) if exam_order is not None and getattr(exam_order, "encounter", None) is not None else None,
+            getattr(patient, "owner_doctor_id", None),
+        ]
+        for candidate in candidates:
+            if candidate is not None:
+                return candidate
+        raise ValidationError("Exam analysis must be linked to an owning doctor.")
+
+    @staticmethod
+    def _assert_accessible_owner_doctor(owner_doctor_id: int, *, accessible_doctor_ids: set[int] | None) -> None:
+        if accessible_doctor_ids is not None and owner_doctor_id not in accessible_doctor_ids:
+            raise NotFoundError("Exam analysis not found.")
+
+    def _get_analysis(self, analysis_id: int, *, accessible_doctor_ids: set[int] | None = None) -> ExamAnalysis:
         analysis = self.repository.get(analysis_id)
         if analysis is None:
             raise NotFoundError("Exam analysis not found.")
+        self._assert_accessible_owner_doctor(analysis.owner_doctor_id, accessible_doctor_ids=accessible_doctor_ids)
         return analysis
 
     def _submission_payload(self, analysis: ExamAnalysis, patient: Any, attachment: Any, encounter: Any | None, exam_order: Any | None) -> dict[str, Any]:
@@ -275,11 +296,18 @@ class ExamAnalysisService:
             encounter = encounter or exam_order.encounter
             resolved_encounter_id = exam_order.encounter_id
 
+        owner_doctor_id = self._resolve_owner_doctor_id(
+            patient=patient,
+            attachment=attachment,
+            encounter=encounter,
+            exam_order=exam_order,
+        )
+
         try:
             analysis = self.repository.create(
                 ExamAnalysis(
                     patient_id=patient.id,
-                    owner_doctor_id=attachment.owner_doctor_id,
+                    owner_doctor_id=owner_doctor_id,
                     attachment_id=attachment.id,
                     encounter_id=resolved_encounter_id,
                     exam_order_id=resolved_exam_order_id,
@@ -402,7 +430,10 @@ class ExamAnalysisService:
             raise NotFoundError("Attachment not found.")
         if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Attachment not found.")
-        return [ExamAnalysisRead.model_validate(item) for item in self.repository.list_by_attachment(attachment_id)]
+        analyses = self.repository.list_by_attachment(attachment_id)
+        if accessible_doctor_ids is not None:
+            analyses = [item for item in analyses if item.owner_doctor_id in accessible_doctor_ids]
+        return [ExamAnalysisRead.model_validate(item) for item in analyses]
 
     def update_review_status(
         self,
@@ -419,7 +450,7 @@ class ExamAnalysisService:
         if accessible_doctor_ids is not None and attachment.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Attachment not found.")
 
-        analysis = self._get_analysis(analysis_id)
+        analysis = self._get_analysis(analysis_id, accessible_doctor_ids=accessible_doctor_ids)
         if analysis.attachment_id != attachment.id:
             raise ValidationError("Exam analysis does not belong to the selected attachment.")
         if analysis.status != "completed":

@@ -49,6 +49,7 @@ class ExamAnalysisServiceTests(unittest.TestCase):
     def test_request_analysis_submits_to_provider_and_returns_submitted(self, _audit_log) -> None:
         patient = SimpleNamespace(
             id=7,
+            owner_doctor_id=3,
             first_name="Ana",
             last_name="Lopez",
             medical_record_number="EXP-000007",
@@ -117,6 +118,7 @@ class ExamAnalysisServiceTests(unittest.TestCase):
         self.assertEqual(result.provider_job_id, "job-123")
         self.assertEqual(result.request_idempotency_key, "req-1")
         self.assertEqual(result.source, "appoint-me")
+        self.assertEqual(result.owner_doctor_id, 3)
         self.assertEqual(captured_payload["analysis_id"], 22)
         self.assertEqual(captured_payload["request_idempotency_key"], "req-1")
         self.assertEqual(captured_payload["download_url"], "https://signed.example/labs.pdf")
@@ -127,7 +129,7 @@ class ExamAnalysisServiceTests(unittest.TestCase):
 
     @patch("app.services.exam_analysis.create_audit_log")
     def test_request_analysis_rejects_non_pdf_attachment(self, _audit_log) -> None:
-        patient = SimpleNamespace(id=7)
+        patient = SimpleNamespace(id=7, owner_doctor_id=3)
         attachment = SimpleNamespace(
             id=9,
             patient_id=7,
@@ -153,6 +155,98 @@ class ExamAnalysisServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(str(exc.exception), "Only PDF attachments are supported for exam analysis.")
+
+    @patch("app.services.exam_analysis.create_audit_log")
+    def test_request_analysis_falls_back_to_patient_owner_doctor(self, _audit_log) -> None:
+        patient = SimpleNamespace(
+            id=7,
+            owner_doctor_id=11,
+            first_name="Ana",
+            last_name="Lopez",
+            medical_record_number="EXP-000007",
+            display_name=None,
+        )
+        attachment = SimpleNamespace(
+            id=9,
+            patient_id=7,
+            owner_doctor_id=None,
+            encounter_id=None,
+            file_name="labs.pdf",
+            content_type="application/pdf",
+            file_type="lab_result",
+            storage_key="patients/7/labs.pdf",
+        )
+        self.service.patient_repository = SimpleNamespace(get=lambda _patient_id: patient)
+        self.service.attachment_repository = SimpleNamespace(get=lambda _attachment_id: attachment)
+        self.service.user_repository = SimpleNamespace(get_by_email=lambda _email: None)
+        self.service.storage = SimpleNamespace(
+            generate_presigned_download_url=lambda **_kwargs: "https://signed.example/labs.pdf"
+        )
+
+        created_items: list[ExamAnalysis] = []
+
+        def create_analysis(analysis: ExamAnalysis) -> ExamAnalysis:
+            analysis.id = 44
+            analysis.created_at = datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc)
+            analysis.updated_at = datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc)
+            created_items.append(analysis)
+            return analysis
+
+        self.service.repository = SimpleNamespace(
+            create=create_analysis,
+            get=lambda _analysis_id: None,
+            get_event=lambda **_kwargs: None,
+            create_event=lambda _event: None,
+        )
+        self.service._submit_to_provider = lambda _payload: {"job_id": "job-444"}  # type: ignore[method-assign]
+
+        result = self.service.request_analysis(
+            ExamAnalysisRequest(
+                patient_id=7,
+                attachment_id=9,
+                source="appoint-me",
+            ),
+            idempotency_key="req-fallback-owner",
+        )
+
+        self.assertEqual(result.owner_doctor_id, 11)
+        self.assertEqual(created_items[0].owner_doctor_id, 11)
+
+    @patch("app.services.exam_analysis.create_audit_log")
+    def test_request_analysis_rejects_when_owner_doctor_cannot_be_resolved(self, _audit_log) -> None:
+        patient = SimpleNamespace(
+            id=7,
+            owner_doctor_id=None,
+            first_name="Ana",
+            last_name="Lopez",
+            medical_record_number="EXP-000007",
+            display_name=None,
+        )
+        attachment = SimpleNamespace(
+            id=9,
+            patient_id=7,
+            owner_doctor_id=None,
+            encounter_id=None,
+            file_name="labs.pdf",
+            content_type="application/pdf",
+            file_type="lab_result",
+            storage_key="patients/7/labs.pdf",
+        )
+        self.service.patient_repository = SimpleNamespace(get=lambda _patient_id: patient)
+        self.service.attachment_repository = SimpleNamespace(get=lambda _attachment_id: attachment)
+        self.service.repository = SimpleNamespace(get_event=lambda **_kwargs: None)
+
+        with self.assertRaises(ValidationError) as exc:
+            self.service.request_analysis(
+                ExamAnalysisRequest(
+                    patient_id=7,
+                    attachment_id=9,
+                    source="appoint-me",
+                ),
+                idempotency_key="req-no-owner",
+            )
+
+        self.assertEqual(str(exc.exception), "Exam analysis must be linked to an owning doctor.")
 
     @patch("app.services.exam_analysis.create_audit_log")
     def test_request_analysis_returns_existing_for_idempotent_replay(self, _audit_log) -> None:

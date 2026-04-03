@@ -34,7 +34,7 @@ class ExamAnalysis(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
-    owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     attachment_id: Mapped[int] = mapped_column(ForeignKey("file_attachments.id"))
     encounter_id: Mapped[int | None] = mapped_column(ForeignKey("encounters.id"), nullable=True)
     exam_order_id: Mapped[int | None] = mapped_column(ForeignKey("exam_orders.id"), nullable=True)
