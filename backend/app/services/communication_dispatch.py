@@ -326,14 +326,46 @@ class CommunicationDispatchService:
         patient = self.patient_repository.get(payload.patient_id)
         if patient is None:
             raise NotFoundError("Patient not found.")
-        if payload.doctor_id is not None and self.doctor_repository.get(payload.doctor_id) is None:
+        doctor = self.doctor_repository.get(payload.doctor_id) if payload.doctor_id is not None else None
+        if payload.doctor_id is not None and doctor is None:
             raise NotFoundError("Doctor not found.")
-        if payload.appointment_id is not None and self.appointment_repository.get(payload.appointment_id) is None:
+        appointment = self.appointment_repository.get(payload.appointment_id) if payload.appointment_id is not None else None
+        if payload.appointment_id is not None and appointment is None:
             raise NotFoundError("Appointment not found.")
-        if payload.reminder_rule_id is not None and self.reminder_rule_repository.get(payload.reminder_rule_id) is None:
+        reminder_rule = self.reminder_rule_repository.get(payload.reminder_rule_id) if payload.reminder_rule_id is not None else None
+        if payload.reminder_rule_id is not None and reminder_rule is None:
             raise NotFoundError("Reminder rule not found.")
-        if payload.template_id is not None and self.template_repository.get(payload.template_id) is None:
+        template = self.template_repository.get(payload.template_id) if payload.template_id is not None else None
+        if payload.template_id is not None and template is None:
             raise NotFoundError("Communication template not found.")
+        exam_order = self.db.get(ExamOrder, payload.exam_order_id) if payload.exam_order_id is not None else None
+        if payload.exam_order_id is not None and exam_order is None:
+            raise NotFoundError("Exam order not found.")
+
+        if payload.doctor_id is not None and patient.owner_doctor_id != payload.doctor_id:
+            raise ValidationError("Patient does not belong to the selected doctor.")
+
+        if appointment is not None:
+            if appointment.patient_id != payload.patient_id:
+                raise ValidationError("Appointment does not belong to the selected patient.")
+            if payload.doctor_id is not None and appointment.doctor_id != payload.doctor_id:
+                raise ValidationError("Appointment does not belong to the selected doctor.")
+
+        if exam_order is not None:
+            if exam_order.encounter is None:
+                raise ValidationError("Exam order does not have an encounter.")
+            if exam_order.encounter.patient_id != payload.patient_id:
+                raise ValidationError("Exam order does not belong to the selected patient.")
+            if payload.doctor_id is not None and exam_order.encounter.doctor_id != payload.doctor_id:
+                raise ValidationError("Exam order does not belong to the selected doctor.")
+
+        if reminder_rule is not None and payload.doctor_id is not None:
+            if reminder_rule.doctor_id is not None and reminder_rule.doctor_id != payload.doctor_id:
+                raise ValidationError("Reminder rule does not belong to the selected doctor.")
+
+        if template is not None and payload.doctor_id is not None:
+            if template.doctor_id is not None and template.doctor_id != payload.doctor_id:
+                raise ValidationError("Communication template does not belong to the selected doctor.")
 
         owner_doctor_id = self._resolve_owner_doctor_id(payload)
         dispatch = self.repository.create(CommunicationDispatch(**payload.model_dump(), owner_doctor_id=owner_doctor_id))

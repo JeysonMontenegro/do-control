@@ -135,6 +135,50 @@ class CommunicationDispatchServiceRenderTests(unittest.TestCase):
 
         self.assertEqual(str(exc.exception), "Communication dispatch not found.")
 
+    def test_create_dispatch_rejects_appointment_patient_mismatch(self) -> None:
+        service = CommunicationDispatchService.__new__(CommunicationDispatchService)
+        service.patient_repository = SimpleNamespace(get=lambda _patient_id: SimpleNamespace(id=_patient_id, owner_doctor_id=3))
+        service.doctor_repository = SimpleNamespace(get=lambda _doctor_id: SimpleNamespace(id=_doctor_id))
+        service.appointment_repository = SimpleNamespace(get=lambda _appointment_id: SimpleNamespace(id=11, patient_id=9, doctor_id=3))
+        service.reminder_rule_repository = SimpleNamespace(get=lambda _rule_id: None)
+        service.template_repository = SimpleNamespace(get=lambda _template_id: None)
+        service.repository = SimpleNamespace(create=lambda _dispatch: _dispatch)
+        service.db = SimpleNamespace(get=lambda _model, _identifier: None)
+
+        with self.assertRaises(ValidationError) as exc:
+            service.create_dispatch(
+                CommunicationDispatchCreate(
+                    patient_id=7,
+                    doctor_id=3,
+                    appointment_id=11,
+                    recipient_phone="50255550000",
+                )
+            )
+
+        self.assertEqual(str(exc.exception), "Appointment does not belong to the selected patient.")
+
+    def test_create_dispatch_rejects_template_doctor_mismatch(self) -> None:
+        service = CommunicationDispatchService.__new__(CommunicationDispatchService)
+        service.patient_repository = SimpleNamespace(get=lambda _patient_id: SimpleNamespace(id=_patient_id, owner_doctor_id=3))
+        service.doctor_repository = SimpleNamespace(get=lambda _doctor_id: SimpleNamespace(id=_doctor_id))
+        service.appointment_repository = SimpleNamespace(get=lambda _appointment_id: None)
+        service.reminder_rule_repository = SimpleNamespace(get=lambda _rule_id: None)
+        service.template_repository = SimpleNamespace(get=lambda _template_id: SimpleNamespace(id=15, doctor_id=8))
+        service.repository = SimpleNamespace(create=lambda _dispatch: _dispatch)
+        service.db = SimpleNamespace(get=lambda _model, _identifier: None)
+
+        with self.assertRaises(ValidationError) as exc:
+            service.create_dispatch(
+                CommunicationDispatchCreate(
+                    patient_id=7,
+                    doctor_id=3,
+                    template_id=15,
+                    recipient_phone="50255550000",
+                )
+            )
+
+        self.assertEqual(str(exc.exception), "Communication template does not belong to the selected doctor.")
+
 
 if __name__ == "__main__":
     unittest.main()
