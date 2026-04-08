@@ -255,6 +255,7 @@ class AppointmentCancelRequest(BaseModel):
     doctor_id: int
     patient_name: str
     date: date_cls | None = None
+    requester_phone_number: str | None = None
 
 
 class AppointmentCancelResponse(BaseModel):
@@ -273,6 +274,7 @@ class AppointmentRescheduleRequest(BaseModel):
     requested_start: datetime | None = None
     requested_end: datetime | None = None
     note: str | None = None
+    requester_phone_number: str | None = None
 
 
 class AppointmentRescheduleResponse(BaseModel):

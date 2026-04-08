@@ -235,7 +235,13 @@ class ExamAnalysisService:
             )
         )
 
-    def request_analysis(self, payload: ExamAnalysisRequest, *, idempotency_key: str) -> ExamAnalysisRead:
+    def request_analysis(
+        self,
+        payload: ExamAnalysisRequest,
+        *,
+        idempotency_key: str,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> ExamAnalysisRead:
         normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
         payload_hash = self._payload_hash_from_request(payload)
         existing_event = self.repository.get_event(event_type="request", idempotency_key=normalized_idempotency_key)
@@ -302,6 +308,7 @@ class ExamAnalysisService:
             encounter=encounter,
             exam_order=exam_order,
         )
+        self._assert_accessible_owner_doctor(owner_doctor_id, accessible_doctor_ids=accessible_doctor_ids)
 
         try:
             analysis = self.repository.create(
@@ -416,8 +423,8 @@ class ExamAnalysisService:
             idempotency_key=f"console-{uuid4()}",
         )
 
-    def get_analysis(self, analysis_id: int) -> ExamAnalysisRead:
-        return ExamAnalysisRead.model_validate(self._get_analysis(analysis_id))
+    def get_analysis(self, analysis_id: int, *, accessible_doctor_ids: set[int] | None = None) -> ExamAnalysisRead:
+        return ExamAnalysisRead.model_validate(self._get_analysis(analysis_id, accessible_doctor_ids=accessible_doctor_ids))
 
     def list_attachment_analyses(
         self,

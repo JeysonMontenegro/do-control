@@ -521,6 +521,51 @@ class IntegrationServiceRequesterScopeTests(unittest.TestCase):
         with self.assertRaises(NotFoundError):
             self.service.list_schedule(3, date(2026, 4, 7), requester_phone_number="50250000000")
 
+    def test_cancel_appointment_rejects_requester_outside_scope(self) -> None:
+        self.service._assert_requester_can_access_doctor = lambda doctor_id, requester_phone_number: (_ for _ in ()).throw(
+            NotFoundError("Doctor not found.")
+        )
+
+        with self.assertRaises(NotFoundError):
+            self.service.cancel_appointment(
+                SimpleNamespace(
+                    doctor_id=3,
+                    patient_name="Paciente Demo",
+                    date=None,
+                    requester_phone_number="50250000000",
+                )
+            )
+
+    def test_request_reschedule_rejects_requester_outside_scope(self) -> None:
+        self.service._assert_requester_can_access_doctor = lambda doctor_id, requester_phone_number: (_ for _ in ()).throw(
+            NotFoundError("Doctor not found.")
+        )
+
+        with self.assertRaises(NotFoundError):
+            self.service.request_reschedule(
+                SimpleNamespace(
+                    doctor_id=3,
+                    patient_name="Paciente Demo",
+                    date=None,
+                    requested_start=None,
+                    requested_end=None,
+                    note=None,
+                    requester_phone_number="50250000000",
+                )
+            )
+
+    def test_confirm_appointment_rejects_requester_outside_scope(self) -> None:
+        self.service.appointment_service = SimpleNamespace(
+            repository=SimpleNamespace(get=lambda _appointment_id: SimpleNamespace(id=11, doctor_id=3)),
+            confirm_appointment=lambda *_args, **_kwargs: None,
+        )
+        self.service._assert_requester_can_access_doctor = lambda doctor_id, requester_phone_number: (_ for _ in ()).throw(
+            NotFoundError("Doctor not found.")
+        )
+
+        with self.assertRaises(NotFoundError):
+            self.service.confirm_appointment_for_requester(11, requester_phone_number="50250000000")
+
 
 if __name__ == "__main__":
     unittest.main()

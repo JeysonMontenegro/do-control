@@ -13,6 +13,7 @@ class ExamAnalysisRequest(BaseModel):
     exam_order_id: int | None = None
     requested_by: str | None = None
     source: str = "appoint-me"
+    requester_phone_number: str | None = None
 
 
 class AttachmentExamAnalysisRequest(BaseModel):

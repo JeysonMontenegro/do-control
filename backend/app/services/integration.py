@@ -559,6 +559,27 @@ class IntegrationService:
         )
 
     def confirm_appointment(self, appointment_id: int) -> AppointmentActionResponse:
+        appointment = self.appointment_service.repository.get(appointment_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        self._assert_requester_can_access_doctor(appointment.doctor_id, None)
+        appointment = self.appointment_service.confirm_appointment(appointment_id, changed_by="appoint-me")
+        return AppointmentActionResponse(
+            status="confirmed",
+            appointment_id=appointment.id,
+            **self._appointment_public_fields(appointment),
+        )
+
+    def confirm_appointment_for_requester(
+        self,
+        appointment_id: int,
+        *,
+        requester_phone_number: str | None = None,
+    ) -> AppointmentActionResponse:
+        appointment = self.appointment_service.repository.get(appointment_id)
+        if appointment is None:
+            raise NotFoundError("Appointment not found.")
+        self._assert_requester_can_access_doctor(appointment.doctor_id, requester_phone_number)
         appointment = self.appointment_service.confirm_appointment(appointment_id, changed_by="appoint-me")
         return AppointmentActionResponse(
             status="confirmed",
@@ -567,6 +588,7 @@ class IntegrationService:
         )
 
     def cancel_appointment(self, payload: AppointmentCancelRequest) -> AppointmentCancelResponse:
+        self._assert_requester_can_access_doctor(payload.doctor_id, payload.requester_phone_number)
         try:
             appointment = self.appointment_service.cancel_for_doctor_patient_name(
                 payload.doctor_id,
@@ -586,6 +608,7 @@ class IntegrationService:
         )
 
     def request_reschedule(self, payload: AppointmentRescheduleRequest) -> AppointmentRescheduleResponse:
+        self._assert_requester_can_access_doctor(payload.doctor_id, payload.requester_phone_number)
         try:
             appointment = self.appointment_service.find_for_doctor_patient_name(
                 payload.doctor_id,

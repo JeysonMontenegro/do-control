@@ -161,11 +161,15 @@ def create_proposed_appointment(
 @router.post("/appointments/{appointment_id}/confirm", response_model=AppointmentActionResponse)
 def confirm_appointment(
     appointment_id: int,
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> AppointmentActionResponse:
     try:
-        return IntegrationService(db).confirm_appointment(appointment_id)
+        return IntegrationService(db).confirm_appointment_for_requester(
+            appointment_id,
+            requester_phone_number=requester_phone_number,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -220,7 +224,12 @@ def request_exam_analysis(
     _key: str = Depends(require_integration_key),
 ) -> ExamAnalysisRead:
     try:
-        return ExamAnalysisService(db).request_analysis(payload, idempotency_key=x_idempotency_key)
+        accessible_doctor_ids = IntegrationService(db)._requester_accessible_doctor_ids(payload.requester_phone_number)
+        return ExamAnalysisService(db).request_analysis(
+            payload,
+            idempotency_key=x_idempotency_key,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConflictError as exc:
@@ -232,11 +241,13 @@ def request_exam_analysis(
 @router.get("/exam-analyses/{analysis_id}", response_model=ExamAnalysisRead)
 def get_exam_analysis(
     analysis_id: int,
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> ExamAnalysisRead:
     try:
-        return ExamAnalysisService(db).get_analysis(analysis_id)
+        accessible_doctor_ids = IntegrationService(db)._requester_accessible_doctor_ids(requester_phone_number)
+        return ExamAnalysisService(db).get_analysis(analysis_id, accessible_doctor_ids=accessible_doctor_ids)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

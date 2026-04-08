@@ -7,7 +7,7 @@ from unittest.mock import patch
 from app.core.config import settings
 from app.models.exam_analysis import ExamAnalysis
 from app.schemas.exam_analysis import ExamAnalysisRequest
-from app.services.errors import ValidationError
+from app.services.errors import NotFoundError, ValidationError
 from app.services.exam_analysis import ExamAnalysisService
 
 
@@ -155,6 +155,36 @@ class ExamAnalysisServiceTests(unittest.TestCase):
             )
 
         self.assertEqual(str(exc.exception), "Only PDF attachments are supported for exam analysis.")
+
+    @patch("app.services.exam_analysis.create_audit_log")
+    def test_request_analysis_rejects_requester_outside_owner_scope(self, _audit_log) -> None:
+        patient = SimpleNamespace(id=7, owner_doctor_id=3)
+        attachment = SimpleNamespace(
+            id=9,
+            patient_id=7,
+            owner_doctor_id=3,
+            encounter_id=None,
+            file_name="labs.pdf",
+            content_type="application/pdf",
+            file_type="lab_result",
+            storage_key="patients/7/labs.pdf",
+        )
+        self.service.patient_repository = SimpleNamespace(get=lambda _patient_id: patient)
+        self.service.attachment_repository = SimpleNamespace(get=lambda _attachment_id: attachment)
+        self.service.repository = SimpleNamespace(get_event=lambda **_kwargs: None)
+
+        with self.assertRaises(NotFoundError) as exc:
+            self.service.request_analysis(
+                ExamAnalysisRequest(
+                    patient_id=7,
+                    attachment_id=9,
+                    source="appoint-me",
+                ),
+                idempotency_key="req-scope",
+                accessible_doctor_ids={8},
+            )
+
+        self.assertEqual(str(exc.exception), "Exam analysis not found.")
 
     @patch("app.services.exam_analysis.create_audit_log")
     def test_request_analysis_falls_back_to_patient_owner_doctor(self, _audit_log) -> None:
