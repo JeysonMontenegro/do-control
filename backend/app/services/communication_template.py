@@ -16,8 +16,10 @@ from app.schemas.communication_template import (
     CommunicationTemplateUpdate,
 )
 from app.services.audit import create_audit_log
+from app.services.doctor_scope import scoped_doctor_ids_for_user
 from app.services.errors import NotFoundError, ValidationError
 from app.services.communication_dispatch import CommunicationDispatchService
+from app.models.user import User
 
 
 class CommunicationTemplateService:
@@ -47,10 +49,19 @@ class CommunicationTemplateService:
                 f"Invalid template variables: {invalid}. Allowed variables: {allowed}."
             )
 
-    def list_templates(self) -> list[CommunicationTemplate]:
-        return self.repository.list()
+    @staticmethod
+    def _assert_doctor_in_scope(doctor_id: int | None, *, scoped_doctor_ids: set[int] | None) -> None:
+        if scoped_doctor_ids is None:
+            return
+        if doctor_id is None or doctor_id not in scoped_doctor_ids:
+            raise ValidationError("You can only manage communication templates inside your own doctor scope.")
 
-    def create_template(self, payload: CommunicationTemplateCreate) -> CommunicationTemplate:
+    def list_templates(self, *, current_user: User) -> list[CommunicationTemplate]:
+        return self.repository.list(doctor_ids=scoped_doctor_ids_for_user(current_user))
+
+    def create_template(self, payload: CommunicationTemplateCreate, *, current_user: User) -> CommunicationTemplate:
+        scoped_doctor_ids = scoped_doctor_ids_for_user(current_user)
+        self._assert_doctor_in_scope(payload.doctor_id, scoped_doctor_ids=scoped_doctor_ids)
         if payload.doctor_id is not None and self.doctor_repository.get(payload.doctor_id) is None:
             raise NotFoundError("Doctor not found.")
         self._validate_template_body(payload.body)
@@ -67,13 +78,18 @@ class CommunicationTemplateService:
         self.db.refresh(template)
         return template
 
-    def update_template(self, template_id: int, payload: CommunicationTemplateUpdate) -> CommunicationTemplate:
+    def update_template(self, template_id: int, payload: CommunicationTemplateUpdate, *, current_user: User) -> CommunicationTemplate:
         template = self.repository.get(template_id)
         if template is None:
+            raise NotFoundError("Communication template not found.")
+        scoped_doctor_ids = scoped_doctor_ids_for_user(current_user)
+        if scoped_doctor_ids is not None and template.doctor_id not in scoped_doctor_ids:
             raise NotFoundError("Communication template not found.")
 
         updates = payload.model_dump(exclude_unset=True)
         doctor_id = updates.get("doctor_id")
+        if "doctor_id" in updates:
+            self._assert_doctor_in_scope(doctor_id, scoped_doctor_ids=scoped_doctor_ids)
         if doctor_id is not None and self.doctor_repository.get(doctor_id) is None:
             raise NotFoundError("Doctor not found.")
         body = updates.get("body")
@@ -106,8 +122,9 @@ class CommunicationTemplateService:
         self.db.refresh(template)
         return template
 
-    def preview_template(self, payload: CommunicationTemplatePreviewRequest) -> CommunicationTemplatePreviewRead:
+    def preview_template(self, payload: CommunicationTemplatePreviewRequest, *, current_user: User) -> CommunicationTemplatePreviewRead:
         self._validate_template_body(payload.body)
+        scoped_doctor_ids = scoped_doctor_ids_for_user(current_user)
 
         patient_id = payload.patient_id
         doctor_id = payload.doctor_id
@@ -127,6 +144,9 @@ class CommunicationTemplateService:
                 raise NotFoundError("Exam order encounter not found.")
             patient_id = patient_id or exam_order.encounter.patient_id
             doctor_id = doctor_id or exam_order.encounter.doctor_id
+
+        if doctor_id is not None:
+            self._assert_doctor_in_scope(doctor_id, scoped_doctor_ids=scoped_doctor_ids)
 
         if patient_id is not None and self.patient_repository.get(patient_id) is None:
             raise NotFoundError("Patient not found.")

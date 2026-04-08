@@ -18,19 +18,19 @@ router = APIRouter()
 @router.get("", response_model=list[CommunicationTemplateRead])
 def list_communication_templates(
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor", "receptionist")),
+    current_user=Depends(require_roles("admin", "doctor", "receptionist")),
 ) -> list[CommunicationTemplateRead]:
-    return CommunicationTemplateService(db).list_templates()
+    return CommunicationTemplateService(db).list_templates(current_user=current_user)
 
 
 @router.post("", response_model=CommunicationTemplateRead, status_code=status.HTTP_201_CREATED)
 def create_communication_template(
     payload: CommunicationTemplateCreate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor")),
+    current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplateRead:
     try:
-        return CommunicationTemplateService(db).create_template(payload)
+        return CommunicationTemplateService(db).create_template(payload, current_user=current_user)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -41,10 +41,10 @@ def create_communication_template(
 def preview_communication_template(
     payload: CommunicationTemplatePreviewRequest,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor")),
+    current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplatePreviewRead:
     try:
-        return CommunicationTemplateService(db).preview_template(payload)
+        return CommunicationTemplateService(db).preview_template(payload, current_user=current_user)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -56,10 +56,10 @@ def update_communication_template(
     template_id: int,
     payload: CommunicationTemplateUpdate,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "doctor")),
+    current_user=Depends(require_roles("admin", "doctor")),
 ) -> CommunicationTemplateRead:
     try:
-        return CommunicationTemplateService(db).update_template(template_id, payload)
+        return CommunicationTemplateService(db).update_template(template_id, payload, current_user=current_user)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationError as exc:

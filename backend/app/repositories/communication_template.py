@@ -18,10 +18,18 @@ class CommunicationTemplateRepository:
     def get(self, template_id: int) -> CommunicationTemplate | None:
         return self.db.get(CommunicationTemplate, template_id)
 
-    def list(self) -> List[CommunicationTemplate]:
+    def list(self, *, doctor_ids: set[int] | None = None) -> List[CommunicationTemplate]:
+        statement = select(CommunicationTemplate)
+        if doctor_ids is not None:
+            if not doctor_ids:
+                statement = statement.where(CommunicationTemplate.doctor_id.is_(None))
+            else:
+                statement = statement.where(
+                    CommunicationTemplate.doctor_id.is_(None) | CommunicationTemplate.doctor_id.in_(doctor_ids)
+                )
         return list(
             self.db.scalars(
-                select(CommunicationTemplate).order_by(
+                statement.order_by(
                     CommunicationTemplate.doctor_id.nullsfirst(),
                     CommunicationTemplate.channel,
                     CommunicationTemplate.template_key,
