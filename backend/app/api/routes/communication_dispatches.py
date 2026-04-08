@@ -37,6 +37,9 @@ def list_communication_dispatches(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Doctors must filter communication dispatches by patient or appointment.",
         )
+    accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+    if accessible_doctor_ids is not None and doctor_id is not None and doctor_id not in accessible_doctor_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Communication dispatch not found.")
     return CommunicationDispatchService(db).list_dispatches(
         limit=limit,
         status=status_filter,
@@ -45,6 +48,7 @@ def list_communication_dispatches(
         patient_id=patient_id,
         doctor_id=doctor_id,
         appointment_id=appointment_id,
+        accessible_doctor_ids=accessible_doctor_ids,
     )
 
 

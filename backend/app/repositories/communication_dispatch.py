@@ -30,6 +30,7 @@ class CommunicationDispatchRepository:
         patient_id: int | None = None,
         doctor_id: int | None = None,
         appointment_id: int | None = None,
+        owner_doctor_ids: set[int] | None = None,
     ) -> List[CommunicationDispatch]:
         statement = select(CommunicationDispatch)
         if status:
@@ -42,6 +43,10 @@ class CommunicationDispatchRepository:
             statement = statement.where(CommunicationDispatch.doctor_id == doctor_id)
         if appointment_id is not None:
             statement = statement.where(CommunicationDispatch.appointment_id == appointment_id)
+        if owner_doctor_ids is not None:
+            if not owner_doctor_ids:
+                return []
+            statement = statement.where(CommunicationDispatch.owner_doctor_id.in_(owner_doctor_ids))
         if query:
             pattern = f"%{query.strip()}%"
             statement = statement.where(

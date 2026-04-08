@@ -293,6 +293,7 @@ class CommunicationDispatchService:
         patient_id: int | None = None,
         doctor_id: int | None = None,
         appointment_id: int | None = None,
+        accessible_doctor_ids: set[int] | None = None,
     ) -> list[CommunicationDispatchRead]:
         dispatches = self.repository.list(
             limit=limit,
@@ -302,6 +303,7 @@ class CommunicationDispatchService:
             patient_id=patient_id,
             doctor_id=doctor_id,
             appointment_id=appointment_id,
+            owner_doctor_ids=accessible_doctor_ids,
         )
         return [self._serialize_dispatch(dispatch) for dispatch in dispatches]
 

@@ -87,6 +87,24 @@ class CommunicationDispatchServiceRenderTests(unittest.TestCase):
 
         self.assertEqual(str(exc.exception), "Communication dispatch must be linked to an owning doctor.")
 
+    def test_list_dispatches_passes_owner_scope_to_repository(self) -> None:
+        service = CommunicationDispatchService.__new__(CommunicationDispatchService)
+        captured = {}
+        service.repository = SimpleNamespace(
+            list=lambda **kwargs: captured.setdefault("kwargs", kwargs) or []
+        )
+        service._serialize_dispatch = lambda dispatch: dispatch
+
+        service.list_dispatches(
+            patient_id=8,
+            appointment_id=12,
+            accessible_doctor_ids={3},
+        )
+
+        self.assertEqual(captured["kwargs"]["patient_id"], 8)
+        self.assertEqual(captured["kwargs"]["appointment_id"], 12)
+        self.assertEqual(captured["kwargs"]["owner_doctor_ids"], {3})
+
 
 if __name__ == "__main__":
     unittest.main()
