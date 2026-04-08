@@ -6,12 +6,18 @@ import type { AttachmentDownload, ExamAnalysis, FileAttachment, PatientSummary }
 import { apiGet, apiPost } from "@/lib/api";
 
 type UseExamAnalysisConsoleParams = {
+  deepLinkedAnalysisId: number | null;
+  deepLinkedAttachmentId: number | null;
+  deepLinkedPage: number | null;
   selectedPatientId: string;
   selectedSummary: PatientSummary | null;
   setMessage: (message: string) => void;
 };
 
 export function useExamAnalysisConsole({
+  deepLinkedAnalysisId,
+  deepLinkedAttachmentId,
+  deepLinkedPage,
   selectedPatientId,
   selectedSummary,
   setMessage,
@@ -20,6 +26,7 @@ export function useExamAnalysisConsole({
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<number | null>(null);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<number | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerPage, setViewerPage] = useState<number | null>(deepLinkedPage);
   const [isLoadingAnalyses, setIsLoadingAnalyses] = useState(false);
   const [isRefreshingViewer, setIsRefreshingViewer] = useState(false);
   const [isRequestingAnalysis, setIsRequestingAnalysis] = useState(false);
@@ -49,6 +56,20 @@ export function useExamAnalysisConsole({
     () => selectedAttachmentAnalyses.find((analysis) => analysis.id === selectedAnalysisId) ?? selectedAttachmentAnalyses[0] ?? null,
     [selectedAnalysisId, selectedAttachmentAnalyses],
   );
+
+  const linkedAttachmentIdFromAnalysis = useMemo(() => {
+    if (deepLinkedAnalysisId === null) {
+      return null;
+    }
+    for (const [attachmentId, analyses] of Object.entries(analysesByAttachment)) {
+      if (analyses.some((analysis) => analysis.id === deepLinkedAnalysisId)) {
+        return Number(attachmentId);
+      }
+    }
+    return null;
+  }, [analysesByAttachment, deepLinkedAnalysisId]);
+
+  const requestedAttachmentId = deepLinkedAttachmentId ?? linkedAttachmentIdFromAnalysis;
 
   const refreshAnalyses = useCallback(async () => {
     if (!selectedPatientId || !studyAttachments.length) {
@@ -97,10 +118,16 @@ export function useExamAnalysisConsole({
       setViewerUrl(null);
       return;
     }
+    if (requestedAttachmentId !== null && studyAttachments.some((attachment) => attachment.id === requestedAttachmentId)) {
+      if (selectedAttachmentId !== requestedAttachmentId) {
+        setSelectedAttachmentId(requestedAttachmentId);
+      }
+      return;
+    }
     if (!selectedAttachmentId || !studyAttachments.some((attachment) => attachment.id === selectedAttachmentId)) {
       setSelectedAttachmentId(studyAttachments[0].id);
     }
-  }, [selectedAttachmentId, studyAttachments]);
+  }, [requestedAttachmentId, selectedAttachmentId, studyAttachments]);
 
   useEffect(() => {
     void refreshAnalyses();
@@ -121,15 +148,33 @@ export function useExamAnalysisConsole({
       setSelectedAnalysisId(null);
       return;
     }
+    if (deepLinkedAnalysisId !== null && selectedAttachmentAnalyses.some((analysis) => analysis.id === deepLinkedAnalysisId)) {
+      if (selectedAnalysisId !== deepLinkedAnalysisId) {
+        setSelectedAnalysisId(deepLinkedAnalysisId);
+      }
+      return;
+    }
     if (!selectedAnalysisId || !selectedAttachmentAnalyses.some((analysis) => analysis.id === selectedAnalysisId)) {
       setSelectedAnalysisId(selectedAttachmentAnalyses[0].id);
     }
-  }, [selectedAnalysisId, selectedAttachmentAnalyses]);
+  }, [deepLinkedAnalysisId, selectedAnalysisId, selectedAttachmentAnalyses]);
 
   useEffect(() => {
     setChatMessages([]);
     setChatDraft("");
   }, [selectedAnalysisId]);
+
+  useEffect(() => {
+    if (deepLinkedPage !== null) {
+      setViewerPage(deepLinkedPage);
+    }
+  }, [deepLinkedPage]);
+
+  useEffect(() => {
+    if (!selectedAttachment) {
+      setViewerPage(null);
+    }
+  }, [selectedAttachment]);
 
   const requestAnalysis = useCallback(async () => {
     if (!selectedAttachment) {
@@ -168,6 +213,23 @@ export function useExamAnalysisConsole({
     setChatDraft("");
   }, [chatDraft, selectedAnalysis]);
 
+  const openPdfPage = useCallback((page: number) => {
+    if (!Number.isFinite(page) || page < 1) {
+      return;
+    }
+    setViewerPage(Math.trunc(page));
+  }, []);
+
+  const viewerUrlWithPage = useMemo(() => {
+    if (!viewerUrl) {
+      return null;
+    }
+    if (!viewerPage) {
+      return viewerUrl;
+    }
+    return `${viewerUrl}#page=${viewerPage}`;
+  }, [viewerPage, viewerUrl]);
+
   return {
     analysesByAttachment,
     chatDraft,
@@ -175,6 +237,7 @@ export function useExamAnalysisConsole({
     isLoadingAnalyses,
     isRefreshingViewer,
     isRequestingAnalysis,
+    openPdfPage,
     requestAnalysis,
     selectedAnalysis,
     selectedAnalysisId,
@@ -186,7 +249,9 @@ export function useExamAnalysisConsole({
     setSelectedAnalysisId,
     setSelectedAttachmentId,
     studyAttachments,
+    viewerPage,
     viewerUrl,
+    viewerUrlWithPage,
   };
 }
 

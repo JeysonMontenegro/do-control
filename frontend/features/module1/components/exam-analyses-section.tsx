@@ -6,13 +6,48 @@ import { EmptyStatePanel } from "@/features/module1/components/empty-state-panel
 import { formatDateTime } from "@/features/module1/console-utils";
 import type { ExamAnalysis, FileAttachment, PatientSummary } from "@/features/module1/types";
 
+type AnomalyCard = {
+  parameter: string;
+  severity: string;
+  severityToken: string;
+  interpretation: string;
+  value: string;
+  referenceRange: string;
+  evidence: string;
+  pages: string;
+  primaryPage: number | null;
+};
+
+type StructuredResultCard = {
+  label: string;
+  value: string;
+  meta: string;
+  primaryPage: number | null;
+};
+
+type DocumentNavigationItem = {
+  label: string;
+  reason: string;
+  pagesLabel: string;
+  primaryPage: number | null;
+};
+
+type EvidenceItem = {
+  preview: string;
+  pagesLabel: string;
+  primaryPage: number | null;
+};
+
 type ExamAnalysesSectionProps = {
   chatDraft: string;
   chatMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  currentDeepLink: string | null;
   isLoadingAnalyses: boolean;
   isRefreshingViewer: boolean;
   isRequestingAnalysis: boolean;
   onChatDraftChange: (value: string) => void;
+  onCopyDeepLink: () => void;
+  onOpenPdfPage: (page: number) => void;
   onRequestAnalysis: () => void;
   onSelectAnalysis: (analysisId: number) => void;
   onSelectAttachment: (attachmentId: number) => void;
@@ -25,16 +60,21 @@ type ExamAnalysesSectionProps = {
   selectedPatientId: string;
   selectedSummary: PatientSummary | null;
   studyAttachments: FileAttachment[];
+  viewerPage: number | null;
   viewerUrl: string | null;
+  viewerUrlWithPage: string | null;
 };
 
 export function ExamAnalysesSection({
   chatDraft,
   chatMessages,
+  currentDeepLink,
   isLoadingAnalyses,
   isRefreshingViewer,
   isRequestingAnalysis,
   onChatDraftChange,
+  onCopyDeepLink,
+  onOpenPdfPage,
   onRequestAnalysis,
   onSelectAnalysis,
   onSelectAttachment,
@@ -47,10 +87,14 @@ export function ExamAnalysesSection({
   selectedPatientId,
   selectedSummary,
   studyAttachments,
+  viewerPage,
   viewerUrl,
+  viewerUrlWithPage,
 }: ExamAnalysesSectionProps) {
   const keyResults = useMemo(() => normalizeStructuredResults(selectedAnalysis?.structured_results), [selectedAnalysis?.structured_results]);
   const anomalyCards = useMemo(() => normalizeAnomalies(selectedAnalysis?.anomalies), [selectedAnalysis?.anomalies]);
+  const interpretationNavigation = useMemo(() => normalizeDocumentNavigation(selectedAnalysis), [selectedAnalysis]);
+  const evidenceItems = useMemo(() => normalizeEvidence(selectedAnalysis), [selectedAnalysis]);
 
   if (!selectedPatientId || !selectedSummary) {
     return (
@@ -213,11 +257,39 @@ export function ExamAnalysesSection({
                           <span>{item.pages}</span>
                         </div>
                       </div>
+                      {item.primaryPage !== null ? (
+                        <button type="button" className="secondary-button align-start" onClick={() => onOpenPdfPage(item.primaryPage!)}>
+                          Ir a pagina {item.primaryPage}
+                        </button>
+                      ) : null}
                     </article>
                   ))}
                 </div>
               ) : (
                 <p className="exam-ia-muted">No se registran hallazgos alterados en la estructura cargada.</p>
+              )}
+            </section>
+            <section className="exam-ia-block">
+              <h3>Navegacion del Documento</h3>
+              {interpretationNavigation.length ? (
+                <div className="exam-ia-card-list">
+                  {interpretationNavigation.map((item, index) => (
+                    <article className="exam-ia-finding-card" key={`${item.label}-${index}`}>
+                      <div className="exam-ia-finding-head">
+                        <strong>{item.label}</strong>
+                        <span>{item.pagesLabel}</span>
+                      </div>
+                      <p>{item.reason}</p>
+                      {item.primaryPage !== null ? (
+                        <button type="button" className="secondary-button align-start" onClick={() => onOpenPdfPage(item.primaryPage!)}>
+                          Ver en PDF
+                        </button>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="exam-ia-muted">El analisis aun no incluye una guia de navegacion por documento.</p>
               )}
             </section>
             <section className="exam-ia-block">
@@ -228,6 +300,12 @@ export function ExamAnalysesSection({
                     <div className="exam-ia-key-result" key={item.label}>
                       <strong>{item.label}</strong>
                       <span>{item.value}</span>
+                      <span>{item.meta}</span>
+                      {item.primaryPage !== null ? (
+                        <button type="button" className="secondary-button align-start" onClick={() => onOpenPdfPage(item.primaryPage!)}>
+                          Ir a pagina
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -237,10 +315,28 @@ export function ExamAnalysesSection({
             </section>
             <section className="exam-ia-block">
               <h3>Evidencia del Documento</h3>
-              <p>
-                Contrasta el resumen con el PDF original del lado derecho. Esta vista funciona como apoyo clinico y no reemplaza la interpretacion
-                final del medico tratante.
-              </p>
+              {evidenceItems.length ? (
+                <div className="exam-ia-card-list">
+                  {evidenceItems.map((item, index) => (
+                    <article className="exam-ia-finding-card" key={`${item.preview}-${index}`}>
+                      <p>{item.preview}</p>
+                      <div className="exam-ia-finding-meta">
+                        <span>{item.pagesLabel}</span>
+                      </div>
+                      {item.primaryPage !== null ? (
+                        <button type="button" className="secondary-button align-start" onClick={() => onOpenPdfPage(item.primaryPage!)}>
+                          Abrir evidencia
+                        </button>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p>
+                  Contrasta el resumen con el PDF original del lado derecho. Esta vista funciona como apoyo clinico y no reemplaza la interpretacion
+                  final del medico tratante.
+                </p>
+              )}
               <div className="exam-ia-audit-grid">
                 <div>
                   <strong>Ultimo callback</strong>
@@ -276,11 +372,22 @@ export function ExamAnalysesSection({
             <p className="eyebrow">Documento y chat</p>
             <h2>Visor PDF y Preguntar al Estudio</h2>
           </div>
-          {isRefreshingViewer ? <span className="exam-ia-inline-status">Preparando visor...</span> : null}
+          <div className="section-action-panel">
+            {viewerUrl ? (
+              <a className="secondary-button" href={viewerUrlWithPage ?? viewerUrl} target="_blank" rel="noreferrer">
+                Abrir PDF
+              </a>
+            ) : null}
+            <button type="button" className="secondary-button" onClick={onCopyDeepLink} disabled={!currentDeepLink}>
+              Copiar enlace
+            </button>
+            {viewerPage ? <span className="exam-ia-inline-status">Pagina {viewerPage}</span> : null}
+            {isRefreshingViewer ? <span className="exam-ia-inline-status">Preparando visor...</span> : null}
+          </div>
         </div>
         <div className="exam-ia-viewer-shell">
-          {viewerUrl ? (
-            <iframe className="exam-ia-pdf-frame" src={viewerUrl} title={selectedAttachment?.file_name ?? "PDF"} />
+          {viewerUrlWithPage ? (
+            <iframe className="exam-ia-pdf-frame" src={viewerUrlWithPage} title={selectedAttachment?.file_name ?? "PDF"} />
           ) : (
             <div className="exam-ia-viewer-empty">Selecciona un estudio PDF para abrir el visor.</div>
           )}
@@ -342,10 +449,11 @@ function AttachmentAnalysisList({ analyses, onSelectAnalysis, selectedAnalysisId
   );
 }
 
-function normalizeAnomalies(anomalies: Array<Record<string, unknown>> | null | undefined) {
+function normalizeAnomalies(anomalies: Array<Record<string, unknown>> | null | undefined): AnomalyCard[] {
   return (anomalies ?? []).map((entry, index) => {
     const parameter = String(entry.parameter ?? entry.code ?? `Hallazgo ${index + 1}`);
     const severity = String(entry.severity ?? "Pendiente");
+    const pages = toPageNumbers(entry.page_numbers ?? entry.pages ?? entry.relevant_pages);
     return {
       parameter,
       severity,
@@ -353,22 +461,99 @@ function normalizeAnomalies(anomalies: Array<Record<string, unknown>> | null | u
       interpretation: String(entry.interpretation ?? entry.summary ?? "Sin interpretacion resumida."),
       value: String(entry.value ?? entry.measured_value ?? "Sin dato"),
       referenceRange: String(entry.reference_range ?? entry.range ?? "No informado"),
-      evidence: String(entry.evidence ?? entry.evidence_snippet ?? "Sin snippet disponible"),
-      pages: String(entry.pages ?? entry.relevant_pages ?? "No informadas"),
+      evidence: String(entry.evidence ?? entry.text_preview ?? entry.evidence_snippet ?? "Sin snippet disponible"),
+      pages: pages.length ? pages.join(", ") : "No informadas",
+      primaryPage: pages[0] ?? null,
     };
   });
 }
 
-function normalizeStructuredResults(structuredResults: Record<string, unknown> | Array<unknown> | null | undefined) {
-  if (!structuredResults || Array.isArray(structuredResults)) {
+function normalizeStructuredResults(
+  structuredResults: Record<string, unknown> | Array<unknown> | null | undefined,
+): StructuredResultCard[] {
+  if (!structuredResults) {
     return [];
+  }
+  if (Array.isArray(structuredResults)) {
+    return structuredResults.slice(0, 12).map((entry, index) => {
+      const record = isRecord(entry) ? entry : {};
+      const label = String(record.label ?? record.name ?? `Resultado ${index + 1}`);
+      const value = [record.value, record.unit].filter(Boolean).join(" ") || "Sin dato";
+      const metaParts = [
+        record.reference_range ? `Rango: ${String(record.reference_range)}` : null,
+        record.flag ? `Flag: ${String(record.flag)}` : null,
+        record.section ? `Seccion: ${String(record.section)}` : null,
+      ].filter(Boolean);
+      const pages = toPageNumbers(record.page_numbers);
+      return {
+        label,
+        value,
+        meta: metaParts.join(" · ") || "Sin metadatos estructurados",
+        primaryPage: pages[0] ?? null,
+      };
+    });
   }
   return Object.entries(structuredResults)
     .slice(0, 8)
     .map(([label, rawValue]) => ({
       label,
       value: typeof rawValue === "object" && rawValue !== null ? JSON.stringify(rawValue) : String(rawValue),
+      meta: "Resultado estructurado",
+      primaryPage: null,
     }));
+}
+
+function normalizeDocumentNavigation(analysis: ExamAnalysis | null): DocumentNavigationItem[] {
+  const interpretation = readProviderSection(analysis, "interpretation");
+  const navigation = isRecord(interpretation) && Array.isArray(interpretation.document_navigation)
+    ? interpretation.document_navigation
+    : [];
+  return navigation.map((entry): DocumentNavigationItem => {
+    const record = isRecord(entry) ? entry : {};
+    const pages = toPageNumbers(record.page_numbers);
+    return {
+      label: String(record.label ?? "Seccion relevante"),
+      reason: String(record.reason ?? "Referencia relevante del estudio."),
+      pagesLabel: pages.length ? `Pag. ${pages.join(", ")}` : "Paginas no disponibles",
+      primaryPage: pages[0] ?? null,
+    };
+  });
+}
+
+function normalizeEvidence(analysis: ExamAnalysis | null): EvidenceItem[] {
+  const evidence = readProviderSection(analysis, "evidence");
+  if (!Array.isArray(evidence)) {
+    return [];
+  }
+  return evidence.map((entry): EvidenceItem => {
+    const record = isRecord(entry) ? entry : {};
+    const pages = toPageNumbers(record.page_numbers);
+    return {
+      preview: String(record.text_preview ?? record.label ?? "Evidencia sin preview."),
+      pagesLabel: pages.length ? `Pag. ${pages.join(", ")}` : "Paginas no disponibles",
+      primaryPage: pages[0] ?? null,
+    };
+  });
+}
+
+function readProviderSection(analysis: ExamAnalysis | null, key: string): unknown {
+  if (!analysis || !analysis.raw_provider_payload || Array.isArray(analysis.raw_provider_payload)) {
+    return null;
+  }
+  return analysis.raw_provider_payload[key] ?? null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toPageNumbers(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => Number.parseInt(String(item), 10))
+    .filter((item) => Number.isFinite(item) && item > 0);
 }
 
 function statusLabel(status: ExamAnalysis["status"]) {

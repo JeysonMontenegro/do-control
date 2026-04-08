@@ -5,6 +5,8 @@ import type { ConsoleTab } from "@/features/module1/console-config";
 type UseClinicalNavigationParams = {
   setActiveTab: React.Dispatch<React.SetStateAction<ConsoleTab>>;
   setMessagesSubtab: (tab: "paciente" | "citas" | "operacion") => void;
+  setSelectedAnalysisId: React.Dispatch<React.SetStateAction<number | null>>;
+  setSelectedAttachmentId: React.Dispatch<React.SetStateAction<number | null>>;
   setSelectedPatientId: React.Dispatch<React.SetStateAction<string>>;
   toggleAppointmentHistory: (appointmentId: number) => void;
 };
@@ -12,6 +14,8 @@ type UseClinicalNavigationParams = {
 export function useClinicalNavigation({
   setActiveTab,
   setMessagesSubtab,
+  setSelectedAnalysisId,
+  setSelectedAttachmentId,
   setSelectedPatientId,
   toggleAppointmentHistory,
 }: UseClinicalNavigationParams) {
@@ -46,7 +50,21 @@ export function useClinicalNavigation({
     setActiveTab("consultas");
   };
 
-  const goToExamAnalyses = () => {
+  const goToExamAnalyses = (target?: {
+    patientId?: number | string;
+    attachmentId?: number | string;
+    analysisId?: number | string;
+    page?: number | string;
+  }) => {
+    if (target?.patientId !== undefined) {
+      setSelectedPatientId(String(target.patientId));
+    }
+    if (target?.attachmentId !== undefined) {
+      setSelectedAttachmentId(Number(target.attachmentId));
+    }
+    if (target?.analysisId !== undefined) {
+      setSelectedAnalysisId(Number(target.analysisId));
+    }
     setActiveTab("examenes");
   };
 

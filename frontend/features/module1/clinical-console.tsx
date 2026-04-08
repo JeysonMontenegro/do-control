@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   createDispatchStatusForm,
@@ -117,19 +118,42 @@ const initialLoadState: LoadState = {
   encounters: [],
 };
 
+function parsePositiveInt(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseConsoleTab(value: string | null): ConsoleTab | null {
+  if (!value) {
+    return null;
+  }
+  return consoleTabs.some((tab) => tab.id === value) ? (value as ConsoleTab) : null;
+}
+
 export function ClinicalConsole() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+  const deepLinkedTab = parseConsoleTab(searchParams.get("tab"));
+  const deepLinkedPatientId = searchParams.get("patient") ?? "";
+  const deepLinkedAttachmentId = parsePositiveInt(searchParams.get("attachment"));
+  const deepLinkedAnalysisId = parsePositiveInt(searchParams.get("analysis"));
+  const deepLinkedPage = parsePositiveInt(searchParams.get("page"));
   const [data, setData] = useState<LoadState>(initialLoadState);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ConsoleTab>("agenda");
+  const [activeTab, setActiveTab] = useState<ConsoleTab>(deepLinkedTab ?? "agenda");
   const [gestionSubtab, setGestionSubtab] = useState<GestionSubtab>("resumen");
   const [messagesSubtab, setMessagesSubtab] = useState<MessagesSubtab>("paciente");
   const [calendarView, setCalendarView] = useState<CalendarView>("semana");
   const [calendarDate, setCalendarDate] = useState(() => startOfDay(new Date()));
   const [doctorFilter, setDoctorFilter] = useState("");
   const [topbarSearch, setTopbarSearch] = useState("");
-  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [selectedPatientId, setSelectedPatientId] = useState(deepLinkedPatientId);
   const [selectedSummary, setSelectedSummary] = useState<PatientSummary | null>(null);
   const [patientSearch, setPatientSearch] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -655,6 +679,36 @@ export function ClinicalConsole() {
   });
 
   const {
+    chatDraft,
+    chatMessages,
+    isLoadingAnalyses,
+    isRefreshingViewer,
+    isRequestingAnalysis,
+    requestAnalysis,
+    selectedAnalysis,
+    selectedAnalysisId,
+    selectedAttachment,
+    selectedAttachmentAnalyses,
+    selectedAttachmentId,
+    sendChatMessage,
+    setChatDraft,
+    setSelectedAnalysisId,
+    setSelectedAttachmentId,
+    studyAttachments,
+    viewerPage,
+    viewerUrl,
+    viewerUrlWithPage,
+    openPdfPage,
+  } = useExamAnalysisConsole({
+    deepLinkedAnalysisId,
+    deepLinkedAttachmentId,
+    deepLinkedPage,
+    selectedPatientId,
+    selectedSummary,
+    setMessage,
+  });
+
+  const {
     clearPatientFocus,
     goToAgenda,
     goToAgendaAppointment,
@@ -666,6 +720,8 @@ export function ClinicalConsole() {
   } = useClinicalNavigation({
     setActiveTab,
     setMessagesSubtab,
+    setSelectedAnalysisId,
+    setSelectedAttachmentId,
     setSelectedPatientId,
     toggleAppointmentHistory,
   });
@@ -698,29 +754,106 @@ export function ClinicalConsole() {
   });
   const inboxUnreadCount = conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
 
-  const {
-    chatDraft,
-    chatMessages,
-    isLoadingAnalyses,
-    isRefreshingViewer,
-    isRequestingAnalysis,
-    requestAnalysis,
-    selectedAnalysis,
-    selectedAnalysisId,
-    selectedAttachment,
-    selectedAttachmentAnalyses,
-    selectedAttachmentId,
-    sendChatMessage,
-    setChatDraft,
-    setSelectedAnalysisId,
-    setSelectedAttachmentId,
-    studyAttachments,
-    viewerUrl,
-  } = useExamAnalysisConsole({
-    selectedPatientId,
-    selectedSummary,
-    setMessage,
-  });
+  useEffect(() => {
+    if (deepLinkedTab && deepLinkedTab !== activeTab) {
+      setActiveTab(deepLinkedTab);
+      return;
+    }
+    if (!deepLinkedTab && activeTab !== "agenda" && !searchParams.get("tab")) {
+      setActiveTab("agenda");
+    }
+  }, [activeTab, deepLinkedTab, searchParams]);
+
+  useEffect(() => {
+    if (deepLinkedPatientId !== selectedPatientId) {
+      setSelectedPatientId(deepLinkedPatientId);
+    }
+  }, [deepLinkedPatientId, selectedPatientId]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("tab", activeTab);
+    if (selectedPatientId) {
+      nextParams.set("patient", selectedPatientId);
+    } else {
+      nextParams.delete("patient");
+    }
+    if (activeTab === "examenes" && selectedAttachmentId !== null) {
+      nextParams.set("attachment", String(selectedAttachmentId));
+    } else {
+      nextParams.delete("attachment");
+    }
+    if (activeTab === "examenes" && selectedAnalysisId !== null) {
+      nextParams.set("analysis", String(selectedAnalysisId));
+    } else {
+      nextParams.delete("analysis");
+    }
+    if (activeTab === "examenes" && viewerPage !== null) {
+      nextParams.set("page", String(viewerPage));
+    } else {
+      nextParams.delete("page");
+    }
+    const currentQuery = searchParams.toString();
+    const nextQuery = nextParams.toString();
+    if (currentQuery === nextQuery) {
+      return;
+    }
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [activeTab, pathname, router, searchParams, selectedAnalysisId, selectedAttachmentId, selectedPatientId, viewerPage]);
+
+  const handleAttachmentWorkspaceNavigation = useCallback((attachmentId: number) => {
+    const attachment = selectedSummary?.attachments.find((item) => item.id === attachmentId) ?? null;
+    if (!attachment) {
+      void openAttachment(attachmentId);
+      return;
+    }
+    const isStudyAttachment =
+      attachment.file_type === "lab_result" ||
+      (attachment.content_type ?? "").toLowerCase() === "application/pdf" ||
+      attachment.file_name.toLowerCase().endsWith(".pdf");
+    if (!isStudyAttachment) {
+      void openAttachment(attachmentId);
+      return;
+    }
+    goToExamAnalyses({
+      patientId: selectedSummary?.patient.id ?? attachment.patient_id,
+      attachmentId,
+    });
+  }, [goToExamAnalyses, openAttachment, selectedSummary]);
+
+  const currentExamAnalysisDeepLink = useMemo(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const params = new URLSearchParams();
+    params.set("tab", "examenes");
+    if (selectedPatientId) {
+      params.set("patient", selectedPatientId);
+    }
+    if (selectedAttachmentId !== null) {
+      params.set("attachment", String(selectedAttachmentId));
+    }
+    if (selectedAnalysisId !== null) {
+      params.set("analysis", String(selectedAnalysisId));
+    }
+    if (viewerPage !== null) {
+      params.set("page", String(viewerPage));
+    }
+    return `${window.location.origin}${pathname}?${params.toString()}`;
+  }, [pathname, selectedAnalysisId, selectedAttachmentId, selectedPatientId, viewerPage]);
+
+  const copyCurrentExamAnalysisDeepLink = useCallback(async () => {
+    if (!currentExamAnalysisDeepLink || typeof navigator === "undefined" || !navigator.clipboard) {
+      setMessage("No se pudo copiar el enlace del estudio.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(currentExamAnalysisDeepLink);
+      setMessage("Enlace del estudio copiado.");
+    } catch {
+      setMessage("No se pudo copiar el enlace del estudio.");
+    }
+  }, [currentExamAnalysisDeepLink, setMessage]);
 
   const { encountersTabProps, messagesTabProps, patientsTabProps } = useClinicalTabProps({
     encountersTabProps: {
@@ -743,7 +876,7 @@ export function ClinicalConsole() {
       onEncounterDoctorFilterChange: setDoctorFilter,
       onGoToAgendaAppointment: goToAgendaAppointment,
       onGoToPatient: goToPatient,
-      openAttachment,
+      openAttachment: handleAttachmentWorkspaceNavigation,
       patients: filteredPatients,
       prescriptionItems,
       selectedPatientId,
@@ -819,7 +952,7 @@ export function ClinicalConsole() {
       onGoToExamAnalyses: goToExamAnalyses,
       onGoToMessages: goToMessages,
       onPatientDoctorFilterChange: setDoctorFilter,
-      onOpenAttachment: openAttachment,
+      onOpenAttachment: handleAttachmentWorkspaceNavigation,
       onPatientSearchChange: setPatientSearch,
       onSelectPatient: setSelectedPatientId,
       onShowCreatePatientModal: () => setActiveSectionAction("patient_create"),
@@ -972,10 +1105,15 @@ export function ClinicalConsole() {
           examAnalysesTabProps={{
             chatDraft,
             chatMessages,
+            currentDeepLink: currentExamAnalysisDeepLink,
             isLoadingAnalyses,
             isRefreshingViewer,
             isRequestingAnalysis,
             onChatDraftChange: setChatDraft,
+            onCopyDeepLink: () => {
+              void copyCurrentExamAnalysisDeepLink();
+            },
+            onOpenPdfPage: openPdfPage,
             onRequestAnalysis: requestAnalysis,
             onSelectAnalysis: setSelectedAnalysisId,
             onSelectAttachment: setSelectedAttachmentId,
@@ -988,7 +1126,9 @@ export function ClinicalConsole() {
             selectedPatientId,
             selectedSummary,
             studyAttachments,
+            viewerPage,
             viewerUrl,
+            viewerUrlWithPage,
           }}
           gestionHubProps={{
                 activateDefault24HourReminder,
