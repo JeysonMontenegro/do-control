@@ -19,7 +19,7 @@ class Encounter(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
-    owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id"), nullable=True, unique=True)
     encounter_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     encounter_type: Mapped[str] = mapped_column(String(100))

@@ -48,6 +48,31 @@ class CommunicationDispatchService:
         }.get(retry_count, 720)
         return from_time + timedelta(minutes=backoff_minutes)
 
+    def _resolve_owner_doctor_id(self, payload: CommunicationDispatchCreate) -> int:
+        if payload.doctor_id is not None:
+            return payload.doctor_id
+
+        if payload.appointment_id is not None:
+            appointment = self.appointment_repository.get(payload.appointment_id)
+            if appointment is not None:
+                return appointment.owner_doctor_id or appointment.doctor_id
+
+        if payload.exam_order_id is not None:
+            exam_order = self.db.get(ExamOrder, payload.exam_order_id)
+            if exam_order is not None and exam_order.encounter is not None:
+                return exam_order.encounter.owner_doctor_id or exam_order.encounter.doctor_id
+
+        if payload.reminder_rule_id is not None:
+            reminder_rule = self.reminder_rule_repository.get(payload.reminder_rule_id)
+            if reminder_rule is not None and reminder_rule.doctor_id is not None:
+                return reminder_rule.doctor_id
+
+        patient = self.patient_repository.get(payload.patient_id)
+        if patient is not None and patient.owner_doctor_id is not None:
+            return patient.owner_doctor_id
+
+        raise ValidationError("Communication dispatch must be linked to an owning doctor.")
+
     def _find_appointment_manual_template(self, doctor_id: int) -> CommunicationTemplate | None:
         template = self.template_repository.find_by_key(
             APPOINTMENT_CONFIRMATION_TEMPLATE_KEY,
@@ -296,7 +321,8 @@ class CommunicationDispatchService:
         return valid_dispatches
 
     def create_dispatch(self, payload: CommunicationDispatchCreate) -> CommunicationDispatch:
-        if self.patient_repository.get(payload.patient_id) is None:
+        patient = self.patient_repository.get(payload.patient_id)
+        if patient is None:
             raise NotFoundError("Patient not found.")
         if payload.doctor_id is not None and self.doctor_repository.get(payload.doctor_id) is None:
             raise NotFoundError("Doctor not found.")
@@ -307,13 +333,7 @@ class CommunicationDispatchService:
         if payload.template_id is not None and self.template_repository.get(payload.template_id) is None:
             raise NotFoundError("Communication template not found.")
 
-        owner_doctor_id = payload.doctor_id
-        if owner_doctor_id is None and payload.appointment_id is not None:
-            appointment = self.appointment_repository.get(payload.appointment_id)
-            owner_doctor_id = appointment.doctor_id if appointment is not None else None
-        if owner_doctor_id is None and payload.reminder_rule_id is not None:
-            reminder_rule = self.reminder_rule_repository.get(payload.reminder_rule_id)
-            owner_doctor_id = reminder_rule.doctor_id if reminder_rule is not None else None
+        owner_doctor_id = self._resolve_owner_doctor_id(payload)
         dispatch = self.repository.create(CommunicationDispatch(**payload.model_dump(), owner_doctor_id=owner_doctor_id))
         if dispatch.rendered_message is None:
             dispatch.rendered_message = self.render_dispatch_message(dispatch)

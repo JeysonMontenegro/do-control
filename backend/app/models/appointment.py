@@ -24,7 +24,7 @@ class Appointment(TimestampMixin, Base):
     public_id: Mapped[str] = mapped_column(String(36), default=lambda: str(uuid4()), unique=True, nullable=False)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"))
-    owner_doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), nullable=True)
+    owner_doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
     scheduled_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     scheduled_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     appointment_type: Mapped[str] = mapped_column(String(100))
