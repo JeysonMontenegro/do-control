@@ -652,8 +652,11 @@ class IntegrationService:
         clinic = next((item for item in doctor.clinics if item.is_primary), doctor.clinics[0])
         return clinic.clinic_name, clinic.address
 
-    def get_pending_appointment(self, patient_id: int) -> PendingAppointmentsRead:
+    def get_pending_appointment(self, patient_id: int, *, requester_phone_number: str | None = None) -> PendingAppointmentsRead:
         appointments = self.appointment_service.get_pending_for_patient(patient_id)
+        accessible_doctor_ids = self._requester_accessible_doctor_ids(requester_phone_number)
+        if accessible_doctor_ids is not None:
+            appointments = [appointment for appointment in appointments if appointment.doctor_id in accessible_doctor_ids]
         results: list[PendingAppointmentRead] = []
         for appointment in appointments:
             clinic_name, clinic_address = self._select_primary_clinic(appointment)

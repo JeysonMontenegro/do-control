@@ -200,10 +200,11 @@ def get_doctor_schedule(
 @router.get("/appointments/pending", response_model=PendingAppointmentsRead)
 def get_pending_appointment(
     patient_id: int = Query(...),
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> PendingAppointmentsRead:
-    return IntegrationService(db).get_pending_appointment(patient_id)
+    return IntegrationService(db).get_pending_appointment(patient_id, requester_phone_number=requester_phone_number)
 
 
 @router.post("/exam-analyses", response_model=ExamAnalysisRead, status_code=status.HTTP_202_ACCEPTED)

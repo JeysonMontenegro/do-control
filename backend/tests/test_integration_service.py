@@ -304,6 +304,39 @@ class IntegrationServicePendingAppointmentsTests(unittest.TestCase):
 
         self.assertEqual(result.appointments, [])
 
+    def test_pending_appointments_applies_requester_doctor_scope(self) -> None:
+        first_appointment = SimpleNamespace(
+            id=11,
+            public_id="pub-11",
+            doctor_id=3,
+            patient_id=9,
+            scheduled_start=datetime(2026, 4, 1, 15, 0, tzinfo=timezone.utc),
+            scheduled_end=datetime(2026, 4, 1, 15, 30, tzinfo=timezone.utc),
+            status="scheduled",
+            confirmation_status="pending",
+            doctor=SimpleNamespace(first_name="Steve", last_name="Alay", specialty="Medicina general", clinics=[]),
+        )
+        second_appointment = SimpleNamespace(
+            id=12,
+            public_id="pub-12",
+            doctor_id=8,
+            patient_id=9,
+            scheduled_start=datetime(2026, 4, 2, 16, 0, tzinfo=timezone.utc),
+            scheduled_end=datetime(2026, 4, 2, 16, 45, tzinfo=timezone.utc),
+            status="scheduled",
+            confirmation_status="confirmed",
+            doctor=SimpleNamespace(first_name="Otro", last_name="Doctor", specialty="Pediatría", clinics=[]),
+        )
+        self.service.appointment_service = SimpleNamespace(
+            get_pending_for_patient=lambda _patient_id: [first_appointment, second_appointment]
+        )
+        self.service._requester_accessible_doctor_ids = lambda _phone: {3}
+
+        result = self.service.get_pending_appointment(9, requester_phone_number="50255510000")
+
+        self.assertEqual(len(result.appointments), 1)
+        self.assertEqual(result.appointments[0].appointment_id, 11)
+
     def test_raises_when_patient_does_not_exist(self) -> None:
         self.service.appointment_service = SimpleNamespace(
             get_pending_for_patient=lambda _patient_id: (_ for _ in ()).throw(NotFoundError("Patient not found."))
