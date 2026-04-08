@@ -100,11 +100,12 @@ def update_patient_phone(
 @router.patch("/patients/{patient_id}/deactivate", response_model=IntegrationPatientDeactivateResponse)
 def deactivate_patient(
     patient_id: int,
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> IntegrationPatientDeactivateResponse:
     try:
-        return IntegrationService(db).deactivate_patient(patient_id)
+        return IntegrationService(db).deactivate_patient(patient_id, requester_phone_number=requester_phone_number)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -112,11 +113,14 @@ def deactivate_patient(
 @router.get("/doctors/{doctor_id}", response_model=DoctorVerificationRead)
 def verify_doctor(
     doctor_id: int,
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> DoctorVerificationRead:
     try:
-        return IntegrationService(db).verify_doctor(doctor_id)
+        service = IntegrationService(db)
+        service._assert_requester_can_access_doctor(doctor_id, requester_phone_number)
+        return service.verify_doctor(doctor_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -188,11 +192,12 @@ def request_appointment_reschedule(
 def get_doctor_schedule(
     doctor_id: int = Query(...),
     date_value: date = Query(..., alias="date"),
+    requester_phone_number: str | None = Query(default=None),
     db: Session = Depends(get_db_session),
     _key: str = Depends(require_integration_key),
 ) -> list[DoctorScheduleAppointmentRead]:
     try:
-        return IntegrationService(db).list_schedule(doctor_id, date_value)
+        return IntegrationService(db).list_schedule(doctor_id, date_value, requester_phone_number=requester_phone_number)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

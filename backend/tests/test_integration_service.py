@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -436,6 +436,7 @@ class IntegrationServicePatientDeactivationTests(unittest.TestCase):
 
     def test_returns_deactivated_status(self) -> None:
         self.service.patient_service = SimpleNamespace(
+            get_patient=lambda patient_id, accessible_doctor_ids=None, doctor_id=None: SimpleNamespace(id=patient_id),
             deactivate_patient=lambda patient_id: SimpleNamespace(id=patient_id)
         )
 
@@ -443,6 +444,82 @@ class IntegrationServicePatientDeactivationTests(unittest.TestCase):
 
         self.assertEqual(result.status, "deactivated")
         self.assertEqual(result.patient_id, 29)
+
+    def test_deactivate_patient_rejects_requester_outside_scope(self) -> None:
+        self.service._get_patient_for_requester = lambda _patient_id, _phone: (_ for _ in ()).throw(NotFoundError("Patient not found."))
+
+        with self.assertRaises(NotFoundError):
+            self.service.deactivate_patient(29, requester_phone_number="50255510000")
+
+
+class IntegrationServiceRequesterScopeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.service = IntegrationService(DummySession())
+
+    def test_create_patient_passes_requester_scope_to_patient_service(self) -> None:
+        captured = {}
+
+        def create_patient(payload, *, accessible_doctor_ids=None):
+            captured["doctor_id"] = payload.doctor_id
+            captured["accessible_doctor_ids"] = accessible_doctor_ids
+            return SimpleNamespace(
+                id=7,
+                medical_record_number="EXP-000007",
+                first_name=payload.first_name,
+                last_name=payload.last_name,
+                display_name=payload.display_name,
+                primary_phone=payload.primary_phone,
+            )
+
+        self.service.patient_service = SimpleNamespace(
+            split_full_name=lambda full_name: ("Pedro", "Ruiz"),
+            create_patient=create_patient,
+        )
+        self.service._assert_requester_can_access_doctor = lambda doctor_id, requester_phone_number: {doctor_id}
+
+        result = self.service.create_patient(
+            SimpleNamespace(
+                full_name="Pedro Ruiz",
+                first_name=None,
+                last_name=None,
+                display_name="Pedro Ruiz (padre)",
+                primary_phone="50255510000",
+                doctor_id=3,
+                requester_phone_number="50250000000",
+            )
+        )
+
+        self.assertEqual(result.id, 7)
+        self.assertEqual(captured["doctor_id"], 3)
+        self.assertEqual(captured["accessible_doctor_ids"], {3})
+
+    def test_update_patient_phone_validates_requester_scope(self) -> None:
+        called = {}
+        self.service._get_patient_for_requester = lambda patient_id, requester_phone_number: called.setdefault(
+            "args", (patient_id, requester_phone_number)
+        ) or SimpleNamespace(id=patient_id)
+        self.service.patient_service = SimpleNamespace(
+            update_primary_phone_with_history=lambda patient_id, phone_number: (
+                SimpleNamespace(id=patient_id, primary_phone=phone_number),
+                "50211111111",
+            )
+        )
+
+        result = self.service.update_patient_phone(
+            29,
+            SimpleNamespace(phone_number="50222222222", requester_phone_number="50250000000"),
+        )
+
+        self.assertEqual(called["args"], (29, "50250000000"))
+        self.assertEqual(result.primary_phone, "50222222222")
+
+    def test_list_schedule_rejects_requester_outside_scope(self) -> None:
+        self.service._assert_requester_can_access_doctor = lambda doctor_id, requester_phone_number: (_ for _ in ()).throw(
+            NotFoundError("Doctor not found.")
+        )
+
+        with self.assertRaises(NotFoundError):
+            self.service.list_schedule(3, date(2026, 4, 7), requester_phone_number="50250000000")
 
 
 if __name__ == "__main__":

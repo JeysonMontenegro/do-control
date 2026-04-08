@@ -81,6 +81,7 @@ class IntegrationPatientCreateRequest(BaseModel):
     last_name: str | None = None
     primary_phone: str
     doctor_id: int
+    requester_phone_number: str | None = None
 
     @model_validator(mode="after")
     def validate_name_input(self) -> "IntegrationPatientCreateRequest":
@@ -101,6 +102,7 @@ class IntegrationPatientCreateResponse(BaseModel):
 
 class IntegrationPatientPhoneUpdateRequest(BaseModel):
     phone_number: str
+    requester_phone_number: str | None = None
 
 
 class IntegrationPatientPhoneUpdateResponse(BaseModel):

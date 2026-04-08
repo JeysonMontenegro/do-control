@@ -166,6 +166,16 @@ class IntegrationService:
             primary_phone=primary_phone,
         )
 
+    def _assert_requester_can_access_doctor(self, doctor_id: int, requester_phone_number: str | None) -> set[int] | None:
+        accessible_doctor_ids = self._requester_accessible_doctor_ids(requester_phone_number)
+        if accessible_doctor_ids is not None and doctor_id not in accessible_doctor_ids:
+            raise NotFoundError("Doctor not found.")
+        return accessible_doctor_ids
+
+    def _get_patient_for_requester(self, patient_id: int, requester_phone_number: str | None):
+        accessible_doctor_ids = self._requester_accessible_doctor_ids(requester_phone_number)
+        return self.patient_service.get_patient(patient_id, accessible_doctor_ids=accessible_doctor_ids)
+
     @staticmethod
     def _normalize_name(value: str) -> str:
         normalized = unicodedata.normalize("NFKD", value)
@@ -239,6 +249,7 @@ class IntegrationService:
         return PatientMatchResponse(status=status, candidate_matches=candidates)
 
     def create_patient(self, payload: IntegrationPatientCreateRequest) -> IntegrationPatientCreateResponse:
+        accessible_doctor_ids = self._assert_requester_can_access_doctor(payload.doctor_id, payload.requester_phone_number)
         if payload.full_name:
             first_name, last_name = self.patient_service.split_full_name(payload.full_name)
         else:
@@ -252,7 +263,8 @@ class IntegrationService:
                 primary_phone=payload.primary_phone,
                 doctor_id=payload.doctor_id,
                 display_name=payload.display_name,
-            )
+            ),
+            accessible_doctor_ids=accessible_doctor_ids,
         )
         return IntegrationPatientCreateResponse(
             id=patient.id,
@@ -267,6 +279,7 @@ class IntegrationService:
         patient_id: int,
         payload: IntegrationPatientPhoneUpdateRequest,
     ) -> IntegrationPatientPhoneUpdateResponse:
+        self._get_patient_for_requester(patient_id, payload.requester_phone_number)
         patient, previous_phone = self.patient_service.update_primary_phone_with_history(patient_id, payload.phone_number)
         return IntegrationPatientPhoneUpdateResponse(
             status="updated",
@@ -275,7 +288,8 @@ class IntegrationService:
             previous_phone=previous_phone,
         )
 
-    def deactivate_patient(self, patient_id: int) -> IntegrationPatientDeactivateResponse:
+    def deactivate_patient(self, patient_id: int, *, requester_phone_number: str | None = None) -> IntegrationPatientDeactivateResponse:
+        self._get_patient_for_requester(patient_id, requester_phone_number)
         patient = self.patient_service.deactivate_patient(patient_id)
         return IntegrationPatientDeactivateResponse(status="deactivated", patient_id=patient.id)
 
@@ -627,7 +641,8 @@ class IntegrationService:
             requested_end=requested_end,
         )
 
-    def list_schedule(self, doctor_id: int, target_date: date) -> list[DoctorScheduleAppointmentRead]:
+    def list_schedule(self, doctor_id: int, target_date: date, *, requester_phone_number: str | None = None) -> list[DoctorScheduleAppointmentRead]:
+        self._assert_requester_can_access_doctor(doctor_id, requester_phone_number)
         appointments = self.appointment_service.list_schedule_for_doctor_date(doctor_id, target_date)
         return [
             DoctorScheduleAppointmentRead(
