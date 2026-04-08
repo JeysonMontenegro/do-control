@@ -190,7 +190,10 @@ class IntegrationService:
         return None
 
     def match_patient(self, payload: PatientMatchRequest) -> PatientMatchResponse:
-        results = self.patient_service.list_patients(query=payload.phone_number.strip() or None)
+        results = self.patient_service.list_patients(
+            query=payload.phone_number.strip() or None,
+            accessible_doctor_ids=self._requester_accessible_doctor_ids(payload.requester_phone_number),
+        )
         candidates = []
         requested_name = payload.patient_name.strip()
         for patient in results:
@@ -432,7 +435,11 @@ class IntegrationService:
             patient_id = patient.id
         else:
             match = self.match_patient(
-                PatientMatchRequest(patient_name=payload.patient_name, phone_number=payload.phone_number)
+                PatientMatchRequest(
+                    patient_name=payload.patient_name,
+                    phone_number=payload.phone_number,
+                    requester_phone_number=payload.requester_phone_number,
+                )
             )
             if match.status == "matched":
                 patient_id = match.candidate_matches[0].patient_id

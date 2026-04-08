@@ -23,7 +23,7 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
         _audit_log,
     ) -> None:
         self.service.patient_service = SimpleNamespace(
-            list_patients=lambda query: [
+            list_patients=lambda query=None, accessible_doctor_ids=None, doctor_id=None: [
                 SimpleNamespace(
                     id=3,
                     display_name=None,
@@ -65,7 +65,7 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
         _audit_log,
     ) -> None:
         self.service.patient_service = SimpleNamespace(
-            list_patients=lambda query: [
+            list_patients=lambda query=None, accessible_doctor_ids=None, doctor_id=None: [
                 SimpleNamespace(
                     id=3,
                     display_name="Ana María (mamá)",
@@ -103,7 +103,7 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
         _audit_log,
     ) -> None:
         self.service.patient_service = SimpleNamespace(
-            list_patients=lambda query: [
+            list_patients=lambda query=None, accessible_doctor_ids=None, doctor_id=None: [
                 SimpleNamespace(
                     id=1,
                     display_name=None,
@@ -133,6 +133,35 @@ class IntegrationServiceMatchPatientTests(unittest.TestCase):
 
         self.assertEqual(result.status, "no_match")
         self.assertEqual(result.candidate_matches, [])
+
+    @patch("app.services.integration.create_audit_log")
+    def test_match_patient_applies_requester_doctor_scope(
+        self,
+        _audit_log,
+    ) -> None:
+        captured = {}
+
+        def list_patients(*, query=None, accessible_doctor_ids=None, doctor_id=None):
+            captured["query"] = query
+            captured["accessible_doctor_ids"] = accessible_doctor_ids
+            captured["doctor_id"] = doctor_id
+            return []
+
+        self.service.patient_service = SimpleNamespace(list_patients=list_patients)
+        self.service._requester_accessible_doctor_ids = lambda _phone: {7}
+
+        result = self.service.match_patient(
+            PatientMatchRequest(
+                patient_name="Pedro Ruiz",
+                phone_number="55510000",
+                requester_phone_number="50255510000",
+            )
+        )
+
+        self.assertEqual(result.status, "no_match")
+        self.assertEqual(captured["query"], "55510000")
+        self.assertEqual(captured["accessible_doctor_ids"], {7})
+        self.assertIsNone(captured["doctor_id"])
 
 
 class IntegrationServiceVerifyUserByPhoneTests(unittest.TestCase):

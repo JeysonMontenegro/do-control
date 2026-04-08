@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 class PatientMatchRequest(BaseModel):
     patient_name: str
     phone_number: str
+    requester_phone_number: str | None = None
 
 
 class PatientMatchCandidate(BaseModel):
