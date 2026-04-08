@@ -128,11 +128,16 @@ class CommunicationTemplateService:
 
         patient_id = payload.patient_id
         doctor_id = payload.doctor_id
+        patient = None
 
         if payload.appointment_id is not None:
             appointment = self.appointment_repository.get(payload.appointment_id)
             if appointment is None:
                 raise NotFoundError("Appointment not found.")
+            if patient_id is not None and patient_id != appointment.patient_id:
+                raise ValidationError("Appointment does not belong to the selected patient.")
+            if doctor_id is not None and doctor_id != appointment.doctor_id:
+                raise ValidationError("Appointment does not belong to the selected doctor.")
             patient_id = patient_id or appointment.patient_id
             doctor_id = doctor_id or appointment.doctor_id
 
@@ -142,14 +147,26 @@ class CommunicationTemplateService:
                 raise NotFoundError("Exam order not found.")
             if exam_order.encounter is None:
                 raise NotFoundError("Exam order encounter not found.")
+            if patient_id is not None and patient_id != exam_order.encounter.patient_id:
+                raise ValidationError("Exam order does not belong to the selected patient.")
+            if doctor_id is not None and doctor_id != exam_order.encounter.doctor_id:
+                raise ValidationError("Exam order does not belong to the selected doctor.")
             patient_id = patient_id or exam_order.encounter.patient_id
             doctor_id = doctor_id or exam_order.encounter.doctor_id
+
+        if patient_id is not None:
+            patient = self.patient_repository.get(patient_id)
+            if patient is None:
+                raise NotFoundError("Patient not found.")
+            if doctor_id is not None and patient.owner_doctor_id != doctor_id:
+                raise ValidationError("Patient does not belong to the selected doctor.")
+            if scoped_doctor_ids is not None and patient.owner_doctor_id not in scoped_doctor_ids:
+                raise ValidationError("You can only preview communication templates inside your own doctor scope.")
+            doctor_id = doctor_id or patient.owner_doctor_id
 
         if doctor_id is not None:
             self._assert_doctor_in_scope(doctor_id, scoped_doctor_ids=scoped_doctor_ids)
 
-        if patient_id is not None and self.patient_repository.get(patient_id) is None:
-            raise NotFoundError("Patient not found.")
         if doctor_id is not None and self.doctor_repository.get(doctor_id) is None:
             raise NotFoundError("Doctor not found.")
 
