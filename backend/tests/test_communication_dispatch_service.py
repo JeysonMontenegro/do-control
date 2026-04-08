@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 import unittest
 
+from app.models.all_models import *  # noqa: F401,F403
 from app.models.communication_dispatch import CommunicationDispatch
 from app.models.communication_template import CommunicationTemplate
 from app.schemas.communication_dispatch import CommunicationDispatchCreate
-from app.services.errors import ValidationError
+from app.services.errors import NotFoundError, ValidationError
 from app.services.communication_dispatch import CommunicationDispatchService
 
 
@@ -104,6 +105,35 @@ class CommunicationDispatchServiceRenderTests(unittest.TestCase):
         self.assertEqual(captured["kwargs"]["patient_id"], 8)
         self.assertEqual(captured["kwargs"]["appointment_id"], 12)
         self.assertEqual(captured["kwargs"]["owner_doctor_ids"], {3})
+
+    def test_get_summary_passes_owner_scope_to_repository(self) -> None:
+        service = CommunicationDispatchService.__new__(CommunicationDispatchService)
+        captured = {}
+        def summary(**kwargs):
+            captured["kwargs"] = kwargs
+            return {
+                "total": 0,
+                "pending": 0,
+                "sent": 0,
+                "delivered": 0,
+                "failed": 0,
+                "due_now": 0,
+            }
+        service.repository = SimpleNamespace(summary=summary)
+
+        service.get_summary(accessible_doctor_ids={5})
+
+        self.assertEqual(captured["kwargs"]["owner_doctor_ids"], {5})
+
+    def test_list_attempts_rejects_dispatch_outside_owner_scope(self) -> None:
+        service = CommunicationDispatchService.__new__(CommunicationDispatchService)
+        service.repository = SimpleNamespace(get=lambda _dispatch_id: SimpleNamespace(owner_doctor_id=8))
+        service.attempt_repository = SimpleNamespace(list_for_dispatch=lambda _dispatch_id, limit=50: [])
+
+        with self.assertRaises(NotFoundError) as exc:
+            service.list_attempts(12, accessible_doctor_ids={5})
+
+        self.assertEqual(str(exc.exception), "Communication dispatch not found.")
 
 
 if __name__ == "__main__":

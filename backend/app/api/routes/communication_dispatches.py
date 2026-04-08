@@ -55,9 +55,10 @@ def list_communication_dispatches(
 @router.get("/summary", response_model=CommunicationDispatchSummaryRead)
 def get_communication_dispatch_summary(
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    current_user=Depends(require_roles("admin", "receptionist")),
 ) -> CommunicationDispatchSummaryRead:
-    return CommunicationDispatchService(db).get_summary()
+    accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+    return CommunicationDispatchService(db).get_summary(accessible_doctor_ids=accessible_doctor_ids)
 
 
 @router.post("/appointments/{appointment_id}/send-now", response_model=CommunicationDispatchRead, status_code=status.HTTP_201_CREATED)
@@ -101,10 +102,15 @@ def list_communication_dispatch_attempts(
     dispatch_id: int,
     limit: int = 50,
     db: Session = Depends(get_db_session),
-    _current_user=Depends(require_roles("admin", "receptionist")),
+    current_user=Depends(require_roles("admin", "receptionist")),
 ) -> list[CommunicationDispatchAttemptRead]:
     try:
-        return CommunicationDispatchService(db).list_attempts(dispatch_id, limit=limit)
+        accessible_doctor_ids = DoctorService(db).accessible_doctor_ids(current_user)
+        return CommunicationDispatchService(db).list_attempts(
+            dispatch_id,
+            limit=limit,
+            accessible_doctor_ids=accessible_doctor_ids,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

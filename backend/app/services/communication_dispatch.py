@@ -307,8 +307,8 @@ class CommunicationDispatchService:
         )
         return [self._serialize_dispatch(dispatch) for dispatch in dispatches]
 
-    def get_summary(self) -> CommunicationDispatchSummaryRead:
-        return CommunicationDispatchSummaryRead(**self.repository.summary())
+    def get_summary(self, *, accessible_doctor_ids: set[int] | None = None) -> CommunicationDispatchSummaryRead:
+        return CommunicationDispatchSummaryRead(**self.repository.summary(owner_doctor_ids=accessible_doctor_ids))
 
     def list_pending_dispatches(self, *, limit: int = 100) -> list[CommunicationDispatch]:
         self.generate_due_dispatches()
@@ -559,8 +559,17 @@ class CommunicationDispatchService:
         self.db.refresh(dispatch)
         return dispatch
 
-    def list_attempts(self, dispatch_id: int, *, limit: int = 50) -> list[CommunicationDispatchAttemptRead]:
-        if self.repository.get(dispatch_id) is None:
+    def list_attempts(
+        self,
+        dispatch_id: int,
+        *,
+        limit: int = 50,
+        accessible_doctor_ids: set[int] | None = None,
+    ) -> list[CommunicationDispatchAttemptRead]:
+        dispatch = self.repository.get(dispatch_id)
+        if dispatch is None:
+            raise NotFoundError("Communication dispatch not found.")
+        if accessible_doctor_ids is not None and dispatch.owner_doctor_id not in accessible_doctor_ids:
             raise NotFoundError("Communication dispatch not found.")
         return [
             CommunicationDispatchAttemptRead.model_validate(attempt)

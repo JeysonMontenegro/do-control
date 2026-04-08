@@ -107,17 +107,29 @@ class CommunicationDispatchRepository:
         )
         return self.db.scalar(statement) is not None
 
-    def summary(self, *, current_time: datetime | None = None) -> dict[str, int]:
+    def summary(self, *, current_time: datetime | None = None, owner_doctor_ids: set[int] | None = None) -> dict[str, int]:
         now = current_time or datetime.now(timezone.utc)
+        base_statement = select(CommunicationDispatch)
+        if owner_doctor_ids is not None:
+            if not owner_doctor_ids:
+                return {
+                    "total": 0,
+                    "pending": 0,
+                    "sent": 0,
+                    "delivered": 0,
+                    "failed": 0,
+                    "due_now": 0,
+                }
+            base_statement = base_statement.where(CommunicationDispatch.owner_doctor_id.in_(owner_doctor_ids))
         counts = {
             status: count
             for status, count in self.db.execute(
-                select(CommunicationDispatch.status, func.count(CommunicationDispatch.id))
+                base_statement.with_only_columns(CommunicationDispatch.status, func.count(CommunicationDispatch.id))
                 .group_by(CommunicationDispatch.status)
             ).all()
         }
         due_now = self.db.scalar(
-            select(func.count(CommunicationDispatch.id)).where(
+            base_statement.with_only_columns(func.count(CommunicationDispatch.id)).where(
                 CommunicationDispatch.status == "pending",
                 or_(
                     CommunicationDispatch.next_attempt_at.is_(None),
@@ -125,7 +137,7 @@ class CommunicationDispatchRepository:
                 ),
             )
         ) or 0
-        total = self.db.scalar(select(func.count(CommunicationDispatch.id))) or 0
+        total = self.db.scalar(base_statement.with_only_columns(func.count(CommunicationDispatch.id))) or 0
         return {
             "total": total,
             "pending": counts.get("pending", 0),
