@@ -76,6 +76,11 @@ class AppointmentReviewItemService:
             for item in self.repository.list(review_status=review_status, limit=limit, doctor_ids=doctor_ids)
         ]
 
+    @staticmethod
+    def _assert_doctor_in_scope(doctor_id: int | None, *, doctor_ids: set[int] | None) -> None:
+        if doctor_ids is not None and (doctor_id is None or doctor_id not in doctor_ids):
+            raise NotFoundError("Doctor not found.")
+
     def resolve_item(self, item_id: int, payload: AppointmentReviewItemResolveRequest, *, current_user: User) -> AppointmentReviewItemRead:
         item = self.repository.get(item_id)
         if item is None:
@@ -97,11 +102,16 @@ class AppointmentReviewItemService:
             item.review_status = "rejected"
             item.review_message = payload.note or item.review_message
         elif payload.action == "link_existing":
-            if payload.appointment_id is None:
+            appointment_id = payload.appointment_id
+            if appointment_id is None:
                 raise ValidationError("appointment_id is required to link an existing appointment.")
-            if self.appointment_service.repository.get(payload.appointment_id) is None:
+            appointment = self.appointment_service.repository.get(appointment_id)
+            if appointment is None:
                 raise NotFoundError("Appointment not found.")
-            item.existing_appointment_id = payload.appointment_id
+            self._assert_doctor_in_scope(appointment.doctor_id, doctor_ids=doctor_ids)
+            if item.doctor_id is not None and appointment.doctor_id != item.doctor_id:
+                raise ValidationError("Appointment doctor does not match the review item doctor.")
+            item.existing_appointment_id = appointment_id
             item.review_status = "resolved"
             item.review_message = payload.note or "Linked to existing appointment."
         elif payload.action == "create_appointment":
@@ -110,6 +120,9 @@ class AppointmentReviewItemService:
             doctor_id = payload.doctor_id or item.doctor_id
             if doctor_id is None:
                 raise ValidationError("doctor_id is required to create an appointment when the review item has no resolved doctor.")
+            self._assert_doctor_in_scope(doctor_id, doctor_ids=doctor_ids)
+            if item.doctor_id is not None and doctor_id != item.doctor_id:
+                raise ValidationError("doctor_id does not match the review item doctor.")
             created = self.appointment_service.create_appointment(
                 AppointmentCreate(
                     patient_id=payload.patient_id,
