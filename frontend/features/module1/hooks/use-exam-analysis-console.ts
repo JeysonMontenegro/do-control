@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AttachmentDownload, ExamAnalysis, FileAttachment, PatientSummary } from "@/features/module1/types";
 import { apiGet, apiPost } from "@/lib/api";
@@ -32,6 +32,8 @@ export function useExamAnalysisConsole({
   const [isRequestingAnalysis, setIsRequestingAnalysis] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const appliedAttachmentDeepLinkRef = useRef<string | null>(null);
+  const appliedAnalysisDeepLinkRef = useRef<string | null>(null);
 
   const studyAttachments = useMemo(
     () =>
@@ -70,6 +72,11 @@ export function useExamAnalysisConsole({
   }, [analysesByAttachment, deepLinkedAnalysisId]);
 
   const requestedAttachmentId = deepLinkedAttachmentId ?? linkedAttachmentIdFromAnalysis;
+
+  useEffect(() => {
+    appliedAttachmentDeepLinkRef.current = null;
+    appliedAnalysisDeepLinkRef.current = null;
+  }, [selectedPatientId]);
 
   const refreshAnalyses = useCallback(async () => {
     if (!selectedPatientId || !studyAttachments.length) {
@@ -116,18 +123,24 @@ export function useExamAnalysisConsole({
       setSelectedAttachmentId(null);
       setSelectedAnalysisId(null);
       setViewerUrl(null);
+      appliedAttachmentDeepLinkRef.current = null;
+      appliedAnalysisDeepLinkRef.current = null;
       return;
     }
     if (requestedAttachmentId !== null && studyAttachments.some((attachment) => attachment.id === requestedAttachmentId)) {
-      if (selectedAttachmentId !== requestedAttachmentId) {
-        setSelectedAttachmentId(requestedAttachmentId);
+      const deepLinkKey = `${selectedPatientId}:${requestedAttachmentId}`;
+      if (appliedAttachmentDeepLinkRef.current !== deepLinkKey) {
+        appliedAttachmentDeepLinkRef.current = deepLinkKey;
+        if (selectedAttachmentId !== requestedAttachmentId) {
+          setSelectedAttachmentId(requestedAttachmentId);
+        }
       }
       return;
     }
     if (!selectedAttachmentId || !studyAttachments.some((attachment) => attachment.id === selectedAttachmentId)) {
       setSelectedAttachmentId(studyAttachments[0].id);
     }
-  }, [requestedAttachmentId, selectedAttachmentId, studyAttachments]);
+  }, [requestedAttachmentId, selectedAttachmentId, selectedPatientId, studyAttachments]);
 
   useEffect(() => {
     void refreshAnalyses();
@@ -146,18 +159,23 @@ export function useExamAnalysisConsole({
   useEffect(() => {
     if (!selectedAttachmentAnalyses.length) {
       setSelectedAnalysisId(null);
+      appliedAnalysisDeepLinkRef.current = null;
       return;
     }
     if (deepLinkedAnalysisId !== null && selectedAttachmentAnalyses.some((analysis) => analysis.id === deepLinkedAnalysisId)) {
-      if (selectedAnalysisId !== deepLinkedAnalysisId) {
-        setSelectedAnalysisId(deepLinkedAnalysisId);
+      const deepLinkKey = `${selectedPatientId}:${selectedAttachmentId ?? "none"}:${deepLinkedAnalysisId}`;
+      if (appliedAnalysisDeepLinkRef.current !== deepLinkKey) {
+        appliedAnalysisDeepLinkRef.current = deepLinkKey;
+        if (selectedAnalysisId !== deepLinkedAnalysisId) {
+          setSelectedAnalysisId(deepLinkedAnalysisId);
+        }
       }
       return;
     }
     if (!selectedAnalysisId || !selectedAttachmentAnalyses.some((analysis) => analysis.id === selectedAnalysisId)) {
       setSelectedAnalysisId(selectedAttachmentAnalyses[0].id);
     }
-  }, [deepLinkedAnalysisId, selectedAnalysisId, selectedAttachmentAnalyses]);
+  }, [deepLinkedAnalysisId, selectedAnalysisId, selectedAttachmentAnalyses, selectedAttachmentId, selectedPatientId]);
 
   useEffect(() => {
     setChatMessages([]);

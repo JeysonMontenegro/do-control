@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   createDispatchStatusForm,
@@ -134,8 +134,6 @@ function parseConsoleTab(value: string | null): ConsoleTab | null {
 }
 
 export function ClinicalConsole() {
-  const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
   const deepLinkedTab = parseConsoleTab(searchParams.get("tab"));
@@ -754,53 +752,6 @@ export function ClinicalConsole() {
   });
   const inboxUnreadCount = conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
 
-  useEffect(() => {
-    if (deepLinkedTab && deepLinkedTab !== activeTab) {
-      setActiveTab(deepLinkedTab);
-      return;
-    }
-    if (!deepLinkedTab && activeTab !== "agenda" && !searchParams.get("tab")) {
-      setActiveTab("agenda");
-    }
-  }, [activeTab, deepLinkedTab, searchParams]);
-
-  useEffect(() => {
-    if (deepLinkedPatientId !== selectedPatientId) {
-      setSelectedPatientId(deepLinkedPatientId);
-    }
-  }, [deepLinkedPatientId, selectedPatientId]);
-
-  useEffect(() => {
-    const nextParams = new URLSearchParams(searchParams.toString());
-    nextParams.set("tab", activeTab);
-    if (selectedPatientId) {
-      nextParams.set("patient", selectedPatientId);
-    } else {
-      nextParams.delete("patient");
-    }
-    if (activeTab === "examenes" && selectedAttachmentId !== null) {
-      nextParams.set("attachment", String(selectedAttachmentId));
-    } else {
-      nextParams.delete("attachment");
-    }
-    if (activeTab === "examenes" && selectedAnalysisId !== null) {
-      nextParams.set("analysis", String(selectedAnalysisId));
-    } else {
-      nextParams.delete("analysis");
-    }
-    if (activeTab === "examenes" && viewerPage !== null) {
-      nextParams.set("page", String(viewerPage));
-    } else {
-      nextParams.delete("page");
-    }
-    const currentQuery = searchParams.toString();
-    const nextQuery = nextParams.toString();
-    if (currentQuery === nextQuery) {
-      return;
-    }
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-  }, [activeTab, pathname, router, searchParams, selectedAnalysisId, selectedAttachmentId, selectedPatientId, viewerPage]);
-
   const handleAttachmentWorkspaceNavigation = useCallback((attachmentId: number) => {
     const attachment = selectedSummary?.attachments.find((item) => item.id === attachmentId) ?? null;
     if (!attachment) {
@@ -839,8 +790,8 @@ export function ClinicalConsole() {
     if (viewerPage !== null) {
       params.set("page", String(viewerPage));
     }
-    return `${window.location.origin}${pathname}?${params.toString()}`;
-  }, [pathname, selectedAnalysisId, selectedAttachmentId, selectedPatientId, viewerPage]);
+    return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+  }, [selectedAnalysisId, selectedAttachmentId, selectedPatientId, viewerPage]);
 
   const copyCurrentExamAnalysisDeepLink = useCallback(async () => {
     if (!currentExamAnalysisDeepLink || typeof navigator === "undefined" || !navigator.clipboard) {
